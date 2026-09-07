@@ -848,7 +848,111 @@
       height: 100%;
       pointer-events: none;
       z-index: 99999 !important;
+      display: none;
+    }
+    /* Show joysticks ONLY on touch devices (Capacitor APK / mobile browser) */
+    body.touch-device .mobile-controls-layer {
       display: block !important;
+    }
+
+    /* ---- MOBILE MINI-HUD (ultra-compact HP/Reload strip, replaces giant panel) ---- */
+    .mobile-mini-hud {
+      display: none;
+      position: absolute;
+      top: max(8px, env(safe-area-inset-top, 8px));
+      left: max(10px, env(safe-area-inset-left, 10px));
+      z-index: 100001;
+      pointer-events: auto;
+      flex-direction: column;
+      gap: 4px;
+      width: 170px;
+    }
+    body.touch-device .mobile-mini-hud {
+      display: flex;
+    }
+    .mini-hud-name {
+      font-family: 'Orbitron', monospace;
+      font-size: 10px;
+      font-weight: 800;
+      color: var(--primary);
+      text-shadow: 0 0 6px var(--primary);
+      letter-spacing: 0.5px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 170px;
+    }
+    .mini-bar {
+      width: 100%;
+      height: 10px;
+      background: rgba(6, 12, 24, 0.85);
+      border: 1px solid rgba(0, 240, 255, 0.35);
+      border-radius: 5px;
+      overflow: hidden;
+      position: relative;
+    }
+    .mini-bar-fill-hp {
+      height: 100%;
+      background: linear-gradient(90deg, #00e676 0%, #2ecc71 100%);
+      border-radius: 5px;
+      transition: width 0.2s;
+      width: 100%;
+    }
+    .mini-bar-fill-reload {
+      height: 100%;
+      background: linear-gradient(90deg, #ffb800 0%, #ff9100 100%);
+      border-radius: 5px;
+      transition: width 0.15s;
+      width: 100%;
+    }
+    .mini-bar-text {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Rajdhani', sans-serif;
+      font-size: 8px;
+      font-weight: 700;
+      color: #fff;
+      text-shadow: 0 1px 2px #000;
+      pointer-events: none;
+    }
+    .mini-hud-toggle {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: rgba(10, 18, 36, 0.92);
+      border: 1.5px solid var(--primary);
+      color: var(--primary);
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      outline: none;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+      position: absolute;
+      top: 0;
+      right: -36px;
+      pointer-events: auto;
+      transition: transform 0.2s;
+      z-index: 100002;
+    }
+    .mini-hud-toggle:active {
+      transform: scale(0.9);
+    }
+
+    /* Hide the giant desktop HUD on touch devices */
+    body.touch-device .hud-top-left {
+      display: none !important;
+    }
+    /* Hide keyboard controls hint on touch devices */
+    body.touch-device .hud-controls-hint {
+      display: none !important;
     }
 
     /* Joystick Zones */
@@ -1059,10 +1163,10 @@
     /* Quick Settings Gear Button (Safe-Area & Top-Layer Aware) */
     .mobile-gear-btn {
       position: absolute;
-      top: max(14px, env(safe-area-inset-top, 14px));
-      right: max(16px, env(safe-area-inset-right, 16px));
-      width: 44px;
-      height: 44px;
+      top: max(10px, env(safe-area-inset-top, 10px));
+      right: max(10px, env(safe-area-inset-right, 10px));
+      width: 40px;
+      height: 40px;
       border-radius: 50%;
       background: rgba(10, 18, 36, 0.92);
       backdrop-filter: blur(12px);
@@ -1070,7 +1174,7 @@
       border: 2px solid var(--primary);
       box-shadow: 0 4px 18px rgba(0, 0, 0, 0.6), 0 0 15px var(--primary-glow);
       color: var(--primary);
-      font-size: 20px;
+      font-size: 18px;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -1331,7 +1435,24 @@
     <!-- Quick Settings Gear Button (Always Accessible on Mobile & Desktop) -->
     <button class="mobile-gear-btn" id="btnQuickSettings" aria-label="Sozlamalar" title="Sozlamalar">⚙️</button>
 
-    <!-- Top Left HUD -->
+    <!-- MOBILE MINI-HUD (ultra-compact, shown only on touch devices) -->
+    <div class="mobile-mini-hud" id="mobileMinHud">
+      <span class="mini-hud-name" id="miniHudName">COMMANDER</span>
+      <!-- Mini HP Bar -->
+      <div class="mini-bar">
+        <div class="mini-bar-fill-hp" id="miniHpFill" style="width:100%"></div>
+        <div class="mini-bar-text" id="miniHpText">100 / 100</div>
+      </div>
+      <!-- Mini Reload Bar -->
+      <div class="mini-bar">
+        <div class="mini-bar-fill-reload" id="miniReloadFill" style="width:100%"></div>
+        <div class="mini-bar-text" id="miniReloadText">TAYYOR</div>
+      </div>
+      <!-- Toggle to open/close full desktop HUD -->
+      <button class="mini-hud-toggle" id="btnToggleFullHud" aria-label="Batafsil">▼</button>
+    </div>
+
+    <!-- Top Left HUD (desktop full panel, hidden on touch devices by default) -->
     <div class="hud-top-left">
       <div class="player-card">
         <div class="player-header">
@@ -6094,16 +6215,54 @@
          8.2. DUAL VIRTUAL MULTI-TOUCH JOYSTICKS & ERGONOMIC ACTION BUTTONS
          ======================================================================== */
       initMobileControls() {
+        // === HYBRID DEVICE DETECTION ===
+        const isTouchDevice = ('ontouchstart' in window)
+          || (navigator && navigator.maxTouchPoints > 0)
+          || (typeof window.Capacitor !== 'undefined');
+        this.isTouchDevice = isTouchDevice;
+
+        if (typeof document !== 'undefined' && document.body) {
+          if (isTouchDevice) {
+            document.body.classList.add('touch-device');
+          } else {
+            document.body.classList.remove('touch-device');
+          }
+        }
+
         const container = document.getElementById('mobileControlsContainer');
+
+        // On desktop: hide joysticks entirely, do nothing else for touch controls
+        if (!isTouchDevice) {
+          if (container) container.style.display = 'none';
+          return; // WASD + Mouse will handle everything
+        }
+
+        // === TOUCH DEVICE PATH (Capacitor APK / mobile browser) ===
         if (container) {
-          container.classList.add('active');
           container.style.display = 'block';
         }
 
-        const hint = (typeof document !== 'undefined' && document.querySelector) ? document.querySelector('.hud-controls-hint') : null;
-        if (hint && (('ontouchstart' in window) || (navigator && navigator.maxTouchPoints > 0) || window.innerWidth <= 1024)) {
-          hint.style.display = 'none';
+        // Setup mobile mini-HUD toggle button
+        const toggleBtn = document.getElementById('btnToggleFullHud');
+        const fullHud = document.querySelector('.hud-top-left');
+        let fullHudVisible = false;
+        if (toggleBtn && fullHud) {
+          toggleBtn.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            fullHudVisible = !fullHudVisible;
+            fullHud.style.display = fullHudVisible ? 'flex' : 'none';
+            toggleBtn.textContent = fullHudVisible ? '▲' : '▼';
+          }, { passive: false });
+          toggleBtn.addEventListener('click', () => {
+            fullHudVisible = !fullHudVisible;
+            fullHud.style.display = fullHudVisible ? 'flex' : 'none';
+            toggleBtn.textContent = fullHudVisible ? '▲' : '▼';
+          });
         }
+
+        // Hide keyboard controls hint
+        const hint = (typeof document !== 'undefined' && document.querySelector) ? document.querySelector('.hud-controls-hint') : null;
+        if (hint) hint.style.display = 'none';
 
         const leftZone = document.getElementById('joystickLeftZone');
         const leftBase = document.getElementById('joystickLeftBase');
@@ -7045,6 +7204,28 @@
           }
           reloadFill.style.width = `${reloadP}%`;
           if (reloadText) reloadText.textContent = reloadLabel;
+
+          // === SYNC MOBILE MINI-HUD (if touch device) ===
+          if (this.isTouchDevice) {
+            const miniHpFill = document.getElementById('miniHpFill');
+            const miniHpText = document.getElementById('miniHpText');
+            const miniReloadFill = document.getElementById('miniReloadFill');
+            const miniReloadText = document.getElementById('miniReloadText');
+            const miniHudName = document.getElementById('miniHudName');
+            if (miniHpFill) miniHpFill.style.width = `${Math.max(0, hpPercent)}%`;
+            if (miniHpText) miniHpText.textContent = `${Math.ceil(this.player.hp)} / ${this.player.maxHp}`;
+            if (miniReloadFill) miniReloadFill.style.width = `${reloadP}%`;
+            if (miniReloadText) miniReloadText.textContent = reloadP >= 100 ? 'TAYYOR' : `${Math.round(reloadP)}%`;
+            if (miniHudName && this.playerProfile && this.playerProfile.name) {
+              miniHudName.textContent = this.playerProfile.name;
+            }
+            // Color mini HP bar based on health
+            if (miniHpFill) {
+              if (hpPercent <= 25) miniHpFill.style.background = 'linear-gradient(90deg, #ff1744, #ff5252)';
+              else if (hpPercent <= 50) miniHpFill.style.background = 'linear-gradient(90deg, #ffb800, #ff9100)';
+              else miniHpFill.style.background = 'linear-gradient(90deg, #00e676, #2ecc71)';
+            }
+          }
 
           const nitroP = Math.max(0, 1 - (this.player.nitroCooldown / 6.0)) * 100;
           document.getElementById('hudNitroFill').style.width = `${nitroP}%`;

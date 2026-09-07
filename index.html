@@ -5457,6 +5457,7 @@
         this.keys = {};
         this.mouse = { x: 0, y: 0, worldX: 0, worldY: 0, isDown: false };
         this.controlsMode = 'WASD';
+        this.botsFrozen = false;
 
         this.playerProfile = null;
         this.mobileInput = {
@@ -6651,6 +6652,11 @@
             this.player.activateNitro(this.floatingTexts, this.particles);
           }
 
+          if (e.code === 'KeyB') {
+            this.botsFrozen = !this.botsFrozen;
+            this.addFloatingNotice(this.botsFrozen ? '🧊 Botlar muzlatildi' : '🔥 Botlar faollashdi');
+          }
+
           if (e.code === 'KeyR') {
             if (this.player && !this.player.dead && !this.player.isAfk &&
                 this.player.magazine < this.player.maxMagazine && this.player.fullReloadTimer <= 0) {
@@ -7333,7 +7339,12 @@
             }, 3000);
             continue;
           }
-          this.updateAI(dt, bot);
+          if (this.botsFrozen) {
+            bot.vx = 0;
+            bot.vy = 0;
+          } else {
+            this.updateAI(dt, bot);
+          }
           bot.checkBushes(this.bushes);
         }
 

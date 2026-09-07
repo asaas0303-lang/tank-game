@@ -1,0 +1,28 @@
+{
+  "name": "tank-game-2d",
+  "version": "2.0.0",
+  "description": "AAA 2D Tank Battle Arena - WebSocket Multiplayer, Day/Night Cycle, Proximity Voice & Destructible Environments",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "keywords": [
+    "canvas",
+    "game",
+    "2d",
+    "tanks",
+    "websocket",
+    "webrtc",
+    "multiplayer",
+    "web-audio-api"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.19.2",
+    "ws": "^8.18.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

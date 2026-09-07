@@ -32,7 +32,9 @@ jobs:
 
       - name: Initialize Capacitor & Android Platform
         run: |
-          npx cap init "Tank Game" "com.tankgame.arena" --web-dir "."
+          mkdir -p www
+          cp index.html manifest.json www/
+          npx cap init "Tank Game" "com.tankgame.arena" --web-dir "www"
           npx cap add android
           npx cap sync android
 

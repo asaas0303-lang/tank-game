@@ -842,19 +842,19 @@
        MOBILE & TOUCH CONTROLS (DUAL VIRTUAL JOYSTICKS & ERGONOMIC BUTTONS)
        ========================================================================== */
     .mobile-controls-layer {
-      position: fixed !important;
+      position: fixed;
       top: 0;
       left: 0;
       width: 100%;
       height: 100%;
-      z-index: 9999999 !important;
-      display: flex !important;
-      pointer-events: auto !important;
-      opacity: 0.85 !important;
+      z-index: 9999999;
+      display: none;            /* hidden by default; the touch-device class reveals it */
+      pointer-events: auto;
+      opacity: 0.9;
     }
     /* Show joysticks ONLY on touch devices (Capacitor APK / mobile browser) */
     body.touch-device .mobile-controls-layer {
-      display: flex !important;
+      display: block !important;
     }
 
     /* ---- MOBILE MINI-HUD (ultra-compact HP/Reload strip, replaces giant panel) ---- */
@@ -6218,31 +6218,32 @@
          ======================================================================== */
       initMobileControls() {
         // === HYBRID DEVICE DETECTION ===
-        const isTouchDevice = ('ontouchstart' in window)
-          || (navigator && navigator.maxTouchPoints > 0)
-          || (typeof window.Capacitor !== 'undefined');
-        this.isTouchDevice = isTouchDevice;
-
-        if (typeof document !== 'undefined' && document.body) {
-          if (isTouchDevice) {
-            document.body.classList.add('touch-device');
-          } else {
-            document.body.classList.remove('touch-device');
-          }
-        }
-
         const container = document.getElementById('mobileControlsContainer');
 
-        // On desktop: hide joysticks entirely, do nothing else for touch controls
-        if (!isTouchDevice) {
-          if (container) container.style.display = 'none';
-          return; // WASD + Mouse will handle everything
-        }
+        const detectTouch = () => ('ontouchstart' in window)
+          || (navigator && navigator.maxTouchPoints > 0)
+          || (typeof window.Capacitor !== 'undefined')
+          || (window.matchMedia && (window.matchMedia('(pointer: coarse)').matches
+              || window.matchMedia('(any-pointer: coarse)').matches));
 
-        // === TOUCH DEVICE PATH (Capacitor APK / mobile browser) ===
-        if (container) {
-          container.style.display = 'block';
-        }
+        // Visibility is driven purely by the body.touch-device class (see CSS).
+        // enableTouchMode is idempotent so any signal can flip us into touch mode.
+        this.isTouchDevice = false;
+        const enableTouchMode = () => {
+          if (this.isTouchDevice) return;
+          this.isTouchDevice = true;
+          if (document.body) document.body.classList.add('touch-device');
+          if (container) container.style.display = ''; // clear stale inline, let class rule win
+        };
+
+        // Fallback that can't be fooled: the first real touch anywhere turns controls on,
+        // even on APK/WebViews whose capability flags wrongly report no touch.
+        window.addEventListener('touchstart', enableTouchMode, { passive: true });
+        // Capacitor injects its global slightly after load, so re-check once shortly after.
+        if (detectTouch()) enableTouchMode();
+        else setTimeout(() => { if (detectTouch()) enableTouchMode(); }, 600);
+        // NOTE: joystick listeners below are wired unconditionally; they're inert on desktop
+        // because the layer is display:none and therefore receives no pointer/touch events.
 
         // Setup mobile mini-HUD toggle button
         const toggleBtn = document.getElementById('btnToggleFullHud');

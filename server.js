@@ -212,8 +212,27 @@ function getFriendsListPayload(playerId) {
   return list;
 }
 
-wss.on('connection', (ws) => {
-  const playerId = nextPlayerId++;
+wss.on('connection', (ws, req) => {
+  // Client doimiy ID (cid) yuborsa — o'shani ishlat; bo'lmasa yangi raqamli ID ber
+  let requestedCid = null;
+  try {
+    const qs = (req && req.url && req.url.split('?')[1]) || '';
+    requestedCid = new URLSearchParams(qs).get('cid');
+  } catch (e) { requestedCid = null; }
+
+  const playerId = requestedCid || ('c' + (nextPlayerId++));
+
+  // Agar shu ID bilan eski (uzilib qolgan) ulanish hali ro'yxatda bo'lsa — uni almashtir
+  if (players.has(playerId)) {
+    const old = players.get(playerId);
+    try { if (old.ws && old.ws !== ws) old.ws.close(); } catch (e) {}
+    if (old.roomId) {
+      const oldRoom = rooms.get(old.roomId);
+      if (oldRoom) oldRoom.players.delete(playerId);
+    }
+    players.delete(playerId);
+  }
+
   const defaultName = `Commander-${playerId}`;
 
   const player = {

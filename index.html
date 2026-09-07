@@ -5753,7 +5753,18 @@
           ? `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}`
           : RAILWAY_WS;
 
-        this.ws = new WebSocket(wsUrl);
+        // Persistent per-device client ID so reconnects keep the same playerId on the server.
+        let clientId = '';
+        try {
+          clientId = localStorage.getItem('tankPlayerCID') || '';
+          if (!clientId) {
+            clientId = 'p_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
+            localStorage.setItem('tankPlayerCID', clientId);
+          }
+        } catch (e) { clientId = 'p_' + Math.random().toString(36).slice(2, 10); }
+
+        const sep = wsUrl.includes('?') ? '&' : '?';
+        this.ws = new WebSocket(wsUrl + sep + 'cid=' + encodeURIComponent(clientId));
 
         this.ws.onopen = () => {
           console.log('Connected to Tank Arena WebSocket Server');

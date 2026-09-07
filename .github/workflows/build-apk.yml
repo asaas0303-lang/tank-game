@@ -36,6 +36,7 @@ jobs:
           cp index.html manifest.json www/
           npx cap init "Tank Game" "com.tankgame.arena" --web-dir "www"
           npx cap add android
+          node scripts/configure_android.js
           sed -i -E 's/gradle-[0-9.]+-all\.zip/gradle-8.7-all.zip/g' android/gradle/wrapper/gradle-wrapper.properties
           sed -i -E 's/compileSdkVersion = [0-9]+/compileSdkVersion = 35/g' android/variables.gradle
           sed -i -E 's/targetSdkVersion = [0-9]+/targetSdkVersion = 35/g' android/variables.gradle

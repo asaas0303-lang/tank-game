@@ -666,7 +666,7 @@
       flex-direction: column;
       justify-content: center;
       align-items: center;
-      z-index: 95;
+      z-index: 1000000 !important;
       opacity: 0;
       pointer-events: none;
       transition: opacity 0.55s cubic-bezier(0.2, 0.8, 0.2, 1), backdrop-filter 0.55s ease;
@@ -675,46 +675,31 @@
       opacity: 1;
       pointer-events: auto;
     }
-    .respawn-title {
+
+    .respawn-countdown-num {
       font-family: 'Orbitron', monospace;
-      font-size: 26px;
-      font-weight: 900;
-      color: #ff2a5f;
-      text-shadow: 0 0 22px rgba(255, 42, 95, 0.8);
-      margin-bottom: 16px;
-      letter-spacing: 2px;
-      text-align: center;
-    }
-    .respawn-timer-circle {
-      width: 96px;
-      height: 96px;
-      border-radius: 50%;
-      border: 3px solid #00f0ff;
-      box-shadow: 0 0 35px rgba(0, 240, 255, 0.65), inset 0 0 20px rgba(0, 240, 255, 0.35);
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      margin-bottom: 18px;
-      animation: respawnPulse 1s ease-in-out infinite;
-    }
-    @keyframes respawnPulse {
-      0%, 100% { transform: scale(1); }
-      50% { transform: scale(1.09); box-shadow: 0 0 50px rgba(0, 240, 255, 0.9); }
-    }
-    .respawn-count {
-      font-family: 'Orbitron', monospace;
-      font-size: 46px;
+      font-size: 76px;
       font-weight: 900;
       color: #00f0ff;
-      text-shadow: 0 0 16px #00f0ff;
+      text-shadow: 0 0 30px #00f0ff, 0 0 60px rgba(0, 240, 255, 0.6);
+      line-height: 1;
+      animation: respawnNumPulse 0.9s cubic-bezier(0.175, 0.885, 0.32, 1.275) infinite;
     }
-    .respawn-desc {
-      font-family: 'Rajdhani', sans-serif;
-      font-size: 16px;
-      font-weight: 600;
-      color: #94a3b8;
-      letter-spacing: 1px;
-      text-align: center;
+
+    @keyframes respawnNumPulse {
+      0% { transform: scale(0.6); opacity: 0.3; }
+      50% { transform: scale(1.15); opacity: 1; }
+      100% { transform: scale(1); opacity: 0.8; }
+    }
+
+    .respawn-countdown-text {
+      margin-top: 14px;
+      font-family: 'Orbitron', monospace;
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: 3px;
+      color: #cbd5e1;
+      text-shadow: 0 2px 10px rgba(0,0,0,0.8);
     }
 
     /* Modal dialogs (ESC Settings, Invite, Game Over) */
@@ -724,12 +709,13 @@
       left: 0;
       width: 100%;
       height: 100%;
-      background: rgba(4, 7, 14, 0.85);
-      backdrop-filter: blur(12px);
+      background: rgba(4, 7, 14, 0.88);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
       display: flex;
       justify-content: center;
       align-items: center;
-      z-index: 100;
+      z-index: 1000000 !important;
       opacity: 0;
       pointer-events: none;
       transition: opacity 0.25s ease;
@@ -861,23 +847,20 @@
       width: 100%;
       height: 100%;
       pointer-events: none;
-      z-index: 45;
-      display: none;
-    }
-
-    .mobile-controls-layer.active {
-      display: block;
+      z-index: 99999 !important;
+      display: block !important;
     }
 
     /* Joystick Zones */
     .joystick-zone {
       position: absolute;
-      bottom: 24px;
-      width: 150px;
-      height: 150px;
+      bottom: max(20px, env(safe-area-inset-bottom, 20px));
+      width: 140px;
+      height: 140px;
       pointer-events: auto;
       touch-action: none;
       user-select: none;
+      -webkit-user-select: none;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -885,21 +868,21 @@
     }
 
     .joystick-zone-left {
-      left: 20px;
+      left: max(20px, env(safe-area-inset-left, 20px));
     }
 
     .joystick-zone-right {
-      right: 175px;
+      right: calc(160px + max(16px, env(safe-area-inset-right, 16px)));
     }
 
     .joystick-base {
       position: relative;
-      width: 120px;
-      height: 120px;
+      width: 122px;
+      height: 122px;
       border-radius: 50%;
-      background: radial-gradient(circle, rgba(12, 24, 48, 0.75) 0%, rgba(6, 12, 26, 0.88) 100%);
-      border: 2px solid rgba(0, 240, 255, 0.45);
-      box-shadow: 0 0 20px rgba(0, 240, 255, 0.25), inset 0 0 15px rgba(0, 240, 255, 0.15);
+      background: radial-gradient(circle, rgba(10, 24, 48, 0.88) 0%, rgba(4, 10, 24, 0.96) 100%);
+      border: 3px solid #00f0ff;
+      box-shadow: 0 0 25px rgba(0, 240, 255, 0.5), inset 0 0 15px rgba(0, 240, 255, 0.25);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -907,29 +890,30 @@
     }
 
     .joystick-base-aim {
-      border-color: rgba(255, 170, 0, 0.45);
-      box-shadow: 0 0 20px rgba(255, 170, 0, 0.25), inset 0 0 15px rgba(255, 170, 0, 0.15);
+      border-color: #ff9900;
+      box-shadow: 0 0 25px rgba(255, 153, 0, 0.5), inset 0 0 15px rgba(255, 153, 0, 0.25);
     }
 
     .joystick-ring {
       position: absolute;
-      width: 60px;
-      height: 60px;
+      width: 64px;
+      height: 64px;
       border-radius: 50%;
-      border: 1px dashed rgba(0, 240, 255, 0.35);
+      border: 1.5px dashed rgba(0, 240, 255, 0.5);
       pointer-events: none;
     }
     .ring-aim {
-      border-color: rgba(255, 170, 0, 0.35);
+      border-color: rgba(255, 170, 0, 0.5);
     }
 
     .joystick-thumb {
       position: absolute;
-      width: 50px;
-      height: 50px;
+      width: 52px;
+      height: 52px;
       border-radius: 50%;
       background: radial-gradient(circle, #00f0ff 0%, #0077bb 100%);
-      box-shadow: 0 0 16px rgba(0, 240, 255, 0.8), inset 0 2px 4px rgba(255, 255, 255, 0.6);
+      border: 2px solid #ffffff;
+      box-shadow: 0 0 20px rgba(0, 240, 255, 0.95), inset 0 2px 4px rgba(255, 255, 255, 0.7);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -939,38 +923,39 @@
     }
 
     .thumb-aim {
-      background: radial-gradient(circle, #ffb800 0%, #ff5500 100%);
-      box-shadow: 0 0 16px rgba(255, 184, 0, 0.8), inset 0 2px 4px rgba(255, 255, 255, 0.6);
+      background: radial-gradient(circle, #ffaa00 0%, #ff5500 100%);
+      border: 2px solid #ffffff;
+      box-shadow: 0 0 20px rgba(255, 170, 0, 0.95), inset 0 2px 4px rgba(255, 255, 255, 0.7);
     }
 
     .thumb-core {
-      width: 15px;
-      height: 15px;
+      width: 16px;
+      height: 16px;
       border-radius: 50%;
       background: #ffffff;
-      box-shadow: 0 0 8px #ffffff;
+      box-shadow: 0 0 10px #ffffff;
     }
 
     .joystick-label {
-      margin-top: 6px;
+      margin-top: 8px;
       font-family: 'Orbitron', monospace;
-      font-size: 10px;
-      font-weight: 800;
-      color: rgba(0, 240, 255, 0.75);
-      letter-spacing: 1px;
-      text-shadow: 0 0 6px rgba(0, 240, 255, 0.5);
+      font-size: 11px;
+      font-weight: 900;
+      color: #00f0ff;
+      letter-spacing: 1.5px;
+      text-shadow: 0 0 8px rgba(0, 240, 255, 0.7);
       pointer-events: none;
     }
     .label-aim {
-      color: rgba(255, 184, 0, 0.75);
-      text-shadow: 0 0 6px rgba(255, 184, 0, 0.5);
+      color: #ffaa00;
+      text-shadow: 0 0 8px rgba(255, 170, 0, 0.7);
     }
 
     /* Mobile Action Buttons Cluster */
     .mobile-action-cluster {
       position: absolute;
-      bottom: 20px;
-      right: 18px;
+      bottom: max(16px, env(safe-area-inset-bottom, 16px));
+      right: max(16px, env(safe-area-inset-right, 16px));
       width: 145px;
       height: 155px;
       pointer-events: auto;
@@ -997,60 +982,62 @@
     }
 
     .touch-action-btn:active, .touch-action-btn.active {
-      transform: scale(0.92);
-      filter: brightness(1.3);
+      transform: scale(0.90);
+      filter: brightness(1.35);
     }
 
-    /* Fire Button (Big, Prominent & Ergonomic) */
+    /* Katta qizil FIRE tugmasi */
     .touch-btn-fire {
       bottom: 0px;
       right: 0px;
-      width: 76px;
-      height: 76px;
-      background: radial-gradient(circle, #ff2a5f 0%, #990022 100%);
-      border: 3px solid #ff5577;
-      box-shadow: 0 0 25px rgba(255, 42, 95, 0.75), inset 0 2px 6px rgba(255, 255, 255, 0.4);
+      width: 78px;
+      height: 78px;
+      background: radial-gradient(circle, #ff1744 0%, #b71c1c 100%);
+      border: 3.5px solid #ff5252;
+      box-shadow: 0 0 30px rgba(255, 23, 68, 0.9), inset 0 2px 6px rgba(255, 255, 255, 0.5);
       z-index: 2;
     }
 
     .fire-icon {
-      font-size: 24px;
+      font-size: 26px;
       line-height: 1;
     }
 
     .fire-txt {
-      font-size: 9px;
+      font-size: 10px;
       font-weight: 900;
-      letter-spacing: 0.5px;
+      letter-spacing: 1px;
       text-shadow: 0 1px 3px #000;
       margin-top: 2px;
+      color: #ffffff;
     }
 
-    /* Nitro Button */
+    /* Nitro Tugmasi */
     .touch-btn-nitro {
-      top: 10px;
-      right: 20px;
-      width: 50px;
-      height: 50px;
-      background: radial-gradient(circle, #00f0ff 0%, #0055aa 100%);
-      border: 2px solid #33f3ff;
-      box-shadow: 0 0 16px rgba(0, 240, 255, 0.6), inset 0 2px 4px rgba(255, 255, 255, 0.4);
+      top: 6px;
+      right: 14px;
+      width: 52px;
+      height: 52px;
+      background: radial-gradient(circle, #00e5ff 0%, #0077c2 100%);
+      border: 2.5px solid #18ffff;
+      box-shadow: 0 0 20px rgba(0, 229, 255, 0.8), inset 0 2px 4px rgba(255, 255, 255, 0.5);
     }
-    .touch-btn-nitro .btn-icon { font-size: 16px; line-height: 1; }
-    .touch-btn-nitro .btn-txt { font-size: 8px; font-weight: 800; }
+    .touch-btn-nitro .btn-icon { font-size: 18px; line-height: 1; }
+    .touch-btn-nitro .btn-txt { font-size: 8px; font-weight: 900; letter-spacing: 0.5px; }
 
-    /* Mina Button */
+    /* Mina Tugmasi */
     .touch-btn-mine {
-      bottom: 12px;
+      bottom: 10px;
       left: 0px;
-      width: 50px;
-      height: 50px;
-      background: radial-gradient(circle, #2ecc71 0%, #15733d 100%);
-      border: 2px solid #58d68d;
-      box-shadow: 0 0 16px rgba(46, 204, 113, 0.6), inset 0 2px 4px rgba(255, 255, 255, 0.4);
+      width: 52px;
+      height: 52px;
+      background: radial-gradient(circle, #00e676 0%, #1b5e20 100%);
+      border: 2.5px solid #69f0ae;
+      box-shadow: 0 0 20px rgba(0, 230, 118, 0.8), inset 0 2px 4px rgba(255, 255, 255, 0.5);
     }
-    .touch-btn-mine .btn-icon { font-size: 16px; line-height: 1; }
-    .touch-btn-mine .btn-txt { font-size: 8px; font-weight: 800; }
+    .touch-btn-mine .btn-icon { font-size: 18px; line-height: 1; }
+    .touch-btn-mine .btn-txt { font-size: 8px; font-weight: 900; letter-spacing: 0.5px; }
+
     .badge-ammo {
       position: absolute;
       top: -3px;
@@ -1059,47 +1046,53 @@
       color: #050811;
       font-size: 9px;
       font-weight: 900;
-      width: 17px;
-      height: 17px;
+      width: 18px;
+      height: 18px;
       border-radius: 50%;
       display: flex;
       align-items: center;
       justify-content: center;
-      border: 1px solid #fff;
+      border: 1.5px solid #fff;
+      box-shadow: 0 0 6px #ffb800;
     }
 
-    /* Quick Settings Gear Button */
+    /* Quick Settings Gear Button (Safe-Area & Top-Layer Aware) */
     .mobile-gear-btn {
       position: absolute;
-      top: 14px;
-      right: 14px;
-      width: 38px;
-      height: 38px;
+      top: max(14px, env(safe-area-inset-top, 14px));
+      right: max(16px, env(safe-area-inset-right, 16px));
+      width: 44px;
+      height: 44px;
       border-radius: 50%;
-      background: rgba(10, 18, 36, 0.90);
-      backdrop-filter: blur(10px);
-      -webkit-backdrop-filter: blur(10px);
-      border: 1.5px solid var(--primary);
-      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6), 0 0 12px var(--primary-glow);
+      background: rgba(10, 18, 36, 0.92);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 2px solid var(--primary);
+      box-shadow: 0 4px 18px rgba(0, 0, 0, 0.6), 0 0 15px var(--primary-glow);
       color: var(--primary);
-      font-size: 18px;
+      font-size: 20px;
       display: flex;
       align-items: center;
       justify-content: center;
       cursor: pointer;
-      z-index: 35;
+      z-index: 100000;
       outline: none;
       transition: transform 0.2s, box-shadow 0.2s;
     }
     .mobile-gear-btn:hover, .mobile-gear-btn:active {
       transform: scale(1.08) rotate(30deg);
-      box-shadow: 0 0 20px var(--primary);
+      box-shadow: 0 0 22px var(--primary);
     }
 
     /* Name Prompt Cyber Modal */
+    #namePromptModal {
+      z-index: 1000001 !important;
+    }
     .name-modal-box {
-      max-width: 420px;
+      max-width: 440px;
+      width: 90%;
       text-align: center;
+      padding: 24px 28px;
     }
     .modal-badge-cyber {
       display: inline-block;
@@ -1161,6 +1154,10 @@
       border-color: #fff;
       box-shadow: 0 0 25px rgba(0, 240, 255, 0.6);
     }
+    .name-cyber-input.error {
+      border-color: #ff2a5f !important;
+      box-shadow: 0 0 25px rgba(255, 42, 95, 0.8) !important;
+    }
     .btn-start-battle {
       width: 100%;
       padding: 14px;
@@ -1174,14 +1171,14 @@
       left: 0;
       width: 100%;
       height: 100%;
-      background: rgba(3, 6, 14, 0.96);
-      backdrop-filter: blur(14px);
-      -webkit-backdrop-filter: blur(14px);
+      background: rgba(3, 6, 14, 0.97);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
       display: none;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      z-index: 200;
+      z-index: 2000000 !important;
       text-align: center;
       padding: 24px;
     }
@@ -1210,32 +1207,74 @@
       max-width: 320px;
     }
 
-    /* Orientation query: show rotate prompt when portrait on mobile devices */
+    /* Orientation query: show rotate prompt when portrait on mobile screens */
     @media screen and (orientation: portrait) and (max-width: 850px) {
       .rotate-prompt-overlay {
         display: flex;
       }
     }
 
-    /* Mobile Responsive HUD tweaks */
-    @media (max-width: 900px) {
-      .hud-top-left {
-        top: 8px;
-        left: 8px;
-      }
+    /* Safe-Area Aware and Compact Mobile HUD */
+    .hud-top-left {
+      position: absolute;
+      top: max(12px, env(safe-area-inset-top, 12px));
+      left: max(14px, env(safe-area-inset-left, 14px));
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      z-index: 20;
+      pointer-events: none;
+    }
+
+    .hud-top-right {
+      position: absolute;
+      top: max(12px, env(safe-area-inset-top, 12px));
+      right: calc(56px + max(12px, env(safe-area-inset-right, 12px)));
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      z-index: 20;
+      pointer-events: none;
+    }
+
+    @media (max-height: 560px) or (max-width: 950px) {
       .player-card {
         min-width: unset;
-        width: 195px;
-        padding: 6px 8px;
+        width: 205px;
+        padding: 5px 8px;
+        border-radius: 8px;
       }
       .player-name {
-        font-size: 11px;
+        font-size: 12px;
+      }
+      .active-sector-badge {
+        padding: 2px 6px;
+        margin-bottom: 4px;
+        font-size: 9px;
+      }
+      .bars-stack {
+        gap: 3px;
+        margin-bottom: 4px;
+      }
+      .bar-row {
+        height: 10px;
+      }
+      .active-weapon-badge, .mines-badge {
+        padding: 2px 6px;
+        font-size: 9px;
+        margin-top: 2px;
       }
       .hud-sub-stats {
-        display: none !important;
+        font-size: 9px;
+        padding-top: 2px;
       }
       .voice-status-bar {
-        display: none !important;
+        padding-top: 3px;
+        gap: 4px;
+      }
+      .voice-btn {
+        padding: 2px 6px;
+        font-size: 9px;
       }
       .hud-controls-hint {
         display: none !important;
@@ -1244,8 +1283,8 @@
         display: none !important;
       }
       .leaderboard-card {
-        width: 155px;
-        padding: 5px 8px;
+        width: 145px;
+        padding: 4px 6px;
         font-size: 9px;
       }
       .lb-header {
@@ -1254,21 +1293,33 @@
       .lb-row {
         font-size: 9px;
       }
-      .hud-top-right {
-        top: 8px;
-        right: 54px;
-      }
       #radar-container {
-        width: 95px;
-        height: 95px;
+        width: 110px;
+        height: 110px;
         bottom: unset;
-        top: 50px;
-        right: 8px;
+        top: max(12px, env(safe-area-inset-top, 12px));
+        right: calc(210px + max(12px, env(safe-area-inset-right, 12px)));
         opacity: 0.85;
       }
       .time-cycle-badge {
         padding: 2px 8px;
         font-size: 9px;
+      }
+      .name-modal-box {
+        padding: 14px 18px;
+        max-width: 380px;
+      }
+      .name-modal-desc {
+        margin: 4px 0 10px 0 !important;
+        font-size: 12px !important;
+      }
+      .name-cyber-input {
+        padding: 8px 12px 8px 36px !important;
+        font-size: 13px !important;
+      }
+      .btn-start-battle {
+        padding: 10px !important;
+        font-size: 13px !important;
       }
     }
   </style>
@@ -1331,7 +1382,7 @@
         </div>
 
         <div class="mines-badge" id="hudMinesBadge">
-          <span>🟢 MINALAR (SPACE):</span>
+          <span>🟢 MINALAR:</span>
           <span id="hudMinesVal">3 ta</span>
         </div>
 
@@ -1344,7 +1395,7 @@
         <div class="voice-status-bar">
           <button class="voice-btn" id="hudBtnMic">🎙️ MIC: OFF</button>
           <button class="voice-btn active" id="hudBtnSpeaker">🔊 KARNAY: ON</button>
-          <button class="voice-btn" id="btnOpenEsc" style="margin-left: auto;">⚙️ ESC</button>
+          <button class="voice-btn" id="btnOpenEsc" style="margin-left: auto;">⚙️ SOZLAMALAR</button>
         </div>
       </div>
     </div>
@@ -1540,10 +1591,10 @@
           <span class="btn-txt">NITRO</span>
         </button>
 
-        <!-- Katta Otish Tugmasi -->
+        <!-- Katta Qizil FIRE Tugmasi -->
         <button id="btnTouchFire" class="touch-action-btn touch-btn-fire" aria-label="Otish">
           <span class="fire-icon">🎯</span>
-          <span class="fire-txt">OTISH</span>
+          <span class="fire-txt">FIRE</span>
         </button>
       </div>
     </div>
@@ -5903,7 +5954,12 @@
         if (saveNameBtn && nameInput) {
           const doSave = () => {
             let val = nameInput.value.trim();
-            if (!val) val = 'Komandir';
+            if (!val) {
+              nameInput.classList.add('error');
+              nameInput.focus();
+              setTimeout(() => { nameInput.classList.remove('error'); }, 800);
+              return;
+            }
             val = val.slice(0, 16);
 
             if (!this.playerProfile) {
@@ -5914,7 +5970,9 @@
             this.saveProfile();
             this.applyProfileToPlayer();
 
-            document.getElementById('namePromptModal').classList.remove('active');
+            const nameModal = document.getElementById('namePromptModal');
+            if (nameModal) nameModal.classList.remove('active');
+            this.gamePaused = false;
             audio.init();
             if (audio.bgmEnabled && !audio.bgmTimer) audio.startBgm();
             if (this.canvas) this.canvas.focus();
@@ -5944,7 +6002,7 @@
           console.warn('LocalStorage o\'qishda xatolik:', e);
         }
 
-        if (savedData && savedData.name && savedData.name.trim()) {
+        if (savedData && savedData.name && savedData.name.trim() && savedData.name.trim() !== 'Komandir') {
           this.playerProfile = {
             name: savedData.name.trim().slice(0, 16),
             level: savedData.level || 1,
@@ -5953,6 +6011,7 @@
             kills: savedData.kills || 0
           };
           this.applyProfileToPlayer();
+          this.gamePaused = false;
         } else {
           this.playerProfile = {
             name: '',
@@ -5967,8 +6026,9 @@
 
       applyProfileToPlayer() {
         if (!this.playerProfile || !this.playerProfile.name) return;
+        const name = this.playerProfile.name;
         if (this.player) {
-          this.player.name = this.playerProfile.name;
+          this.player.name = name;
           if (this.playerProfile.level > 1) {
             this.player.level = this.playerProfile.level;
             this.player.maxHp = 100 + (this.player.level - 1) * 20;
@@ -5980,13 +6040,15 @@
           }
         }
         const nameEl = document.getElementById('hudPlayerName');
-        if (nameEl) nameEl.textContent = this.playerProfile.name;
+        if (nameEl) nameEl.textContent = name;
+        const idEl = document.getElementById('hudPlayerId');
+        if (idEl) idEl.textContent = `#${this.playerId}`;
         const lvlEl = document.getElementById('hudPlayerLvl');
         if (lvlEl) lvlEl.textContent = `LVL ${this.playerProfile.level}`;
         const killsEl = document.getElementById('hudKills');
         if (killsEl) killsEl.textContent = this.playerProfile.kills || 0;
 
-        this.sendWs({ type: 'set_name', name: this.playerProfile.name });
+        this.sendWs({ type: 'set_name', name: name });
       }
 
       saveProfile() {
@@ -6020,37 +6082,31 @@
         }
 
         modal.classList.add('active');
-        setTimeout(() => { input.focus(); }, 120);
+        this.gamePaused = true;
+        setTimeout(() => { input.focus(); }, 150);
       }
 
       /* ========================================================================
          8.2. DUAL VIRTUAL MULTI-TOUCH JOYSTICKS & ERGONOMIC ACTION BUTTONS
          ======================================================================== */
       initMobileControls() {
-        const isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0) || (window.innerWidth <= 1024);
         const container = document.getElementById('mobileControlsContainer');
-        if (!container) return;
-
-        if (isTouchDevice) {
+        if (container) {
           container.classList.add('active');
-          const hint = document.querySelector('.hud-controls-hint');
-          if (hint) hint.style.display = 'none';
+          container.style.display = 'block';
         }
 
-        window.addEventListener('touchstart', () => {
-          if (!container.classList.contains('active')) {
-            container.classList.add('active');
-            const hint = document.querySelector('.hud-controls-hint');
-            if (hint) hint.style.display = 'none';
-          }
-        }, { once: true, passive: true });
+        const hint = document.querySelector('.hud-controls-hint');
+        if (hint && (('ontouchstart' in window) || navigator.maxTouchPoints > 0 || window.innerWidth <= 1024)) {
+          hint.style.display = 'none';
+        }
 
         const leftZone = document.getElementById('joystickLeftZone');
         const leftBase = document.getElementById('joystickLeftBase');
         const leftThumb = document.getElementById('joystickLeftThumb');
         let leftTouchId = null;
         let leftCenter = { x: 0, y: 0 };
-        const maxRadius = 45;
+        const maxRadius = 46;
 
         const rightZone = document.getElementById('joystickRightZone');
         const rightBase = document.getElementById('joystickRightBase');
@@ -6081,7 +6137,7 @@
             dy = (dy / dist) * maxRadius;
           }
 
-          leftThumb.style.transform = `translate3d(${dx}px, ${dy}px, 0)`;
+          if (leftThumb) leftThumb.style.transform = `translate3d(${dx}px, ${dy}px, 0)`;
 
           // Normalized coords: -1 to +1
           const normX = dx / maxRadius;
@@ -6093,7 +6149,7 @@
 
         const resetLeftJoystick = () => {
           leftTouchId = null;
-          leftThumb.style.transform = 'translate3d(0, 0, 0)';
+          if (leftThumb) leftThumb.style.transform = 'translate3d(0, 0, 0)';
           this.mobileInput.throttle = 0;
           this.mobileInput.steer = 0;
         };
@@ -6102,13 +6158,38 @@
           leftZone.addEventListener('touchstart', (e) => {
             e.preventDefault();
             audio.init();
-            if (leftTouchId === null) {
+            if (leftTouchId === null && e.changedTouches.length > 0) {
               const touch = e.changedTouches[0];
               leftTouchId = touch.identifier;
               updateCenters();
               handleLeftMove(touch.clientX, touch.clientY);
             }
           }, { passive: false });
+
+          leftZone.addEventListener('pointerdown', (e) => {
+            if (e.pointerType === 'mouse' || leftTouchId === null) {
+              e.preventDefault();
+              audio.init();
+              leftTouchId = 'pointer_' + e.pointerId;
+              updateCenters();
+              handleLeftMove(e.clientX, e.clientY);
+              try { leftZone.setPointerCapture(e.pointerId); } catch (_) {}
+            }
+          });
+          leftZone.addEventListener('pointermove', (e) => {
+            if (leftTouchId === 'pointer_' + e.pointerId) {
+              e.preventDefault();
+              handleLeftMove(e.clientX, e.clientY);
+            }
+          });
+          const endLeftPointer = (e) => {
+            if (leftTouchId === 'pointer_' + e.pointerId) {
+              resetLeftJoystick();
+              try { leftZone.releasePointerCapture(e.pointerId); } catch (_) {}
+            }
+          };
+          leftZone.addEventListener('pointerup', endLeftPointer);
+          leftZone.addEventListener('pointercancel', endLeftPointer);
         }
 
         const handleRightMove = (clientX, clientY) => {
@@ -6121,31 +6202,59 @@
             dy = (dy / dist) * maxRadius;
           }
 
-          rightThumb.style.transform = `translate3d(${dx}px, ${dy}px, 0)`;
+          if (rightThumb) rightThumb.style.transform = `translate3d(${dx}px, ${dy}px, 0)`;
 
-          if (dist > 8) {
+          if (dist > 6) {
             const angle = Math.atan2(dy, dx);
             this.mobileInput.aimAngle = angle;
             this.mobileInput.hasAim = true;
+            if (this.player) {
+              this.player.targetTurretAngle = angle;
+            }
           }
         };
 
         const resetRightJoystick = () => {
           rightTouchId = null;
-          rightThumb.style.transform = 'translate3d(0, 0, 0)';
+          if (rightThumb) rightThumb.style.transform = 'translate3d(0, 0, 0)';
         };
 
         if (rightZone) {
           rightZone.addEventListener('touchstart', (e) => {
             e.preventDefault();
             audio.init();
-            if (rightTouchId === null) {
+            if (rightTouchId === null && e.changedTouches.length > 0) {
               const touch = e.changedTouches[0];
               rightTouchId = touch.identifier;
               updateCenters();
               handleRightMove(touch.clientX, touch.clientY);
             }
           }, { passive: false });
+
+          rightZone.addEventListener('pointerdown', (e) => {
+            if (e.pointerType === 'mouse' || rightTouchId === null) {
+              e.preventDefault();
+              audio.init();
+              rightTouchId = 'pointer_' + e.pointerId;
+              updateCenters();
+              handleRightMove(e.clientX, e.clientY);
+              try { rightZone.setPointerCapture(e.pointerId); } catch (_) {}
+            }
+          });
+          rightZone.addEventListener('pointermove', (e) => {
+            if (rightTouchId === 'pointer_' + e.pointerId) {
+              e.preventDefault();
+              handleRightMove(e.clientX, e.clientY);
+            }
+          });
+          const endRightPointer = (e) => {
+            if (rightTouchId === 'pointer_' + e.pointerId) {
+              resetRightJoystick();
+              try { rightZone.releasePointerCapture(e.pointerId); } catch (_) {}
+            }
+          };
+          rightZone.addEventListener('pointerup', endRightPointer);
+          rightZone.addEventListener('pointercancel', endRightPointer);
         }
 
         // Multi-touch window tracker
@@ -6178,46 +6287,61 @@
           }
         }, { passive: false });
 
-        // Action Buttons: Otish (Fire)
+        // Action Buttons: FIRE (Big Prominent Red Button)
         const fireBtn = document.getElementById('btnTouchFire');
         if (fireBtn) {
-          fireBtn.addEventListener('touchstart', (e) => {
-            e.preventDefault();
+          const startFire = (e) => {
+            if (e) e.preventDefault();
             audio.init();
             this.mouse.isDown = true;
             fireBtn.classList.add('active');
-            if (this.player) this.player.isAfk = false;
-          }, { passive: false });
-
+            if (this.player && !this.player.dead) {
+              this.player.isAfk = false;
+              this.player.shoot(this.bullets, this.particles, this.floatingTexts);
+            }
+          };
           const stopFire = (e) => {
-            e.preventDefault();
+            if (e) e.preventDefault();
             this.mouse.isDown = false;
             fireBtn.classList.remove('active');
           };
+          fireBtn.addEventListener('touchstart', startFire, { passive: false });
           fireBtn.addEventListener('touchend', stopFire, { passive: false });
           fireBtn.addEventListener('touchcancel', stopFire, { passive: false });
+          fireBtn.addEventListener('pointerdown', startFire);
+          fireBtn.addEventListener('pointerup', stopFire);
+          fireBtn.addEventListener('pointercancel', stopFire);
+          fireBtn.addEventListener('mousedown', startFire);
+          fireBtn.addEventListener('mouseup', stopFire);
         }
 
-        // Action Buttons: Nitro
+        // Action Buttons: NITRO
         const nitroBtn = document.getElementById('btnTouchNitro');
         if (nitroBtn) {
-          nitroBtn.addEventListener('touchstart', (e) => {
-            e.preventDefault();
+          const startNitro = (e) => {
+            if (e) e.preventDefault();
             audio.init();
             nitroBtn.classList.add('active');
             if (this.player && !this.player.dead) {
               this.player.activateNitro(this.floatingTexts, this.particles);
             }
-          }, { passive: false });
-          nitroBtn.addEventListener('touchend', (e) => { e.preventDefault(); nitroBtn.classList.remove('active'); }, { passive: false });
-          nitroBtn.addEventListener('touchcancel', (e) => { e.preventDefault(); nitroBtn.classList.remove('active'); }, { passive: false });
+          };
+          const stopNitro = (e) => {
+            if (e) e.preventDefault();
+            nitroBtn.classList.remove('active');
+          };
+          nitroBtn.addEventListener('touchstart', startNitro, { passive: false });
+          nitroBtn.addEventListener('touchend', stopNitro, { passive: false });
+          nitroBtn.addEventListener('touchcancel', stopNitro, { passive: false });
+          nitroBtn.addEventListener('pointerdown', startNitro);
+          nitroBtn.addEventListener('pointerup', stopNitro);
         }
 
-        // Action Buttons: Mina
+        // Action Buttons: MINA
         const mineBtn = document.getElementById('btnTouchMine');
         if (mineBtn) {
-          mineBtn.addEventListener('touchstart', (e) => {
-            e.preventDefault();
+          const startMine = (e) => {
+            if (e) e.preventDefault();
             audio.init();
             mineBtn.classList.add('active');
             if (this.player && !this.player.dead) {
@@ -6225,9 +6349,23 @@
               const tm = document.getElementById('touchMineCount');
               if (tm) tm.textContent = this.player.minesCount;
             }
-          }, { passive: false });
-          mineBtn.addEventListener('touchend', (e) => { e.preventDefault(); mineBtn.classList.remove('active'); }, { passive: false });
-          mineBtn.addEventListener('touchcancel', (e) => { e.preventDefault(); mineBtn.classList.remove('active'); }, { passive: false });
+          };
+          const stopMine = (e) => {
+            if (e) e.preventDefault();
+            mineBtn.classList.remove('active');
+          };
+          mineBtn.addEventListener('touchstart', startMine, { passive: false });
+          mineBtn.addEventListener('touchend', stopMine, { passive: false });
+          mineBtn.addEventListener('touchcancel', stopMine, { passive: false });
+          mineBtn.addEventListener('pointerdown', startMine);
+          mineBtn.addEventListener('pointerup', stopMine);
+        }
+
+        // Enforce Landscape Orientation on Mobile
+        if (screen.orientation && screen.orientation.lock) {
+          screen.orientation.lock('sensor-landscape').catch(() => {
+            screen.orientation.lock('landscape').catch(() => {});
+          });
         }
 
         window.addEventListener('resize', updateCenters);
@@ -8337,6 +8475,13 @@
         // 1. HIT-STOP (ZARBA ONIY TO'XTASHI: 40ms Micro-Freeze on fatal blows and heavy blasts)
         if (window.freezeTimer > 0) {
           window.freezeTimer = Math.max(0, window.freezeTimer - dt);
+          this.draw();
+          requestAnimationFrame((t) => this.loop(t));
+          return;
+        }
+
+        // 2. Pause game updates if name prompt modal or setup is active
+        if (this.gamePaused) {
           this.draw();
           requestAnimationFrame((t) => this.loop(t));
           return;

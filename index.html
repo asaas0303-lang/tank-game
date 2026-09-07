@@ -5838,6 +5838,17 @@
             peer.level = msg.level;
             peer.isAfk = msg.isAfk;
             peer.currentWeapon = msg.weapon || 'standard';
+
+            // AUTHORITATIVE alive/dead: peer egasi HP yuborsa (>0) -> tirik; mahalliy "o'lim"ni bekor qil
+            const wasDead = peer.dead;
+            peer.dead = (msg.hp <= 0);
+            if (wasDead && !peer.dead) {
+              // qayta tiriltirilgan puppet: o'lim vizual holatini tozala
+              peer.deathFadeAlpha = 0;
+              peer.hitFlashTimer = 0;
+              peer.vx = 0;
+              peer.vy = 0;
+            }
             break;
           }
 

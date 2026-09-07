@@ -1732,6 +1732,8 @@
     </div>
   </div>
 
+  <div id="buildStamp" style="position:fixed; bottom:4px; left:6px; z-index:999999; font:10px monospace; color:rgba(255,255,255,0.35); pointer-events:none;">build …</div>
+
   <script>
     /* ==========================================================================
        1. WEB AUDIO API SYNTHESIZER
@@ -8725,6 +8727,10 @@
 
     window.addEventListener('load', () => {
       new GameEngine();
+
+      const BUILD_ID = 'BUILD_2026-09-08';  // har deploy oldidan shu qatorni yangilab turing (yoki build skript avtomatik yozsin)
+      const stamp = document.getElementById('buildStamp');
+      if (stamp) stamp.textContent = 'build ' + BUILD_ID + (typeof window.Capacitor !== 'undefined' ? ' (APK)' : ' (web)');
     });
   </script>
 </body>

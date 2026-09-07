@@ -40,6 +40,8 @@ jobs:
           sed -i -E 's/compileSdkVersion = [0-9]+/compileSdkVersion = 35/g' android/variables.gradle
           sed -i -E 's/targetSdkVersion = [0-9]+/targetSdkVersion = 35/g' android/variables.gradle
           sed -i 's/Build\.VERSION_CODES\.VANILLA_ICE_CREAM/35/g' node_modules/@capacitor/android/capacitor/src/main/java/com/getcapacitor/plugin/SystemBars.java || true
+          echo "allprojects { configurations.all { exclude group: 'org.jetbrains.kotlin', module: 'kotlin-stdlib-jdk7'; exclude group: 'org.jetbrains.kotlin', module: 'kotlin-stdlib-jdk8' } }" >> android/build.gradle
+          echo "configurations.all { exclude group: 'org.jetbrains.kotlin', module: 'kotlin-stdlib-jdk7'; exclude group: 'org.jetbrains.kotlin', module: 'kotlin-stdlib-jdk8' }" >> android/app/build.gradle
           cat android/gradle/wrapper/gradle-wrapper.properties
           cat android/variables.gradle
           npx cap sync android

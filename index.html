@@ -5468,11 +5468,11 @@
         this.gameOver = false;
 
         this.initDefaultSectors();
+        this.resize(); // must run before rebuildSectorEntities()/resetPlayer() need viewWidth/viewHeight for the camera
         this.rebuildSectorEntities();
         this.initDOM();
         this.initProfile();
         this.initMobileControls();
-        this.resize();
         this.initWebSocket();
 
         window.addEventListener('resize', () => this.resize());
@@ -5728,8 +5728,10 @@
         this.bullets = [];
         this.landmines = [];
         this.gameOver = false;
-        this.camera.x = this.player.x - this.viewWidth / 2;
-        this.camera.y = this.player.y - this.viewHeight / 2;
+        const vw = this.viewWidth || window.innerWidth;
+        const vh = this.viewHeight || window.innerHeight;
+        this.camera.x = this.player.x - vw / 2;
+        this.camera.y = this.player.y - vh / 2;
       }
 
       /* ========================================================================
@@ -8304,6 +8306,7 @@
     }
 
     compositeNightVision(camX, camY) {
+      if (!Number.isFinite(camX) || !Number.isFinite(camY)) return;
       const lc = this.lightCtx;
       const w = this.lightCanvas.width;
       const h = this.lightCanvas.height;
@@ -8322,6 +8325,7 @@
       visibleTanks.forEach(tank => {
         const screenX = tank.x - camX;
         const screenY = tank.y - camY;
+        if (!Number.isFinite(screenX) || !Number.isFinite(screenY)) return;
 
         // Skip off-screen tanks
         if (screenX < -500 || screenX > w + 500 || screenY < -500 || screenY > h + 500) return;
@@ -8407,6 +8411,7 @@
       this.bullets.forEach(b => {
         const sx = b.x - camX;
         const sy = b.y - camY;
+        if (!Number.isFinite(sx) || !Number.isFinite(sy)) return;
         if (sx < -100 || sx > w + 100 || sy < -100 || sy > h + 100) return;
         const isRocket = (b.weaponType === 'rocket');
         const bRadius = isRocket ? 90 : 45;
@@ -8425,6 +8430,7 @@
       this.lightFlashes.forEach(f => {
         const sx = f.x - camX;
         const sy = f.y - camY;
+        if (!Number.isFinite(sx) || !Number.isFinite(sy)) return;
         if (sx < -400 || sx > w + 400 || sy < -400 || sy > h + 400) return;
         const progress = Math.max(0, f.timer / f.duration);
         const currentR = f.radius * (0.4 + 0.6 * (1 - progress)); // 280-320px
@@ -8444,6 +8450,7 @@
         if (p.type === 'shockwave' || p.type === 'flame') {
           const sx = p.x - camX;
           const sy = p.y - camY;
+          if (!Number.isFinite(sx) || !Number.isFinite(sy)) return;
           if (sx < -200 || sx > w + 200 || sy < -200 || sy > h + 200) return;
           const pGrad = lc.createRadialGradient(sx, sy, 5, sx, sy, 160);
           pGrad.addColorStop(0, 'rgba(0, 0, 0, 0.85)');
@@ -8461,6 +8468,7 @@
           if (wr.life > 0.8) {
             const sx = wr.x - camX;
             const sy = wr.y - camY;
+            if (!Number.isFinite(sx) || !Number.isFinite(sy)) return;
             if (sx < -100 || sx > w + 100 || sy < -100 || sy > h + 100) return;
             const alpha = Math.min(1.0, wr.life / 3.0);
             const flicker = 70 + Math.sin(performance.now() * 0.015 + wr.x) * 8;
@@ -8664,28 +8672,31 @@
       }
 
       loop(currentTime) {
-        const dt = Math.min(0.1, (currentTime - this.lastTime) / 1000);
-        this.lastTime = currentTime;
+        try {
+          const dt = Math.min(0.1, (currentTime - this.lastTime) / 1000);
+          this.lastTime = currentTime;
 
-        // 1. HIT-STOP (ZARBA ONIY TO'XTASHI: 40ms Micro-Freeze on fatal blows and heavy blasts)
-        if (window.freezeTimer > 0) {
-          window.freezeTimer = Math.max(0, window.freezeTimer - dt);
+          // 1. HIT-STOP (ZARBA ONIY TO'XTASHI: 40ms Micro-Freeze on fatal blows and heavy blasts)
+          if (window.freezeTimer > 0) {
+            window.freezeTimer = Math.max(0, window.freezeTimer - dt);
+            this.draw();
+            return;
+          }
+
+          // 2. Pause game updates if name prompt modal or setup is active
+          if (this.gamePaused) {
+            this.draw();
+            return;
+          }
+
+          this.update(dt);
           this.draw();
+        } catch (e) {
+          console.error('Frame skipped:', e);
+        } finally {
+          // A single scheduling point: one bad frame can never stop the loop.
           requestAnimationFrame((t) => this.loop(t));
-          return;
         }
-
-        // 2. Pause game updates if name prompt modal or setup is active
-        if (this.gamePaused) {
-          this.draw();
-          requestAnimationFrame((t) => this.loop(t));
-          return;
-        }
-
-        this.update(dt);
-        this.draw();
-
-        requestAnimationFrame((t) => this.loop(t));
       }
     }
 

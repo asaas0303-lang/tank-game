@@ -4383,6 +4383,7 @@
 
       updateMovement(dt, throttle, steer, walls, boostPads, treadMarks, particles) {
         if (this.dead) return;
+        const f = Math.min(3, dt * 60); // frame-rate independent factor (1.0 at 60fps, capped to absorb lag spikes)
         if (this.spawnShieldTimer > 0) this.spawnShieldTimer = Math.max(0, this.spawnShieldTimer - dt);
 
         if (this.barrelRecoilTimer > 0) {
@@ -4521,7 +4522,7 @@
         // Pivot turn on spot vs Smooth driving turn while moving
         if (Math.abs(steer) > 0.01) {
           const turnRate = currentSpeed < 0.35 ? 0.038 : 0.048;
-          this.bodyAngle += steer * turnRate;
+          this.bodyAngle += steer * turnRate * f;
           while (this.bodyAngle < -Math.PI) this.bodyAngle += Math.PI * 2;
           while (this.bodyAngle > Math.PI) this.bodyAngle -= Math.PI * 2;
         }
@@ -4531,12 +4532,12 @@
         if (this.nitroDuration > 0) effectiveAccel *= 1.85;
 
         if (throttle > 0) {
-          this.vx += Math.cos(this.bodyAngle) * (effectiveAccel * throttle);
-          this.vy += Math.sin(this.bodyAngle) * (effectiveAccel * throttle);
+          this.vx += Math.cos(this.bodyAngle) * (effectiveAccel * throttle) * f;
+          this.vy += Math.sin(this.bodyAngle) * (effectiveAccel * throttle) * f;
         } else if (throttle < 0) {
           // Reverse force (slightly slower)
-          this.vx += Math.cos(this.bodyAngle) * (effectiveAccel * throttle * 0.68);
-          this.vy += Math.sin(this.bodyAngle) * (effectiveAccel * throttle * 0.68);
+          this.vx += Math.cos(this.bodyAngle) * (effectiveAccel * throttle * 0.68) * f;
+          this.vy += Math.sin(this.bodyAngle) * (effectiveAccel * throttle * 0.68) * f;
         }
 
         // Lateral Drift & Friction Simulation:
@@ -4548,14 +4549,14 @@
 
         // Forward friction:
         if (Math.abs(throttle) < 0.01) {
-          vf *= this.friction; // smooth drift stopping (0.91)
+          vf *= Math.pow(this.friction, f); // smooth drift stopping (0.91)
         } else {
-          vf *= 0.985; // light rolling resistance
+          vf *= Math.pow(0.985, f); // light rolling resistance
         }
 
         // Lateral friction:
         // Treads grip against sideways sliding, but allow high-speed drift
-        vr *= 0.78;
+        vr *= Math.pow(0.78, f);
         this.lateralSlip = Math.abs(vr);
 
         // Recompose velocity
@@ -4570,8 +4571,8 @@
         const newSpeed = Math.hypot(this.vx, this.vy);
         if (newSpeed > effectiveMaxSpeed) {
           const scale = effectiveMaxSpeed / newSpeed;
-          this.vx *= Math.max(scale, 0.93);
-          this.vy *= Math.max(scale, 0.93);
+          this.vx *= Math.max(scale, Math.pow(0.93, f));
+          this.vy *= Math.max(scale, Math.pow(0.93, f));
         }
 
         if (this.boostTimer > 0) {
@@ -4587,8 +4588,8 @@
         }
 
         // 4. WALL COLLISION & ELASTIC BOUNCE (0.35 bounce coefficient)
-        let nextX = this.x + this.vx;
-        let nextY = this.y + this.vy;
+        let nextX = this.x + this.vx * f;
+        let nextY = this.y + this.vy * f;
 
         for (const w of walls) {
           if (w.destroyed) continue;
@@ -7091,6 +7092,26 @@
           throttle = Math.max(-1.0, Math.min(1.0, throttle));
           steer = Math.max(-1.0, Math.min(1.0, steer));
 
+          // === DIRECTIONAL MOVEMENT: tank joystik/klaviatura ko'rsatgan tomonga yuradi ===
+          // throttle/steer aslida yo'nalish vektorini beradi: (mx,my) = (steer, -throttle)
+          let mx = steer;
+          let my = -throttle;
+          const moveMag = Math.min(1, Math.hypot(mx, my));
+          let driveThrottle = 0;
+          if (moveMag > 0.05) {
+            const desired = Math.atan2(my, mx);            // yurish kerak bo'lgan yo'nalish
+            let diff = desired - this.player.bodyAngle;
+            while (diff > Math.PI) diff -= Math.PI * 2;
+            while (diff < -Math.PI) diff += Math.PI * 2;
+            // tank tanasini yo'nalishga silliq, FPS'dan mustaqil burish
+            const fTurn = Math.min(3, dt * 60);
+            this.player.bodyAngle += diff * Math.min(1, 0.25 * fTurn);  // 0.25 = burilish tezligi (kattaroq = keskinroq)
+            while (this.player.bodyAngle > Math.PI) this.player.bodyAngle -= Math.PI * 2;
+            while (this.player.bodyAngle < -Math.PI) this.player.bodyAngle += Math.PI * 2;
+            const facing = Math.cos(diff);
+            driveThrottle = moveMag * (facing > 0 ? 1 : 0.3);  // qaragach to'liq tezlik; teskari bo'lsa sekin buriladi
+          }
+
           // Aiming: If right virtual joystick has active aim, rotate turret 360 degrees
           if (this.mobileInput && this.mobileInput.hasAim && this.mobileInput.aimAngle !== null) {
             this.player.targetTurretAngle = this.mobileInput.aimAngle;
@@ -7104,7 +7125,7 @@
             this.player.targetTurretAngle = Math.atan2(this.mouse.worldY - this.player.y, this.mouse.worldX - this.player.x);
           }
 
-          this.player.updateMovement(dt, throttle, steer, this.walls, this.boostPads, this.treadMarks, this.particles);
+          this.player.updateMovement(dt, driveThrottle, 0, this.walls, this.boostPads, this.treadMarks, this.particles);
           this.player.checkBushes(this.bushes);
 
           const speed = Math.hypot(this.player.vx, this.player.vy);

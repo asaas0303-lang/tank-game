@@ -36,13 +36,15 @@ jobs:
           cp index.html manifest.json www/
           npx cap init "Tank Game" "com.tankgame.arena" --web-dir "www"
           npx cap add android
+          sed -i -E 's/gradle-[0-9.]+-all\.zip/gradle-8.7-all.zip/g' android/gradle/wrapper/gradle-wrapper.properties
+          cat android/gradle/wrapper/gradle-wrapper.properties
           npx cap sync android
 
       - name: Build Debug APK with Gradle
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew assembleDebug --stacktrace
+          ./gradlew assembleDebug --no-daemon --stacktrace
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4

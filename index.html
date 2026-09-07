@@ -5838,6 +5838,7 @@
             peer.level = msg.level;
             peer.isAfk = msg.isAfk;
             peer.currentWeapon = msg.weapon || 'standard';
+            peer.lastUpdate = Date.now();
 
             // AUTHORITATIVE alive/dead: peer egasi HP yuborsa (>0) -> tirik; mahalliy "o'lim"ni bekor qil
             const wasDead = peer.dead;
@@ -7331,6 +7332,15 @@
         const targetY = (this.player.dead ? (homeSec.y + homeSec.h / 2) : this.player.y) - this.viewHeight / 2;
         this.camera.x += (targetX - this.camera.x) * 0.12;
         this.camera.y += (targetY - this.camera.y) * 0.12;
+
+        // Uzilgan/qayta ulangan (eski ID) peer'larni avtomatik o'chirish
+        const STALE_MS = 4000; // 4 soniya yangilanmasa -> o'chiriladi
+        const nowTs = Date.now();
+        for (const [pid, peer] of this.peers) {
+          if (!peer.lastUpdate || (nowTs - peer.lastUpdate) > STALE_MS) {
+            this.peers.delete(pid);
+          }
+        }
 
         // Update Bots
         for (let b = this.bots.length - 1; b >= 0; b--) {

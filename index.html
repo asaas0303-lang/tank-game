@@ -847,9 +847,9 @@
       left: 0;
       width: 100%;
       height: 100%;
-      z-index: 9999999;
+      z-index: 100000;          /* above game/HUD, BELOW modals (1000000+) so dialogs stay tappable */
       display: none;            /* hidden by default; the touch-device class reveals it */
-      pointer-events: auto;
+      pointer-events: none;     /* transparent full-screen layer must not eat taps; children (zones/buttons) opt back in with pointer-events:auto */
       opacity: 0.9;
     }
     /* Show joysticks ONLY on touch devices (Capacitor APK / mobile browser) */
@@ -5736,8 +5736,15 @@
          7. WEBSOCKET MULTIPLAYER & DYNAMIC SECTOR UPDATES
          ======================================================================== */
       initWebSocket() {
-        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const wsUrl = `${protocol}//${window.location.host}`;
+        // Live multiplayer server (Railway). Local dev uses the page's own host;
+        // the APK (Capacitor) and the web build both connect to Railway.
+        const RAILWAY_WS = 'wss://tank-game-production-c104.up.railway.app';
+        const host = window.location.hostname;
+        const isCapacitor = (typeof window.Capacitor !== 'undefined');
+        const isLocalDev = !isCapacitor && (host === 'localhost' || host === '127.0.0.1') && !!window.location.port;
+        const wsUrl = isLocalDev
+          ? `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}`
+          : RAILWAY_WS;
 
         this.ws = new WebSocket(wsUrl);
 

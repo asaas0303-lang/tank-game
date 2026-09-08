@@ -389,15 +389,12 @@
       width: 220px;
       pointer-events: auto;
     }
-    /* Mobile: pulled out of the top-right flow, moved down below FIRE, shrunk 50%, more
-       transparent. right is offset past the MINA/NITRO column (36px wide + its own 14px
-       edge margin + a safety gap) so the two never overlap despite both anchoring right. */
     body.touch-device .leaderboard-card {
       position: fixed;
-      top: 44%;
-      right: max(64px, calc(env(safe-area-inset-right, 0px) + 64px));
-      transform: scale(0.5);
-      transform-origin: top right;
+      bottom: max(20px, env(safe-area-inset-bottom, 20px));
+      left: 50%;
+      transform: translateX(-50%) scale(0.6);
+      transform-origin: bottom center;
       background: rgba(0, 0, 0, 0.6);
       backdrop-filter: none;
       -webkit-backdrop-filter: none;

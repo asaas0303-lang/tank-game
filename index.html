@@ -2800,22 +2800,14 @@
         const tashkentDate = new Date(utcMs + 5 * 3600000);
 
         const hours = tashkentDate.getHours();
-        const minutes = String(tashkentDate.getMinutes()).padStart(2, '0');
-        const formatted = `${String(hours).padStart(2, '0')}:${minutes}`;
+        const mins = tashkentDate.getMinutes().toString().padStart(2, '0');
+        const formatted = `${hours.toString().padStart(2, '0')}:${mins}`;
 
-        let isNight = false;
-        if (this.overrideMode === 'night') {
-          isNight = true;
-        } else if (this.overrideMode === 'day') {
-          isNight = false;
-        } else {
-          isNight = (hours >= 20 || hours < 6);
-        }
-
+        let isNight = false; // Tungi rejim butunlay o'chirildi (foydalanuvchi talabi bilan)
+        
         return {
-          formatted,
           isNight,
-          label: isNight ? `Toshkent: ${formatted} [TUN]` : `Toshkent: ${formatted} [KUN]`
+          label: `Toshkent: ${formatted} [KUN]`
         };
       }
     }
@@ -5978,10 +5970,14 @@
                 console.warn('Voice Connection Error:', e);
               }
             }
-            peer.x = msg.x;
-            peer.y = msg.y;
-            peer.bodyAngle = msg.bodyAngle;
-            peer.turretAngle = msg.turretAngle;
+            if (peer.x === undefined) {
+              peer.x = msg.x; peer.y = msg.y;
+              peer.bodyAngle = msg.bodyAngle; peer.turretAngle = msg.turretAngle;
+            }
+            peer.targetX = msg.x;
+            peer.targetY = msg.y;
+            peer.targetBodyAngle = msg.bodyAngle;
+            peer.targetTurretAngle = msg.turretAngle;
             peer.hp = msg.hp;
             peer.maxHp = msg.maxHp;
             peer.shield = msg.shield;
@@ -6642,7 +6638,18 @@
             fireBtn.classList.add('active');
             if (this.player && !this.player.dead) {
               this.player.isAfk = false;
-              this.player.shoot(this.bullets, this.particles, this.floatingTexts);
+              const fired = this.player.shoot(this.bullets, this.particles, this.floatingTexts);
+              if (fired) {
+                this.sendWs({
+                  type: 'fire_bullet',
+                  x: this.player.x,
+                  y: this.player.y,
+                  vx: Math.cos(this.player.turretAngle) * (this.player.bulletSpeed * 60),
+                  vy: Math.sin(this.player.turretAngle) * (this.player.bulletSpeed * 60),
+                  damage: this.player.bulletDamage,
+                  weaponType: this.player.currentWeapon
+                });
+              }
             }
           };
           const stopFire = (e) => {
@@ -7307,6 +7314,23 @@
           this.player.updateMovement(dt, driveThrottle, 0, this.walls, this.boostPads, this.treadMarks, this.particles);
           this.player.checkBushes(this.bushes);
 
+          for (const peer of this.peers.values()) {
+            if (peer.targetX !== undefined) {
+              peer.x += (peer.targetX - peer.x) * (dt * 15);
+              peer.y += (peer.targetY - peer.y) * (dt * 15);
+              
+              let diffB = peer.targetBodyAngle - peer.bodyAngle;
+              while (diffB < -Math.PI) diffB += Math.PI * 2;
+              while (diffB > Math.PI) diffB -= Math.PI * 2;
+              peer.bodyAngle += diffB * (dt * 15);
+
+              let diffT = peer.targetTurretAngle - peer.turretAngle;
+              while (diffT < -Math.PI) diffT += Math.PI * 2;
+              while (diffT > Math.PI) diffT -= Math.PI * 2;
+              peer.turretAngle += diffT * (dt * 15);
+            }
+          }
+
           const speed = Math.hypot(this.player.vx, this.player.vy);
           const speedRatio = Math.min(1.0, speed / (this.player.maxSpeed || 2.4));
           const isMoving = speed > 0.15 || this.player.boostTimer > 0;
@@ -7473,7 +7497,7 @@
         // Egasi o'zining holatini DOIM yuboradi (o'lganda ham) -> peer hech qachon
         // "javobsiz qolib" stale bo'lib o'chib ketmaydi, o'lim/tirilish darrov ko'rinadi.
         const now = Date.now();
-        if (now - this.lastSyncTime > 50) {
+        if (now - this.lastSyncTime > 20) {
           this.lastSyncTime = now;
           this.sendWs({
             type: 'sync_state',

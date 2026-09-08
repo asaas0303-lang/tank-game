@@ -5972,7 +5972,11 @@
               peer.accentColor = '#b37700';
               peer.isRemote = true; // this client never resolves damage/death for it -- its owner does
               this.peers.set(msg.playerId, peer);
-              this.refreshVoicePeerConnections();
+              try {
+                this.refreshVoicePeerConnections();
+              } catch (e) {
+                console.warn('Voice Connection Error:', e);
+              }
             }
             peer.x = msg.x;
             peer.y = msg.y;

@@ -529,7 +529,8 @@ wss.on('connection', (ws, req) => {
           break;
       }
     } catch (err) {
-      console.error('Error handling WS message:', err);
+      console.error('CRITICAL WS ERROR handling message from', player.id, ':', err);
+      console.error('Raw message was:', msgStr.substring(0, 200));
     }
   });
 

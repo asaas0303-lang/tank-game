@@ -345,6 +345,10 @@
       pointer-events: auto;
       cursor: pointer;
     }
+    /* Time-of-day readout is desktop-only clutter on mobile's smaller viewport */
+    body.touch-device .time-cycle-badge {
+      display: none !important;
+    }
 
     .streak-banner {
       font-family: 'Orbitron', monospace;
@@ -528,8 +532,18 @@
     #killFeed {
       display: flex;
       flex-direction: column;
+      align-items: flex-start;
       gap: 4px;
       width: 220px;
+    }
+    /* Mobile: relocate to the left column under mic/speaker/HP, fit-to-content width */
+    body.touch-device #killFeed {
+      position: fixed;
+      top: 140px;
+      left: max(10px, env(safe-area-inset-left, 10px));
+      width: auto;
+      max-width: 200px;
+      z-index: 100001;
     }
 
     .kill-item {
@@ -592,6 +606,10 @@
       z-index: 20;
       pointer-events: none;
     }
+    /* Minimap is desktop-only: too small to be useful on mobile and clutters the touch layout */
+    body.touch-device #radar-container {
+      display: none !important;
+    }
 
     #radar-canvas {
       width: 100%;
@@ -615,18 +633,18 @@
       to { transform: rotate(360deg); }
     }
 
-    /* Level Up Neon Center Banner */
+    /* Level Up Neon Center Banner (small in-game notice, not a big celebration screen) */
     .level-up-banner {
       position: absolute;
-      top: 22%;
+      top: 10%;
       left: 50%;
       transform: translate(-50%, -50%) scale(0.8);
       background: rgba(8, 14, 28, 0.94);
-      border: 2px solid #ffd700;
-      border-radius: 16px;
-      padding: 18px 36px;
+      border: 1.5px solid #ffd700;
+      border-radius: 8px;
+      padding: 4px 14px;
       text-align: center;
-      box-shadow: 0 0 50px rgba(255, 215, 0, 0.6), inset 0 0 25px rgba(255, 215, 0, 0.2);
+      box-shadow: 0 0 14px rgba(255, 215, 0, 0.5), inset 0 0 8px rgba(255, 215, 0, 0.15);
       z-index: 85;
       opacity: 0;
       pointer-events: none;
@@ -638,19 +656,19 @@
     }
     .level-up-title {
       font-family: 'Orbitron', monospace;
-      font-size: 24px;
+      font-size: 11px;
       font-weight: 900;
       color: #ffd700;
-      text-shadow: 0 0 16px rgba(255, 215, 0, 0.9);
-      letter-spacing: 2px;
-      margin-bottom: 6px;
+      text-shadow: 0 0 6px rgba(255, 215, 0, 0.9);
+      letter-spacing: 1px;
+      margin-bottom: 2px;
     }
     .level-up-sub {
       font-family: 'Rajdhani', sans-serif;
-      font-size: 16px;
+      font-size: 9px;
       font-weight: 700;
       color: #00f0ff;
-      letter-spacing: 1px;
+      letter-spacing: 0.5px;
     }
 
     /* Respawn 3.. 2.. 1.. Countdown Modal */
@@ -860,8 +878,8 @@
     /* ---- MOBILE MINI-HUD (ultra-compact HP/Reload strip, replaces giant panel) ---- */
     .mobile-mini-hud {
       display: none;
-      position: absolute;
-      top: max(8px, env(safe-area-inset-top, 8px));
+      position: fixed;
+      top: 106px;
       left: max(10px, env(safe-area-inset-left, 10px));
       z-index: 100001;
       pointer-events: auto;
@@ -871,18 +889,6 @@
     }
     body.touch-device .mobile-mini-hud {
       display: flex;
-    }
-    .mini-hud-name {
-      font-family: 'Orbitron', monospace;
-      font-size: 10px;
-      font-weight: 800;
-      color: var(--primary);
-      text-shadow: 0 0 6px var(--primary);
-      letter-spacing: 0.5px;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      max-width: 170px;
     }
     .mini-bar {
       width: 100%;
@@ -923,29 +929,52 @@
       text-shadow: 0 1px 2px #000;
       pointer-events: none;
     }
-    .mini-hud-toggle {
-      width: 28px;
-      height: 28px;
+    /* Touch-only mic/speaker circles, stacked under the gear button (top-left column) */
+    .mobile-voice-cluster {
+      display: none;
+      position: fixed;
+      top: 58px;
+      left: max(10px, env(safe-area-inset-left, 10px));
+      z-index: 100001;
+      gap: 8px;
+      pointer-events: auto;
+    }
+    body.touch-device .mobile-voice-cluster {
+      display: flex;
+    }
+    .voice-circle-btn {
+      width: 40px;
+      height: 40px;
       border-radius: 50%;
       background: rgba(10, 18, 36, 0.92);
       border: 1.5px solid var(--primary);
       color: var(--primary);
-      font-size: 14px;
+      font-size: 16px;
       display: flex;
       align-items: center;
       justify-content: center;
       cursor: pointer;
       outline: none;
       box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
-      position: absolute;
-      top: 0;
-      right: -36px;
-      pointer-events: auto;
-      transition: transform 0.2s;
-      z-index: 100002;
+      transition: transform 0.15s, filter 0.15s;
     }
-    .mini-hud-toggle:active {
+    .voice-circle-btn:active {
       transform: scale(0.9);
+    }
+    .voice-circle-btn.active {
+      filter: brightness(1.3);
+    }
+    #mobileBtnSpeaker {
+      border-color: #2ecc71;
+      color: #2ecc71;
+    }
+    #mobileBtnSpeaker.muted {
+      border-color: #64748b;
+      color: #64748b;
+    }
+    #mobileBtnMic.muted {
+      border-color: #64748b;
+      color: #64748b;
     }
 
     /* Hide the giant desktop HUD on touch devices */
@@ -978,7 +1007,7 @@
     }
 
     .joystick-zone-right {
-      right: calc(160px + max(16px, env(safe-area-inset-right, 16px)));
+      right: max(20px, env(safe-area-inset-right, 20px));
     }
 
     .joystick-base {
@@ -986,9 +1015,9 @@
       width: 130px;
       height: 130px;
       border-radius: 50%;
-      background: radial-gradient(circle, rgba(10, 24, 48, 0.88) 0%, rgba(4, 10, 24, 0.96) 100%);
+      background: transparent;
       border: 3px solid #00f0ff;
-      box-shadow: 0 0 25px rgba(0, 240, 255, 0.5), inset 0 0 15px rgba(0, 240, 255, 0.25);
+      box-shadow: 0 0 25px rgba(0, 240, 255, 0.35);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -1042,34 +1071,29 @@
       box-shadow: 0 0 10px #ffffff;
     }
 
+    /* Joystick text labels removed per mobile redesign (icons are self-explanatory) */
     .joystick-label {
-      margin-top: 8px;
-      font-family: 'Orbitron', monospace;
-      font-size: 11px;
-      font-weight: 900;
-      color: #00f0ff;
-      letter-spacing: 1.5px;
-      text-shadow: 0 0 8px rgba(0, 240, 255, 0.7);
-      pointer-events: none;
-    }
-    .label-aim {
-      color: #ffaa00;
-      text-shadow: 0 0 8px rgba(255, 170, 0, 0.7);
+      display: none;
     }
 
-    /* Mobile Action Buttons Cluster */
+    /* Right-edge column: Mina (top) + Nitro (bottom), flexibly spaced between the
+       FIRE button above and the aim joystick below -- stays correct on any screen height. */
     .mobile-action-cluster {
-      position: absolute;
-      bottom: max(16px, env(safe-area-inset-bottom, 16px));
-      right: max(16px, env(safe-area-inset-right, 16px));
-      width: 145px;
-      height: 155px;
-      pointer-events: auto;
+      position: fixed;
+      top: 104px;
+      bottom: calc(max(20px, env(safe-area-inset-bottom, 20px)) + 152px);
+      right: max(14px, env(safe-area-inset-right, 14px));
+      width: 52px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      pointer-events: none;
       touch-action: none;
     }
 
     .touch-action-btn {
-      position: absolute;
+      position: relative;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -1085,6 +1109,7 @@
       transition: transform 0.08s ease, filter 0.08s ease;
       outline: none;
       -webkit-tap-highlight-color: transparent;
+      pointer-events: auto;
     }
 
     .touch-action-btn:active, .touch-action-btn.active {
@@ -1092,57 +1117,43 @@
       filter: brightness(1.35);
     }
 
-    /* Katta qizil FIRE tugmasi */
+    /* Katta qizil FIRE tugmasi — mustaqil, yuqori-o'ng burchak, yozuvsiz */
     .touch-btn-fire {
-      bottom: 0px;
-      right: 0px;
+      position: fixed;
+      top: max(14px, env(safe-area-inset-top, 14px));
+      right: max(14px, env(safe-area-inset-right, 14px));
       width: 80px;
       height: 80px;
       background: radial-gradient(circle, #ff1744 0%, #b71c1c 100%);
       border: 3.5px solid #ff5252;
       box-shadow: 0 0 30px rgba(255, 23, 68, 0.9), inset 0 2px 6px rgba(255, 255, 255, 0.5);
-      z-index: 2;
+      z-index: 100001;
     }
 
     .fire-icon {
-      font-size: 26px;
+      font-size: 28px;
       line-height: 1;
-    }
-
-    .fire-txt {
-      font-size: 10px;
-      font-weight: 900;
-      letter-spacing: 1px;
-      text-shadow: 0 1px 3px #000;
-      margin-top: 2px;
-      color: #ffffff;
     }
 
     /* Nitro Tugmasi */
     .touch-btn-nitro {
-      top: 6px;
-      right: 14px;
       width: 52px;
       height: 52px;
       background: radial-gradient(circle, #00e5ff 0%, #0077c2 100%);
       border: 2.5px solid #18ffff;
       box-shadow: 0 0 20px rgba(0, 229, 255, 0.8), inset 0 2px 4px rgba(255, 255, 255, 0.5);
     }
-    .touch-btn-nitro .btn-icon { font-size: 18px; line-height: 1; }
-    .touch-btn-nitro .btn-txt { font-size: 8px; font-weight: 900; letter-spacing: 0.5px; }
+    .touch-btn-nitro .btn-icon { font-size: 20px; line-height: 1; }
 
     /* Mina Tugmasi */
     .touch-btn-mine {
-      bottom: 10px;
-      left: 0px;
       width: 52px;
       height: 52px;
       background: radial-gradient(circle, #00e676 0%, #1b5e20 100%);
       border: 2.5px solid #69f0ae;
       box-shadow: 0 0 20px rgba(0, 230, 118, 0.8), inset 0 2px 4px rgba(255, 255, 255, 0.5);
     }
-    .touch-btn-mine .btn-icon { font-size: 18px; line-height: 1; }
-    .touch-btn-mine .btn-txt { font-size: 8px; font-weight: 900; letter-spacing: 0.5px; }
+    .touch-btn-mine .btn-icon { font-size: 20px; line-height: 1; }
 
     .badge-ammo {
       position: absolute;
@@ -1188,6 +1199,11 @@
     .mobile-gear-btn:hover, .mobile-gear-btn:active {
       transform: scale(1.08) rotate(30deg);
       box-shadow: 0 0 22px var(--primary);
+    }
+    /* Mobile: gear moves to the top-left column (mic/speaker/HP stack below it) */
+    body.touch-device .mobile-gear-btn {
+      left: max(10px, env(safe-area-inset-left, 10px));
+      right: auto;
     }
 
     /* Name Prompt Cyber Modal */
@@ -1437,9 +1453,14 @@
     <!-- Quick Settings Gear Button (Always Accessible on Mobile & Desktop) -->
     <button class="mobile-gear-btn" id="btnQuickSettings" aria-label="Sozlamalar" title="Sozlamalar">⚙️</button>
 
-    <!-- MOBILE MINI-HUD (ultra-compact, shown only on touch devices) -->
+    <!-- Mobile mic/speaker (touch-only, stacked under the gear button) -->
+    <div class="mobile-voice-cluster">
+      <button class="voice-circle-btn" id="mobileBtnMic" aria-label="Mikrofon">🎙️</button>
+      <button class="voice-circle-btn" id="mobileBtnSpeaker" aria-label="Karnay">🔊</button>
+    </div>
+
+    <!-- MOBILE MINI-HUD (ultra-compact HP+reload only, shown only on touch devices) -->
     <div class="mobile-mini-hud" id="mobileMinHud">
-      <span class="mini-hud-name" id="miniHudName">COMMANDER</span>
       <!-- Mini HP Bar -->
       <div class="mini-bar">
         <div class="mini-bar-fill-hp" id="miniHpFill" style="width:100%"></div>
@@ -1450,8 +1471,6 @@
         <div class="mini-bar-fill-reload" id="miniReloadFill" style="width:100%"></div>
         <div class="mini-bar-text" id="miniReloadText">TAYYOR</div>
       </div>
-      <!-- Toggle to open/close full desktop HUD -->
-      <button class="mini-hud-toggle" id="btnToggleFullHud" aria-label="Batafsil">▼</button>
     </div>
 
     <!-- Top Left HUD (desktop full panel, hidden on touch devices by default) -->
@@ -1611,6 +1630,7 @@
         <div class="modal-actions">
           <button class="btn-modal-primary" id="btnCloseEsc">JANGGA QAYTISH</button>
         </div>
+        <div style="text-align:center; margin-top:10px; font:10px monospace; color:rgba(255,255,255,0.35);" id="buildStampInModal">build …</div>
       </div>
     </div>
 
@@ -1665,7 +1685,7 @@
           <label class="name-input-label">Ismingizni kiriting:</label>
           <div class="name-input-wrap">
             <span class="name-input-icon">🎖️</span>
-            <input type="text" id="playerNameInput" class="name-cyber-input" placeholder="Komandir (masalan: Falcon)" maxlength="16" autocomplete="off" spellcheck="false">
+            <input type="text" id="playerNameInput" class="name-cyber-input" placeholder="Komandir (masalan: Falcon)" maxlength="14" autocomplete="off" spellcheck="false">
           </div>
         </div>
 
@@ -1687,7 +1707,6 @@
             <div class="thumb-core"></div>
           </div>
         </div>
-        <div class="joystick-label">HARAKAT</div>
       </div>
 
       <!-- O'ng Joystik (Nishon / Minora 360°) -->
@@ -1698,28 +1717,22 @@
             <div class="thumb-core"></div>
           </div>
         </div>
-        <div class="joystick-label label-aim">NISHON</div>
       </div>
 
-      <!-- O'ng Tomon Ergonomik Tugmalar (Otish, Nitro, Mina) -->
+      <!-- Katta Qizil FIRE Tugmasi (yolg'iz, yuqori-o'ng burchak) -->
+      <button id="btnTouchFire" class="touch-action-btn touch-btn-fire" aria-label="Otish">
+        <span class="fire-icon">🎯</span>
+      </button>
+
+      <!-- O'ng chekka ustuni: Mina (tepada) va Nitro (pastroq, nishon joystigiga yaqin) -->
       <div class="mobile-action-cluster">
-        <!-- Mina Button -->
         <button id="btnTouchMine" class="touch-action-btn touch-btn-mine" aria-label="Mina">
           <span class="btn-icon">💣</span>
-          <span class="btn-txt">MINA</span>
           <span class="badge-ammo" id="touchMineCount">3</span>
         </button>
 
-        <!-- Nitro Button -->
         <button id="btnTouchNitro" class="touch-action-btn touch-btn-nitro" aria-label="Nitro">
           <span class="btn-icon">⚡</span>
-          <span class="btn-txt">NITRO</span>
-        </button>
-
-        <!-- Katta Qizil FIRE Tugmasi -->
-        <button id="btnTouchFire" class="touch-action-btn touch-btn-fire" aria-label="Otish">
-          <span class="fire-icon">🎯</span>
-          <span class="fire-txt">FIRE</span>
         </button>
       </div>
     </div>
@@ -1732,7 +1745,7 @@
     </div>
   </div>
 
-  <div id="buildStamp" style="position:fixed; bottom:4px; left:6px; z-index:999999; font:10px monospace; color:rgba(255,255,255,0.35); pointer-events:none;">build …</div>
+  <div id="buildStamp" style="display:none;">build …</div>
 
   <script>
     /* ==========================================================================
@@ -4918,9 +4931,10 @@
           else if (this.aiState === 'LOOTING') stateBadge = ' [📦 QUTI]';
         }
 
+        const safeName = (this.name || '').slice(0, 14);
         const tagText = this.isPlayer
-          ? `⭐ #${this.code || this.playerId} ${this.name} [LVL ${this.level}]`
-          : `★ ${this.name} [LVL ${this.level}]${stateBadge}`;
+          ? `⭐ #${this.code || this.playerId} ${safeName} [LVL ${this.level}]`
+          : `★ ${safeName} [LVL ${this.level}]${stateBadge}`;
 
         ctx.strokeStyle = '#000000';
         ctx.lineWidth = 4;
@@ -5398,6 +5412,7 @@
         this.micStream = null;
         this.micEnabled = false;
         this.speakerEnabled = true;
+        this.voicePeers = new Map(); // peerId -> { pc: RTCPeerConnection, audioEl: HTMLAudioElement }
 
         // Sectors State
         this.cols = 2;
@@ -5436,7 +5451,7 @@
         this.respawnCountdown = 0;
         this.hitmarkerTimer = 0;
         this.hitmarkerColor = '#ffffff';
-        this.cameraZoom = 1.0; // Static 1.0 scale
+        this.cameraZoom = 0.9; // Zoomed out 10% so more of the battlefield is visible
         this.killPopups = [];
         this.expOrbs = [];
         window.freezeTimer = 0;
@@ -5736,8 +5751,8 @@
         this.gameOver = false;
         const vw = this.viewWidth || window.innerWidth;
         const vh = this.viewHeight || window.innerHeight;
-        this.camera.x = this.player.x - vw / 2;
-        this.camera.y = this.player.y - vh / 2;
+        this.camera.x = this.player.x - vw / 2 / this.cameraZoom;
+        this.camera.y = this.player.y - vh / 2 / this.cameraZoom;
       }
 
       /* ========================================================================
@@ -5791,6 +5806,99 @@
         }
       }
 
+      /* ========================================================================
+         PROXIMITY VOICE (WebRTC, signaled through the existing WS relay)
+         ======================================================================== */
+      getOrCreateVoicePeer(peerId) {
+        let vp = this.voicePeers.get(peerId);
+        if (vp) return vp;
+
+        const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+        const audioEl = document.createElement('audio');
+        audioEl.autoplay = true;
+        audioEl.volume = 0;
+        audioEl.style.display = 'none';
+        document.body.appendChild(audioEl);
+
+        if (this.micStream) {
+          this.micStream.getTracks().forEach(track => pc.addTrack(track, this.micStream));
+        }
+
+        pc.onicecandidate = (e) => {
+          if (e.candidate) {
+            this.sendWs({ type: 'webrtc_signal', targetId: peerId, signal: { candidate: e.candidate } });
+          }
+        };
+        pc.ontrack = (e) => {
+          audioEl.srcObject = e.streams[0];
+        };
+
+        vp = { pc, audioEl };
+        this.voicePeers.set(peerId, vp);
+        return vp;
+      }
+
+      closeVoicePeer(peerId) {
+        const vp = this.voicePeers.get(peerId);
+        if (!vp) return;
+        try { vp.pc.close(); } catch (e) {}
+        try { vp.audioEl.remove(); } catch (e) {}
+        this.voicePeers.delete(peerId);
+      }
+
+      // Called on mic toggle and whenever a new peer appears: (re)establish connections
+      // so mic state (local track present or not) and the current peer roster stay in sync.
+      // Glare-free: the lexically-smaller playerId always sends the offer.
+      refreshVoicePeerConnections() {
+        if (!this.playerId) return;
+        for (const peerId of this.peers.keys()) {
+          this.closeVoicePeer(peerId); // rebuild fresh so the current mic track (on or off) is included
+          const vp = this.getOrCreateVoicePeer(peerId);
+          const isInitiator = this.playerId < peerId;
+          if (isInitiator) {
+            vp.pc.createOffer().then(offer => {
+              return vp.pc.setLocalDescription(offer).then(() => {
+                this.sendWs({ type: 'webrtc_signal', targetId: peerId, signal: { sdp: vp.pc.localDescription } });
+              });
+            }).catch(err => console.warn('Voice offer failed:', err));
+          }
+        }
+      }
+
+      async handleVoiceSignal(fromId, signal) {
+        const vp = this.getOrCreateVoicePeer(fromId);
+        try {
+          if (signal.sdp) {
+            await vp.pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+            if (signal.sdp.type === 'offer') {
+              const answer = await vp.pc.createAnswer();
+              await vp.pc.setLocalDescription(answer);
+              this.sendWs({ type: 'webrtc_signal', targetId: fromId, signal: { sdp: vp.pc.localDescription } });
+            }
+          } else if (signal.candidate) {
+            await vp.pc.addIceCandidate(new RTCIceCandidate(signal.candidate));
+          }
+        } catch (err) {
+          console.warn('Voice signal handling failed:', err);
+        }
+      }
+
+      // Distance-based volume: called every frame from update(). Silent beyond 300px, and
+      // fully muted for everyone when the local speaker toggle is off.
+      updateVoiceVolumes() {
+        if (this.voicePeers.size === 0) return;
+        const RANGE = 300;
+        for (const [peerId, vp] of this.voicePeers) {
+          const peer = this.peers.get(peerId);
+          let vol = 0;
+          if (this.speakerEnabled && peer && !peer.dead && this.player && !this.player.dead) {
+            const dist = Math.hypot(this.player.x - peer.x, this.player.y - peer.y);
+            vol = Math.max(0, 1 - dist / RANGE);
+          }
+          vp.audioEl.volume = vol;
+        }
+      }
+
       handleServerMessage(msg) {
         switch (msg.type) {
           case 'welcome':
@@ -5840,6 +5948,7 @@
               peer.baseColor = '#ffaa00';
               peer.accentColor = '#b37700';
               this.peers.set(msg.playerId, peer);
+              this.refreshVoicePeerConnections();
             }
             peer.x = msg.x;
             peer.y = msg.y;
@@ -5866,6 +5975,10 @@
             }
             break;
           }
+
+          case 'webrtc_signal':
+            this.handleVoiceSignal(msg.fromId, msg.signal);
+            break;
 
           case 'peer_fired': {
             this.bullets.push(new Bullet(
@@ -6050,10 +6163,14 @@
           }
         });
 
-        // Mic HUD Button
+        // Mic & Speaker: desktop HUD buttons + mobile circular buttons share one toggle each,
+        // so both stay in sync no matter which one the player taps.
         const micBtn = document.getElementById('hudBtnMic');
-        micBtn.addEventListener('click', async (e) => {
-          e.stopPropagation();
+        const mobileMicBtn = document.getElementById('mobileBtnMic');
+        const spkBtn = document.getElementById('hudBtnSpeaker');
+        const mobileSpkBtn = document.getElementById('mobileBtnSpeaker');
+
+        const toggleMic = async () => {
           audio.init();
           if (!this.micStream) {
             try {
@@ -6062,7 +6179,9 @@
               this.micEnabled = true;
               micBtn.textContent = '🎙️ MIC: ON';
               micBtn.classList.add('active');
+              if (mobileMicBtn) mobileMicBtn.classList.remove('muted');
               this.addFloatingNotice("🎙️ Mikrofon yoqildi!");
+              this.refreshVoicePeerConnections();
             } catch (err) {
               console.warn("Mikrofon ruxsati berilmadi:", err);
               this.addFloatingNotice("⚠️ Mikrofonga ruxsat berilmadi!");
@@ -6073,14 +6192,15 @@
             this.micEnabled = false;
             micBtn.textContent = '🎙️ MIC: OFF';
             micBtn.classList.remove('active');
+            if (mobileMicBtn) mobileMicBtn.classList.add('muted');
             this.addFloatingNotice("🎙️ Mikrofon o'chirildi");
+            this.refreshVoicePeerConnections();
           }
-        });
+        };
+        micBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleMic(); });
+        if (mobileMicBtn) mobileMicBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleMic(); });
 
-        // Speaker HUD Button
-        const spkBtn = document.getElementById('hudBtnSpeaker');
-        spkBtn.addEventListener('click', (e) => {
-          e.stopPropagation();
+        const toggleSpeaker = () => {
           this.speakerEnabled = !this.speakerEnabled;
           audio.init();
           if (audio.masterGain && audio.ctx) {
@@ -6088,8 +6208,13 @@
           }
           spkBtn.textContent = this.speakerEnabled ? '🔊 KARNAY: ON' : '🔇 KARNAY: OFF';
           spkBtn.classList.toggle('active', this.speakerEnabled);
+          if (mobileSpkBtn) mobileSpkBtn.classList.toggle('muted', !this.speakerEnabled);
+          const killFeedEl = document.getElementById('killFeed');
+          if (killFeedEl) killFeedEl.style.display = this.speakerEnabled ? '' : 'none';
           this.addFloatingNotice(this.speakerEnabled ? "🔊 Ovoz yoqildi" : "🔇 Ovoz o'chirildi");
-        });
+        };
+        spkBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleSpeaker(); });
+        if (mobileSpkBtn) mobileSpkBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleSpeaker(); });
 
         document.getElementById('btnRespawn').addEventListener('click', () => {
           document.getElementById('gameOverModal').classList.remove('active');
@@ -6127,7 +6252,7 @@
               setTimeout(() => { nameInput.classList.remove('error'); }, 800);
               return;
             }
-            val = val.slice(0, 16);
+            val = val.slice(0, 14);
 
             if (!this.playerProfile) {
               this.playerProfile = { name: val, level: 1, score: 0, coins: 0, kills: 0 };
@@ -6175,7 +6300,7 @@
 
         if (savedData && savedData.name && savedData.name.trim() && savedData.name.trim() !== 'Komandir') {
           this.playerProfile = {
-            name: savedData.name.trim().slice(0, 16),
+            name: savedData.name.trim().slice(0, 14),
             level: savedData.level || 1,
             score: savedData.score || 0,
             coins: savedData.coins || 0,
@@ -6288,24 +6413,6 @@
         else setTimeout(() => { if (detectTouch()) enableTouchMode(); }, 600);
         // NOTE: joystick listeners below are wired unconditionally; they're inert on desktop
         // because the layer is display:none and therefore receives no pointer/touch events.
-
-        // Setup mobile mini-HUD toggle button
-        const toggleBtn = document.getElementById('btnToggleFullHud');
-        const fullHud = document.querySelector('.hud-top-left');
-        let fullHudVisible = false;
-        if (toggleBtn && fullHud) {
-          toggleBtn.addEventListener('touchend', (e) => {
-            e.preventDefault();
-            fullHudVisible = !fullHudVisible;
-            fullHud.style.display = fullHudVisible ? 'flex' : 'none';
-            toggleBtn.textContent = fullHudVisible ? '▲' : '▼';
-          }, { passive: false });
-          toggleBtn.addEventListener('click', () => {
-            fullHudVisible = !fullHudVisible;
-            fullHud.style.display = fullHudVisible ? 'flex' : 'none';
-            toggleBtn.textContent = fullHudVisible ? '▲' : '▼';
-          });
-        }
 
         // Hide keyboard controls hint
         const hint = (typeof document !== 'undefined' && document.querySelector) ? document.querySelector('.hud-controls-hint') : null;
@@ -7152,8 +7259,8 @@
             this.mouse.x = this.viewWidth / 2 + Math.cos(this.mobileInput.aimAngle) * 220;
             this.mouse.y = this.viewHeight / 2 + Math.sin(this.mobileInput.aimAngle) * 220;
           } else {
-            this.mouse.worldX = this.mouse.x + this.camera.x;
-            this.mouse.worldY = this.mouse.y + this.camera.y;
+            this.mouse.worldX = this.mouse.x / this.cameraZoom + this.camera.x;
+            this.mouse.worldY = this.mouse.y / this.cameraZoom + this.camera.y;
             this.player.targetTurretAngle = Math.atan2(this.mouse.worldY - this.player.y, this.mouse.worldX - this.player.x);
           }
 
@@ -7278,14 +7385,10 @@
             const miniHpText = document.getElementById('miniHpText');
             const miniReloadFill = document.getElementById('miniReloadFill');
             const miniReloadText = document.getElementById('miniReloadText');
-            const miniHudName = document.getElementById('miniHudName');
             if (miniHpFill) miniHpFill.style.width = `${Math.max(0, hpPercent)}%`;
             if (miniHpText) miniHpText.textContent = `${Math.ceil(this.player.hp)} / ${this.player.maxHp}`;
             if (miniReloadFill) miniReloadFill.style.width = `${reloadP}%`;
             if (miniReloadText) miniReloadText.textContent = reloadP >= 100 ? 'TAYYOR' : `${Math.round(reloadP)}%`;
-            if (miniHudName && this.playerProfile && this.playerProfile.name) {
-              miniHudName.textContent = this.playerProfile.name;
-            }
             // Color mini HP bar based on health
             if (miniHpFill) {
               if (hpPercent <= 25) miniHpFill.style.background = 'linear-gradient(90deg, #ff1744, #ff5252)';
@@ -7346,8 +7449,8 @@
 
         // 2 & 3. SILLIQ VA ENGIL KUZATUV (SMOOTH INTERPOLATION: 0.12, STRICT TANK CENTER)
         const homeSec = this.sectors.find(s => s.id === this.mySectorId) || this.sectors[0];
-        const targetX = (this.player.dead ? (homeSec.x + homeSec.w / 2) : this.player.x) - this.viewWidth / 2;
-        const targetY = (this.player.dead ? (homeSec.y + homeSec.h / 2) : this.player.y) - this.viewHeight / 2;
+        const targetX = (this.player.dead ? (homeSec.x + homeSec.w / 2) : this.player.x) - this.viewWidth / 2 / this.cameraZoom;
+        const targetY = (this.player.dead ? (homeSec.y + homeSec.h / 2) : this.player.y) - this.viewHeight / 2 / this.cameraZoom;
         this.camera.x += (targetX - this.camera.x) * 0.12;
         this.camera.y += (targetY - this.camera.y) * 0.12;
 
@@ -7357,8 +7460,10 @@
         for (const [pid, peer] of this.peers) {
           if (!peer.lastUpdate || (nowTs - peer.lastUpdate) > STALE_MS) {
             this.peers.delete(pid);
+            this.closeVoicePeer(pid);
           }
         }
+        this.updateVoiceVolumes();
 
         // Update Bots
         for (let b = this.bots.length - 1; b >= 0; b--) {
@@ -7578,7 +7683,7 @@
         const renderY = Math.round(this.camera.y + (this.shakeOffset ? this.shakeOffset.y : 0));
 
         this.ctx.save();
-        this.ctx.scale(1.0, 1.0); // Statik 1.0 zoom (doimiy masshtab)
+        this.ctx.scale(this.cameraZoom, this.cameraZoom);
         this.ctx.translate(-renderX, -renderY);
 
         // 1. Grid Floor (isNight holatiga qat'iy moslangan)
@@ -8382,6 +8487,10 @@
 
       lc.save();
       lc.globalCompositeOperation = 'destination-out';
+      // Every light source below is positioned/sized using raw (world - camera) deltas, i.e. the
+      // same unscaled space the main canvas draws in before its own zoom transform -- so scaling
+      // this context the same way keeps the darkness holes aligned with what's actually on screen.
+      lc.scale(this.cameraZoom, this.cameraZoom);
 
       const visibleTanks = [this.player, ...this.bots, ...this.peers.values()].filter(t => !t.dead);
       const onScreenLightCasters = [];
@@ -8768,8 +8877,11 @@
       new GameEngine();
 
       const BUILD_ID = 'BUILD_2026-09-08';  // har deploy oldidan shu qatorni yangilab turing (yoki build skript avtomatik yozsin)
+      const buildText = 'build ' + BUILD_ID + (typeof window.Capacitor !== 'undefined' ? ' (APK)' : ' (web)');
       const stamp = document.getElementById('buildStamp');
-      if (stamp) stamp.textContent = 'build ' + BUILD_ID + (typeof window.Capacitor !== 'undefined' ? ' (APK)' : ' (web)');
+      if (stamp) stamp.textContent = buildText;
+      const stampInModal = document.getElementById('buildStampInModal');
+      if (stampInModal) stampInModal.textContent = buildText;
     });
   </script>
 </body>

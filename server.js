@@ -138,10 +138,11 @@ function updateRoomSectors(room) {
   });
 }
 
-// Balance bots in room: 1 real player = exactly 3 bots
+// Balance bots in room by human player count (easy to retune, see the map below)
+const BOT_COUNT_BY_HUMANS = { 1: 3, 2: 4, 3: 3, 4: 2, 5: 1, 6: 1 };
 function balanceRoomBots(room) {
   const humanCount = room.players.size;
-  const targetBotCount = Math.max(3, humanCount * 3); // minimum 3 bots
+  const targetBotCount = humanCount > 6 ? 0 : (BOT_COUNT_BY_HUMANS[humanCount] || 0);
 
   // Adjust bots array
   while (room.bots.length < targetBotCount) {
@@ -303,9 +304,10 @@ wss.on('connection', (ws, req) => {
       const msg = JSON.parse(msgStr);
 
       switch (msg.type) {
-        case 'set_name':
-          if (msg.name && typeof msg.name === 'string') {
-            player.name = msg.name.trim().slice(0, 16);
+        case 'set_name': {
+          const cleanName = String(msg.name || '').slice(0, 14).trim();
+          if (cleanName) {
+            player.name = cleanName;
             broadcastToRoom(player.roomId, {
               type: 'player_renamed',
               playerId: player.id,
@@ -315,6 +317,7 @@ wss.on('connection', (ws, req) => {
             if (curRoom) updateRoomSectors(curRoom);
           }
           break;
+        }
 
         case 'set_afk':
           player.isAfk = !!msg.isAfk;

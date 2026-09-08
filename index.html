@@ -6005,9 +6005,10 @@
             break;
 
           case 'peer_fired': {
+            const shooterPeer = this.peers.get(msg.playerId) || null;
             this.bullets.push(new Bullet(
               msg.x, msg.y, msg.vx, msg.vy,
-              msg.damage, null, msg.color || '#ffaa00', 4.2, msg.weaponType || 'standard'
+              msg.damage, shooterPeer, msg.color || '#ffaa00', 4.2, msg.weaponType || 'standard'
             ));
             audio.playShoot(msg.weaponType || 'standard', false, msg.x, msg.y);
             const peerX = msg.x, peerY = msg.y;

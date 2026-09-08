@@ -3969,7 +3969,7 @@
         this.currentWeapon = 'standard';
         this.weaponAmmo = Infinity;
         this.bulletDamage = 35;
-        this.bulletSpeed = isPlayer ? 7.8 : 6.6;
+        this.bulletSpeed = isPlayer ? 3.9 : 3.3;
         this.shootCooldown = isPlayer ? 0.9 : 1.8; // Strict 0.8-1.0s for player, 1.5-2.0s for bots
         this.shootTimer = 0;
         this.maxMagazine = 5;
@@ -4006,11 +4006,11 @@
         this.mass = 1.0;
         this.vx = 0;
         this.vy = 0;
-        this.baseAccel = 0.35;
-        this.accel = 0.35;
+        this.baseAccel = 0.175;
+        this.accel = 0.175;
         this.friction = 0.91;
-        this.baseMaxSpeed = 2.4;
-        this.maxSpeed = 2.4;
+        this.baseMaxSpeed = 1.2;
+        this.maxSpeed = 1.2;
         this.lateralSlip = 0;
         this.barrelRecoilOffset = 0;
         this.barrelRecoilTimer = 0;
@@ -4052,7 +4052,7 @@
         this.mass = 1.0 + (this.level - 1) * 0.22;
         this.radius = Math.min(34, this.baseRadius + (this.level - 1) * 1.2);
         // Heavy tanks have slightly lower top speed, but high momentum
-        this.maxSpeed = Math.max(1.75, this.baseMaxSpeed / Math.pow(this.mass, 0.22));
+        this.maxSpeed = Math.max(0.875, this.baseMaxSpeed / Math.pow(this.mass, 0.22));
         this.accel = this.baseAccel / Math.pow(this.mass, 0.15);
       }
 
@@ -4499,8 +4499,8 @@
               this.boostAngle = bp.angle;
               this.bodyAngle = bp.angle;
               this.boostCooldown = 2.0;
-              this.vx = Math.cos(bp.angle) * 8.0;
-              this.vy = Math.sin(bp.angle) * 8.0;
+              this.vx = Math.cos(bp.angle) * 4.0;
+              this.vy = Math.sin(bp.angle) * 4.0;
               audio.playNitro();
 
               particles.push(new Particle(this.x, this.y, 0, 0, '#00ff88', 14, 0.45, 'shockwave'));
@@ -4568,7 +4568,7 @@
         // Max Speed Clamping (boost & nitro expand limits)
         let effectiveMaxSpeed = this.maxSpeed;
         if (this.nitroDuration > 0) effectiveMaxSpeed *= 1.7;
-        if (this.boostTimer > 0) effectiveMaxSpeed = 8.5;
+        if (this.boostTimer > 0) effectiveMaxSpeed = 4.25;
 
         const newSpeed = Math.hypot(this.vx, this.vy);
         if (newSpeed > effectiveMaxSpeed) {

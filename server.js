@@ -464,7 +464,8 @@ wss.on('connection', (ws, req) => {
               level: msg.level,
               isAfk: player.isAfk,
               hasShield: msg.hasShield,
-              weapon: msg.weapon
+              weapon: msg.weapon,
+              dead: msg.dead
             }, player.id);
           }
           break;

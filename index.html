@@ -5970,6 +5970,7 @@
               peer = new Tank(msg.x, msg.y, msg.name, false, msg.playerId);
               peer.baseColor = '#ffaa00';
               peer.accentColor = '#b37700';
+              peer.isRemote = true; // this client never resolves damage/death for it -- its owner does
               this.peers.set(msg.playerId, peer);
               this.refreshVoicePeerConnections();
             }
@@ -5986,9 +5987,9 @@
             peer.code = msg.code || '';
             peer.lastUpdate = Date.now();
 
-            // AUTHORITATIVE alive/dead: peer egasi HP yuborsa (>0) -> tirik; mahalliy "o'lim"ni bekor qil
+            // AUTHORITATIVE alive/dead: egasi aytgan holat ishlatiladi (mahalliy zarar peer.dead'ni belgilamaydi)
             const wasDead = peer.dead;
-            peer.dead = (msg.hp <= 0);
+            peer.dead = !!msg.dead;
             if (wasDead && !peer.dead) {
               // qayta tiriltirilgan puppet: o'lim vizual holatini tozala
               peer.deathFadeAlpha = 0;
@@ -6991,7 +6992,12 @@
             if (tank.dead || tank === b.owner) continue;
 
             if (Math.hypot(b.x - tank.x, b.y - tank.y) < tank.radius + b.size) {
-              tank.takeDamage(b.damage, b.owner, this.floatingTexts, this.particles);
+              // Remote peers resolve their own damage/death on their owner's client -- calling
+              // takeDamage here would desync hp/dead from what that client is authoritatively
+              // broadcasting. The bullet still visibly hits and is destroyed below.
+              if (!tank.isRemote) {
+                tank.takeDamage(b.damage, b.owner, this.floatingTexts, this.particles);
+              }
               audio.playImpact('metal', b.x, b.y, b.damage > 35);
 
               // 3. Screen Shake & Hitmarker (0.1s PUBG-style tactical response)
@@ -7041,7 +7047,12 @@
             }
           }
 
-          if (!bulletDestroyed && b.life <= 0) {
+          // NOTE: a tank hit always sets bulletDestroyed=true above, so this must splice on
+          // EITHER condition -- previously only life<=0 spliced, which was silently masked by
+          // every non-remote hit killing its target (tank.dead -> skipped next frame) fast
+          // enough that the bullet rarely lingered. A remote peer's tank.dead never flips
+          // locally now, so a bullet resting on one would otherwise never be removed.
+          if (bulletDestroyed || b.life <= 0) {
             this.bullets.splice(i, 1);
           }
         }
@@ -7118,7 +7129,7 @@
 
         const allTanks = [this.player, ...this.bots, ...this.peers.values()];
         for (const tank of allTanks) {
-          if (tank.dead) continue;
+          if (tank.dead || tank.isRemote) continue; // remote peers' hp/dead is their own client's call
           const dist = Math.hypot(tank.x - x, tank.y - y);
           if (dist < radius) {
             const factor = (1 - dist / radius);
@@ -7352,23 +7363,6 @@
             audio.playPickup();
           }
 
-          const now = Date.now();
-          if (now - this.lastSyncTime > 50) {
-            this.lastSyncTime = now;
-            this.sendWs({
-              type: 'sync_state',
-              x: this.player.x,
-              y: this.player.y,
-              bodyAngle: this.player.bodyAngle,
-              turretAngle: this.player.turretAngle,
-              hp: this.player.hp,
-              maxHp: this.player.maxHp,
-              shield: this.player.shield,
-              level: this.player.level,
-              weapon: this.player.currentWeapon
-            });
-          }
-
           const hpPercent = (this.player.hp / this.player.maxHp) * 100;
           document.getElementById('hudHpFill').style.width = `${Math.max(0, hpPercent)}%`;
           document.getElementById('hudHpText').textContent = `JON: ${Math.ceil(this.player.hp)} / ${this.player.maxHp}`;
@@ -7470,6 +7464,26 @@
           if (this.respawnCountdown <= 0) {
             this.respawnPlayer();
           }
+        }
+
+        // Egasi o'zining holatini DOIM yuboradi (o'lganda ham) -> peer hech qachon
+        // "javobsiz qolib" stale bo'lib o'chib ketmaydi, o'lim/tirilish darrov ko'rinadi.
+        const now = Date.now();
+        if (now - this.lastSyncTime > 50) {
+          this.lastSyncTime = now;
+          this.sendWs({
+            type: 'sync_state',
+            x: this.player.x,
+            y: this.player.y,
+            bodyAngle: this.player.bodyAngle,
+            turretAngle: this.player.turretAngle,
+            hp: this.player.hp,
+            maxHp: this.player.maxHp,
+            shield: this.player.shield,
+            level: this.player.level,
+            weapon: this.player.currentWeapon,
+            dead: this.player.dead
+          });
         }
 
         // 2 & 3. SILLIQ VA ENGIL KUZATUV (SMOOTH INTERPOLATION: 0.12, STRICT TANK CENTER)

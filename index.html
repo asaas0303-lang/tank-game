@@ -4050,7 +4050,7 @@
       // 5. Mass and Scale balancing based on Level
       updateMassAndPhysics() {
         this.mass = 1.0 + (this.level - 1) * 0.22;
-        this.radius = Math.min(34, this.baseRadius + (this.level - 1) * 1.2);
+        this.radius = this.baseRadius;
         // Heavy tanks have slightly lower top speed, but high momentum
         this.maxSpeed = Math.max(0.875, this.baseMaxSpeed / Math.pow(this.mass, 0.22));
         this.accel = this.baseAccel / Math.pow(this.mass, 0.15);

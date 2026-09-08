@@ -1548,7 +1548,7 @@
           <span style="font-size: 9px; color: #00ff88;" id="friendsOnlineCount">1 onlayn</span>
         </div>
         <div class="friend-input-wrap">
-          <input type="number" id="friendIdInput" class="friend-input" placeholder="ID kiritish (masalan: 101)">
+          <input type="number" id="friendIdInput" class="friend-input" placeholder="Do'st kodi (masalan: 1042)">
           <button class="btn-add-friend" id="btnAddFriend">+</button>
         </div>
         <div class="friends-list-wrap" id="friendsList"></div>
@@ -4919,7 +4919,7 @@
         }
 
         const tagText = this.isPlayer
-          ? `⭐ #${this.playerId} ${this.name} [LVL ${this.level}]`
+          ? `⭐ #${this.code || this.playerId} ${this.name} [LVL ${this.level}]`
           : `★ ${this.name} [LVL ${this.level}]${stateBadge}`;
 
         ctx.strokeStyle = '#000000';
@@ -5721,6 +5721,7 @@
 
         const currentName = (this.playerProfile && this.playerProfile.name) ? this.playerProfile.name : 'Commander';
         this.player = new Tank(spawnX, spawnY, currentName, true, this.playerId);
+        this.player.code = this.friendCode || '';
         if (this.playerProfile && this.playerProfile.level > 1) {
           this.player.level = this.playerProfile.level;
           this.player.maxHp = 100 + (this.player.level - 1) * 20;
@@ -5795,7 +5796,8 @@
           case 'welcome':
             this.playerId = msg.playerId;
             this.player.playerId = msg.playerId;
-            document.getElementById('hudPlayerId').textContent = `#${msg.playerId}`;
+            this.friendCode = msg.code || '';
+            document.getElementById('hudPlayerId').textContent = `#${this.friendCode}`;
             if (this.playerProfile && this.playerProfile.name) {
               this.player.name = this.playerProfile.name;
               document.getElementById('hudPlayerName').textContent = this.playerProfile.name;
@@ -5849,6 +5851,7 @@
             peer.level = msg.level;
             peer.isAfk = msg.isAfk;
             peer.currentWeapon = msg.weapon || 'standard';
+            peer.code = msg.code || '';
             peer.lastUpdate = Date.now();
 
             // AUTHORITATIVE alive/dead: peer egasi HP yuborsa (>0) -> tirik; mahalliy "o'lim"ni bekor qil
@@ -5886,6 +5889,10 @@
           case 'friends_list':
             this.friends = msg.friends || [];
             this.renderFriendsList();
+            break;
+
+          case 'friend_error':
+            this.addFloatingNotice('⚠️ ' + (msg.message || 'Xatolik'));
             break;
 
           case 'invite_received':
@@ -5929,9 +5936,9 @@
           row.innerHTML = `
             <div>
               <span class="friend-status-dot ${f.online ? 'status-online' : 'status-offline'}"></span>
-              <span>#${f.id} ${f.name}</span>
+              <span>${f.name} #${f.code || f.id}</span>
             </div>
-            ${f.online ? `<button class="btn-invite-mini" onclick="window.game.inviteFriend(${f.id})">Taklif</button>` : ''}
+            ${f.online ? `<button class="btn-invite-mini" onclick="window.game.inviteFriend('${f.id}')">Taklif</button>` : ''}
           `;
           container.appendChild(row);
         });
@@ -5967,8 +5974,8 @@
          ======================================================================== */
       initDOM() {
         document.getElementById('hudPlayerId').addEventListener('click', () => {
-          navigator.clipboard.writeText(String(this.playerId));
-          this.addFloatingNotice(`ID #${this.playerId} nusxalandi!`);
+          navigator.clipboard.writeText(String(this.friendCode));
+          this.addFloatingNotice(`Kod #${this.friendCode} nusxalandi!`);
         });
 
         document.getElementById('btnAddFriend').addEventListener('click', () => {
@@ -6206,7 +6213,7 @@
         const nameEl = document.getElementById('hudPlayerName');
         if (nameEl) nameEl.textContent = name;
         const idEl = document.getElementById('hudPlayerId');
-        if (idEl) idEl.textContent = `#${this.playerId}`;
+        if (idEl) idEl.textContent = `#${this.friendCode || this.playerId}`;
         const lvlEl = document.getElementById('hudPlayerLvl');
         if (lvlEl) lvlEl.textContent = `LVL ${this.playerProfile.level}`;
         const killsEl = document.getElementById('hudKills');

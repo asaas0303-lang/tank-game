@@ -26,6 +26,12 @@ const CENTRAL_ASIAN_NAMES = [
 // Global Player ID counter (starts from 100, 3 digits)
 let nextPlayerId = 100;
 
+// Short, stable "friend code" per device (cid), so players can share a typeable number
+// even though the real internal playerId is a long persistent cid string.
+let nextFriendCode = 1000;
+const cidToCode = new Map();   // playerId(cid) -> qisqa kod (string)
+const codeToCid = new Map();   // qisqa kod -> playerId(cid)
+
 // Connected players: playerId -> { id, name, ws, roomId, isAfk, friends: Set, kills: 0, level: 1 }
 const players = new Map();
 
@@ -195,6 +201,7 @@ function getFriendsListPayload(playerId) {
       list.push({
         id: friend.id,
         name: friend.name,
+        code: cidToCode.get(friend.id) || '',
         online: true,
         roomId: friend.roomId,
         isAfk: friend.isAfk
@@ -202,7 +209,8 @@ function getFriendsListPayload(playerId) {
     } else {
       list.push({
         id: fId,
-        name: `O'yinchi #${fId}`,
+        name: `O'yinchi #${cidToCode.get(fId) || fId}`,
+        code: cidToCode.get(fId) || '',
         online: false,
         roomId: null,
         isAfk: false
@@ -233,11 +241,20 @@ wss.on('connection', (ws, req) => {
     players.delete(playerId);
   }
 
-  const defaultName = `Commander-${playerId}`;
+  // Barqaror, qisqa do'st-kodi: bir cid -> doim bir xil kod
+  let friendCode = cidToCode.get(playerId);
+  if (!friendCode) {
+    friendCode = String(nextFriendCode++);
+    cidToCode.set(playerId, friendCode);
+    codeToCid.set(friendCode, playerId);
+  }
+
+  const defaultName = `Commander-${friendCode}`;
 
   const player = {
     id: playerId,
     name: defaultName,
+    code: friendCode,
     ws: ws,
     roomId: null,
     isAfk: false,
@@ -262,6 +279,7 @@ wss.on('connection', (ws, req) => {
   ws.send(JSON.stringify({
     type: 'welcome',
     playerId: playerId,
+    code: friendCode,
     name: defaultName,
     roomId: defaultRoom.id,
     mode: defaultRoom.mode,
@@ -352,22 +370,24 @@ wss.on('connection', (ws, req) => {
 
         // Friends & Lobby Invites
         case 'add_friend': {
-          const targetId = parseInt(msg.targetId, 10);
-          if (targetId && targetId !== player.id) {
-            player.friends.add(targetId);
-            const targetPlayer = players.get(targetId);
-            if (targetPlayer) {
-              targetPlayer.friends.add(player.id); // Mutual friendship
-              sendTo(targetId, {
-                type: 'friend_added',
-                friend: { id: player.id, name: player.name, online: true, roomId: player.roomId, isAfk: player.isAfk }
-              });
-            }
-            ws.send(JSON.stringify({
-              type: 'friends_list',
-              friends: getFriendsListPayload(player.id)
-            }));
+          const targetCid = codeToCid.get(String(msg.targetId).trim());
+          if (!targetCid || targetCid === player.id) {
+            sendTo(player.id, { type: 'friend_error', message: 'Bunday kodli o\'yinchi topilmadi' });
+            break;
           }
+          player.friends.add(targetCid);
+          const targetPlayer = players.get(targetCid);
+          if (targetPlayer) {
+            targetPlayer.friends.add(player.id); // Mutual friendship
+            sendTo(targetCid, {
+              type: 'friend_added',
+              friend: { id: player.id, name: player.name, code: friendCode, online: true, roomId: player.roomId, isAfk: player.isAfk }
+            });
+          }
+          ws.send(JSON.stringify({
+            type: 'friends_list',
+            friends: getFriendsListPayload(player.id)
+          }));
           break;
         }
 
@@ -428,6 +448,7 @@ wss.on('connection', (ws, req) => {
             broadcastToRoom(player.roomId, {
               type: 'peer_state',
               playerId: player.id,
+              code: friendCode,
               name: player.name,
               x: msg.x,
               y: msg.y,

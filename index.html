@@ -3970,11 +3970,11 @@
         this.weaponAmmo = Infinity;
         this.bulletDamage = 35;
         this.bulletSpeed = isPlayer ? 3.9 : 3.3;
-        this.shootCooldown = isPlayer ? 0.9 : 1.8; // Strict 0.8-1.0s for player, 1.5-2.0s for bots
+        this.shootCooldown = isPlayer ? 1.8 : 3.6; // 2x slower: player ~1.6-2.0s, bots ~3.0-4.0s
         this.shootTimer = 0;
         this.maxMagazine = 5;
         this.magazine = 5;
-        this.fullReloadDuration = 2.0; // 2.0s full reload
+        this.fullReloadDuration = 4.0; // 2x slower: 4.0s full reload
         this.fullReloadTimer = 0;
         this.isReloading = false;
         this.hitFlashTimer = 0;
@@ -4132,13 +4132,13 @@
         if (this.fullReloadTimer > 0) return false;
         if (this.shootTimer > 0) return false;
 
-        // If magazine is empty, initiate 2.0s full reload
+        // If magazine is empty, initiate 4.0s full reload
         if (this.magazine <= 0) {
           this.fullReloadTimer = this.fullReloadDuration;
           this.isReloading = true;
           this.shootTimer = this.fullReloadDuration;
           if (this.isPlayer && floatingTexts) {
-            floatingTexts.push(new FloatingText(this.x, this.y - 34, "🔄 QAYTA O'QLANMOQDA (2.0s)...", '#ffaa00', 14));
+            floatingTexts.push(new FloatingText(this.x, this.y - 34, "🔄 QAYTA O'QLANMOQDA (4.0s)...", '#ffaa00', 14));
           }
           return false;
         }
@@ -4161,16 +4161,16 @@
         this.barrelRecoilOffset = 5.0;
         this.barrelRecoilTimer = 0.15;
 
-        // If 5th bullet was fired, trigger 2.0s full reload immediately
+        // If 5th bullet was fired, trigger 4.0s full reload immediately
         if (this.magazine === 0) {
           this.fullReloadTimer = this.fullReloadDuration;
           this.isReloading = true;
           this.shootTimer = this.fullReloadDuration;
           if (this.isPlayer && floatingTexts) {
-            floatingTexts.push(new FloatingText(this.x, this.y - 34, "🔄 QAYTA O'QLANMOQDA (2.0s)...", '#ffaa00', 14));
+            floatingTexts.push(new FloatingText(this.x, this.y - 34, "🔄 QAYTA O'QLANMOQDA (4.0s)...", '#ffaa00', 14));
           }
         } else {
-          // Strict per-shot cooldown (0.9s for player, 1.8s for bots)
+          // Strict per-shot cooldown (1.8s for player, 3.6s for bots)
           this.shootTimer = this.shootCooldown;
         }
 
@@ -4972,7 +4972,7 @@
           }
         }
 
-        // Full Reload Indicator (2.0s)
+        // Full Reload Indicator (4.0s)
         if (this.fullReloadTimer > 0) {
           const reloadP = Math.max(0, 1 - (this.fullReloadTimer / this.fullReloadDuration));
           ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
@@ -4987,7 +4987,7 @@
           ctx.fillText(`🔄 O'QLASH (${this.fullReloadTimer.toFixed(1)}s)`, this.x, pipsY + 16);
           ctx.restore();
         } else if (this.shootTimer > 0 && this.isPlayer) {
-          // Single shot cooldown progress (0.9s)
+          // Single shot cooldown progress (1.8s)
           const coolP = Math.max(0, 1 - (this.shootTimer / this.shootCooldown));
           ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
           ctx.fillRect(this.x - barWidth / 2 - 1, pipsY + 4, barWidth + 2, 3);
@@ -6689,7 +6689,7 @@
               this.player.fullReloadTimer = this.player.fullReloadDuration;
               this.player.isReloading = true;
               this.player.shootTimer = this.player.fullReloadDuration;
-              this.floatingTexts.push(new FloatingText(this.player.x, this.player.y - 34, "🔄 QAYTA O'QLANMOQDA (2.0s)...", '#ffaa00', 14));
+              this.floatingTexts.push(new FloatingText(this.player.x, this.player.y - 34, "🔄 QAYTA O'QLANMOQDA (4.0s)...", '#ffaa00', 14));
             }
           }
 

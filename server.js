@@ -392,7 +392,7 @@ wss.on('connection', (ws, req) => {
         }
 
         case 'invite_friend': {
-          const targetId = parseInt(msg.targetId, 10);
+          const targetId = msg.targetId;
           const targetPlayer = players.get(targetId);
           if (targetPlayer) {
             sendTo(targetId, {
@@ -407,7 +407,7 @@ wss.on('connection', (ws, req) => {
         }
 
         case 'invite_response': {
-          const fromId = parseInt(msg.fromId, 10);
+          const fromId = msg.fromId;
           const accept = !!msg.accept;
           const targetRoomId = msg.roomId;
 
@@ -515,7 +515,7 @@ wss.on('connection', (ws, req) => {
         // WebRTC Proximity Voice Signaling
         case 'webrtc_signal':
           if (msg.targetId) {
-            sendTo(parseInt(msg.targetId, 10), {
+            sendTo(msg.targetId, {
               type: 'webrtc_signal',
               fromId: player.id,
               signal: msg.signal

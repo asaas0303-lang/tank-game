@@ -4,7 +4,7 @@ const path = require('path');
 function configureAndroid() {
   console.log('--- Configuring Android for Strict Landscape & Immersive Fullscreen ---');
 
-  // 1. AndroidManifest.xml -> Add screenOrientation="sensorLandscape"
+  // 1. AndroidManifest.xml -> Add screenOrientation="sensorLandscape" + mic permissions
   const manifestPath = path.join(__dirname, '..', 'android', 'app', 'src', 'main', 'AndroidManifest.xml');
   if (fs.existsSync(manifestPath)) {
     let manifest = fs.readFileSync(manifestPath, 'utf8');
@@ -13,11 +13,22 @@ function configureAndroid() {
         '<activity',
         '<activity\n            android:screenOrientation="sensorLandscape"'
       );
-      fs.writeFileSync(manifestPath, manifest, 'utf8');
       console.log('✅ Added android:screenOrientation="sensorLandscape" to AndroidManifest.xml');
     } else {
       console.log('ℹ️ screenOrientation already present in AndroidManifest.xml');
     }
+
+    if (!manifest.includes('android.permission.RECORD_AUDIO')) {
+      manifest = manifest.replace(
+        '<application',
+        '<uses-permission android:name="android.permission.RECORD_AUDIO" />\n    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />\n\n    <application'
+      );
+      console.log('✅ Added RECORD_AUDIO/MODIFY_AUDIO_SETTINGS permissions to AndroidManifest.xml');
+    } else {
+      console.log('ℹ️ RECORD_AUDIO permission already present in AndroidManifest.xml');
+    }
+
+    fs.writeFileSync(manifestPath, manifest, 'utf8');
   } else {
     console.warn('⚠️ AndroidManifest.xml not found at:', manifestPath);
   }
@@ -55,6 +66,9 @@ function configureAndroid() {
   if (fs.existsSync(path.dirname(mainActivityPath))) {
     const javaCode = `package com.tankgame.arena;
 
+import android.Manifest;
+import android.content.pm.PackageManager;
+import android.os.Build;
 import android.os.Bundle;
 import android.view.View;
 import com.getcapacitor.BridgeActivity;
@@ -64,6 +78,11 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         hideSystemUI();
+
+        if (Build.VERSION.SDK_INT >= 23 &&
+            checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{ Manifest.permission.RECORD_AUDIO }, 100);
+        }
     }
 
     @Override

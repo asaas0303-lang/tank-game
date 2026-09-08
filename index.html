@@ -389,6 +389,19 @@
       width: 220px;
       pointer-events: auto;
     }
+    /* Mobile: pulled out of the top-right flow, moved down below FIRE, shrunk 50%, more
+       transparent. right is offset past the MINA/NITRO column (36px wide + its own 14px
+       edge margin + a safety gap) so the two never overlap despite both anchoring right. */
+    body.touch-device .leaderboard-card {
+      position: fixed;
+      top: 44%;
+      right: max(64px, calc(env(safe-area-inset-right, 0px) + 64px));
+      transform: scale(0.5);
+      transform-origin: top right;
+      background: rgba(0, 0, 0, 0.6);
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+    }
 
     .lb-header {
       display: flex;
@@ -536,13 +549,19 @@
       gap: 4px;
       width: 220px;
     }
-    /* Mobile: relocate to the left column under mic/speaker/HP, fit-to-content width */
+    /* Mobile: relocate to the left column under gear/mic/speaker, fit-to-content width.
+       top+bottom together cap the available height so it can never reach the movement
+       joystick; newest notice is DOM-prepended (see addKillFeedItem) so it's the one
+       that stays visible -- with plain column + overflow:hidden, overflow clips the
+       *last* child, which is the oldest once newest-first ordering is in the DOM. */
     body.touch-device #killFeed {
       position: fixed;
-      top: 140px;
+      top: 156px;
+      bottom: calc(max(20px, env(safe-area-inset-bottom, 20px)) + 150px);
       left: max(10px, env(safe-area-inset-left, 10px));
       width: auto;
       max-width: 200px;
+      overflow: hidden;
       z-index: 100001;
     }
 
@@ -887,8 +906,9 @@
       gap: 4px;
       width: 170px;
     }
+    /* Long HP/reload bar strip removed from the mobile layout per redesign */
     body.touch-device .mobile-mini-hud {
-      display: flex;
+      display: none;
     }
     .mini-bar {
       width: 100%;
@@ -929,13 +949,14 @@
       text-shadow: 0 1px 2px #000;
       pointer-events: none;
     }
-    /* Touch-only mic/speaker circles, stacked under the gear button (top-left column) */
+    /* Touch-only: gear -> mic -> speaker, stacked vertically in the top-left column */
     .mobile-voice-cluster {
       display: none;
       position: fixed;
       top: 58px;
       left: max(10px, env(safe-area-inset-left, 10px));
       z-index: 100001;
+      flex-direction: column;
       gap: 8px;
       pointer-events: auto;
     }
@@ -1077,13 +1098,14 @@
     }
 
     /* Right-edge column: Mina (top) + Nitro (bottom), flexibly spaced between the
-       FIRE button above and the aim joystick below -- stays correct on any screen height. */
+       FIRE button above and the aim joystick below -- sized to still fit (no squashing)
+       on a short ~340px-tall landscape phone viewport. */
     .mobile-action-cluster {
       position: fixed;
-      top: 104px;
-      bottom: calc(max(20px, env(safe-area-inset-bottom, 20px)) + 152px);
+      top: 92px;
+      bottom: calc(max(20px, env(safe-area-inset-bottom, 20px)) + 146px);
       right: max(14px, env(safe-area-inset-right, 14px));
-      width: 52px;
+      width: 36px;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -1098,6 +1120,7 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
+      flex-shrink: 0;
       border-radius: 50%;
       cursor: pointer;
       touch-action: none;
@@ -1122,8 +1145,8 @@
       position: fixed;
       top: max(14px, env(safe-area-inset-top, 14px));
       right: max(14px, env(safe-area-inset-right, 14px));
-      width: 80px;
-      height: 80px;
+      width: 72px;
+      height: 72px;
       background: radial-gradient(circle, #ff1744 0%, #b71c1c 100%);
       border: 3.5px solid #ff5252;
       box-shadow: 0 0 30px rgba(255, 23, 68, 0.9), inset 0 2px 6px rgba(255, 255, 255, 0.5);
@@ -1131,29 +1154,29 @@
     }
 
     .fire-icon {
-      font-size: 28px;
+      font-size: 26px;
       line-height: 1;
     }
 
     /* Nitro Tugmasi */
     .touch-btn-nitro {
-      width: 52px;
-      height: 52px;
+      width: 36px;
+      height: 36px;
       background: radial-gradient(circle, #00e5ff 0%, #0077c2 100%);
       border: 2.5px solid #18ffff;
       box-shadow: 0 0 20px rgba(0, 229, 255, 0.8), inset 0 2px 4px rgba(255, 255, 255, 0.5);
     }
-    .touch-btn-nitro .btn-icon { font-size: 20px; line-height: 1; }
+    .touch-btn-nitro .btn-icon { font-size: 16px; line-height: 1; }
 
     /* Mina Tugmasi */
     .touch-btn-mine {
-      width: 52px;
-      height: 52px;
+      width: 36px;
+      height: 36px;
       background: radial-gradient(circle, #00e676 0%, #1b5e20 100%);
       border: 2.5px solid #69f0ae;
       box-shadow: 0 0 20px rgba(0, 230, 118, 0.8), inset 0 2px 4px rgba(255, 255, 255, 0.5);
     }
-    .touch-btn-mine .btn-icon { font-size: 20px; line-height: 1; }
+    .touch-btn-mine .btn-icon { font-size: 16px; line-height: 1; }
 
     .badge-ammo {
       position: absolute;
@@ -1488,7 +1511,7 @@
         <div class="active-sector-badge" id="hudSectorBadge">
           <div class="sector-badge-left">
             <span>📍</span>
-            <span id="hudSectorName">SEKTOR A-1</span>
+            <span id="hudSectorName">1-xona</span>
           </div>
           <span class="sector-badge-owner" id="hudSectorOwner">[Commander Hududi]</span>
         </div>
@@ -5576,10 +5599,10 @@
         WORLD.height = this.rows * SECTOR_SIZE;
 
         this.sectors = [
-          { id: 'A1', name: 'SEKTOR A-1', subName: '[Commander Hududi]', ownerName: 'Commander', ownerPlayerId: 100, col: 0, row: 0, x: 0, y: 0, w: SECTOR_SIZE, h: SECTOR_SIZE, themeColor: '#00f0ff' },
-          { id: 'A2', name: 'SEKTOR A-2', subName: '[Temur Hududi]', ownerName: 'Temur', ownerPlayerId: null, col: 1, row: 0, x: SECTOR_SIZE, y: 0, w: SECTOR_SIZE, h: SECTOR_SIZE, themeColor: '#ff2a5f' },
-          { id: 'B1', name: 'SEKTOR B-1', subName: '[Dias Hududi]', ownerName: 'Dias', ownerPlayerId: null, col: 0, row: 1, x: 0, y: SECTOR_SIZE, w: SECTOR_SIZE, h: SECTOR_SIZE, themeColor: '#ffaa00' },
-          { id: 'B2', name: 'SEKTOR B-2', subName: '[Manas Hududi]', ownerName: 'Manas', ownerPlayerId: null, col: 1, row: 1, x: SECTOR_SIZE, y: SECTOR_SIZE, w: SECTOR_SIZE, h: SECTOR_SIZE, themeColor: '#00ff88' }
+          { id: 'A1', name: '1-xona', subName: '[Commander Hududi]', ownerName: 'Commander', ownerPlayerId: 100, col: 0, row: 0, x: 0, y: 0, w: SECTOR_SIZE, h: SECTOR_SIZE, themeColor: '#00f0ff' },
+          { id: 'A2', name: '2-xona', subName: '[Temur Hududi]', ownerName: 'Temur', ownerPlayerId: null, col: 1, row: 0, x: SECTOR_SIZE, y: 0, w: SECTOR_SIZE, h: SECTOR_SIZE, themeColor: '#ff2a5f' },
+          { id: 'B1', name: '3-xona', subName: '[Dias Hududi]', ownerName: 'Dias', ownerPlayerId: null, col: 0, row: 1, x: 0, y: SECTOR_SIZE, w: SECTOR_SIZE, h: SECTOR_SIZE, themeColor: '#ffaa00' },
+          { id: 'B2', name: '4-xona', subName: '[Manas Hududi]', ownerName: 'Manas', ownerPlayerId: null, col: 1, row: 1, x: SECTOR_SIZE, y: SECTOR_SIZE, w: SECTOR_SIZE, h: SECTOR_SIZE, themeColor: '#00ff88' }
         ];
       }
 
@@ -6389,11 +6412,11 @@
         // === HYBRID DEVICE DETECTION ===
         const container = document.getElementById('mobileControlsContainer');
 
-        const detectTouch = () => ('ontouchstart' in window)
-          || (navigator && navigator.maxTouchPoints > 0)
-          || (typeof window.Capacitor !== 'undefined')
-          || (window.matchMedia && (window.matchMedia('(pointer: coarse)').matches
-              || window.matchMedia('(any-pointer: coarse)').matches));
+        const detectTouch = () =>
+          (typeof window.Capacitor !== 'undefined') ||   // APK doim touch
+          (window.matchMedia
+            && window.matchMedia('(pointer: coarse)').matches
+            && !window.matchMedia('(pointer: fine)').matches);  // asosiy kirish coarse VA sichqoncha yo'q
 
         // Visibility is driven purely by the body.touch-device class (see CSS).
         // enableTouchMode is idempotent so any signal can flip us into touch mode.
@@ -7122,11 +7145,13 @@
       }
 
       addKillFeedItem(killer, victim) {
+        const feed = document.getElementById('killFeed');
+        while (feed.children.length >= 5) feed.lastChild.remove();
         const item = document.createElement('div');
         item.className = 'kill-item';
         item.innerHTML = `<span style="color:#00f0ff">${killer}</span> 💥 <span style="color:#ff4466">${victim}</span>`;
-        document.getElementById('killFeed').appendChild(item);
-        setTimeout(() => item.remove(), 4000);
+        feed.prepend(item); // newest first, so on a short mobile screen overflow:hidden clips the oldest, not the newest
+        setTimeout(() => item.remove(), 5000);
       }
 
       /* ========================================================================
@@ -8071,11 +8096,12 @@
           this.ctx.textBaseline = 'middle';
           this.ctx.fillStyle = sec.themeColor;
           this.ctx.globalAlpha = isNight ? 0.08 : 0.18;
-          this.ctx.fillText(sec.name, cx, cy - 14);
+          // Drawn near the sector's TOP (not center) so the center wall/bricks don't cover it
+          this.ctx.fillText(sec.name, cx, sec.y + 46);
 
           this.ctx.font = '700 14px Orbitron, monospace';
           this.ctx.globalAlpha = isNight ? 0.12 : 0.24;
-          this.ctx.fillText(sec.subName, cx, cy + 20);
+          this.ctx.fillText(sec.subName, cx, sec.y + 70);
           this.ctx.restore();
 
           // 2. Sector Perimeter Neon Dashed Border

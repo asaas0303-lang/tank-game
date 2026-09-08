@@ -102,9 +102,10 @@ function updateRoomSectors(room) {
         }
       }
 
+      const roomNumber = r * cols + c + 1;
       sectors.push({
         id: id,
-        name: `SEKTOR ${rowLetters[r] || 'X'}-${c + 1}`,
+        name: `${roomNumber}-xona`,
         subName: `[${ownerName}]`,
         ownerName: ownerName,
         ownerPlayerId: ownerPlayerId,

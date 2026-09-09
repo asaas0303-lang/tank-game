@@ -3971,6 +3971,23 @@
     /* ==========================================================================
        5. DETAILED MULTI-PART TANK MODEL
        ========================================================================== */
+    function getPlayerColors(pid) {
+      if (!pid || pid.toString().startsWith('bot-')) return { base: '#ff2a5f', accent: '#99002b' };
+      const str = String(pid);
+      let hash = 0;
+      for (let i = 0; i < str.length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash);
+      const PALETTE = [
+        { base: '#00f0ff', accent: '#0077ff' }, // Cyan
+        { base: '#ffaa00', accent: '#b37700' }, // Orange
+        { base: '#00ff88', accent: '#009955' }, // Green
+        { base: '#ec4899', accent: '#be185d' }, // Pink
+        { base: '#a855f7', accent: '#7e22ce' }, // Purple
+        { base: '#facc15', accent: '#a16207' }, // Yellow
+        { base: '#ef4444', accent: '#b91c1c' }  // Red
+      ];
+      return PALETTE[Math.abs(hash) % PALETTE.length];
+    }
+
     class Tank {
       constructor(x, y, name, isPlayer = false, playerId = 100) {
         this.x = x;
@@ -3979,8 +3996,9 @@
         this.isPlayer = isPlayer;
         this.playerId = playerId;
 
-        this.baseColor = isPlayer ? '#00f0ff' : '#ff2a5f';
-        this.accentColor = isPlayer ? '#0077ff' : '#99002b';
+        const colors = getPlayerColors(this.playerId);
+        this.baseColor = colors.base;
+        this.accentColor = colors.accent;
 
         this.level = 1;
         this.kills = 0;
@@ -4945,16 +4963,16 @@
         ctx.textBaseline = 'bottom';
 
         let stateBadge = '';
-        if (!this.isPlayer) {
+        const isBot = this.playerId && this.playerId.toString().startsWith('bot-');
+        if (isBot) {
           if (this.aiState === 'COMBAT') stateBadge = ' [⚔️ JANG]';
           else if (this.aiState === 'RETREAT') stateBadge = ' [🏃 QOCHISH]';
           else if (this.aiState === 'LOOTING') stateBadge = ' [📦 QUTI]';
         }
 
         const safeName = (this.name || '').slice(0, 14);
-        const tagText = this.isPlayer
-          ? `⭐ #${this.code || this.playerId} ${safeName} [LVL ${this.level}]`
-          : `★ ${safeName} [LVL ${this.level}]${stateBadge}`;
+        const prefix = !isBot ? `⭐ #${this.code || this.playerId} ` : `★ `;
+        const tagText = `${prefix}${safeName} [LVL ${this.level}]${stateBadge}`;
 
         ctx.strokeStyle = '#000000';
         ctx.lineWidth = 4;
@@ -4962,7 +4980,7 @@
         ctx.miterLimit = 2;
         ctx.strokeText(tagText, this.x, barY - 5);
 
-        ctx.fillStyle = this.isPlayer ? '#00f0ff' : '#ffd700';
+        ctx.fillStyle = this.baseColor;
         ctx.fillText(tagText, this.x, barY - 5);
         ctx.restore();
 
@@ -4978,13 +4996,8 @@
         ctx.fillRect(this.x - barWidth / 2 - 1, barY - 1, barWidth + 2, barHeight + 2);
 
         const hpGrad = ctx.createLinearGradient(this.x - barWidth / 2, 0, this.x + barWidth / 2, 0);
-        if (this.isPlayer) {
-          hpGrad.addColorStop(0, '#00f0ff');
-          hpGrad.addColorStop(1, '#00ff88');
-        } else {
-          hpGrad.addColorStop(0, '#ff2a5f');
-          hpGrad.addColorStop(1, '#ff8800');
-        }
+        hpGrad.addColorStop(0, this.baseColor);
+        hpGrad.addColorStop(1, this.accentColor);
 
         ctx.fillStyle = hpGrad;
         ctx.fillRect(this.x - barWidth / 2, barY, barWidth * hpPercent, barHeight);
@@ -4998,7 +5011,7 @@
         for (let i = 0; i < totalPips; i++) {
           const px = this.x - barWidth / 2 + i * pipSpacing + 1;
           if (i < this.magazine) {
-            ctx.fillStyle = this.isPlayer ? '#00f0ff' : '#ffd700';
+            ctx.fillStyle = this.baseColor;
             ctx.fillRect(px, pipsY, pipW, 2.5);
           } else {
             ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
@@ -5922,16 +5935,19 @@
       handleServerMessage(msg) {
         switch (msg.type) {
           case 'welcome':
-            this.playerId = msg.playerId;
-            this.player.playerId = msg.playerId;
-            this.friendCode = msg.code || '';
-            document.getElementById('hudPlayerId').textContent = `#${this.friendCode}`;
-            if (this.playerProfile && this.playerProfile.name) {
-              this.player.name = this.playerProfile.name;
-              document.getElementById('hudPlayerName').textContent = this.playerProfile.name;
-              this.sendWs({ type: 'set_name', name: this.playerProfile.name });
-            } else {
+          case 'room_joined':
+            this.playerId = msg.playerId || this.playerId;
+            this.player.playerId = this.playerId;
+            if (msg.code) {
+              this.friendCode = msg.code;
+              document.getElementById('hudPlayerId').textContent = `#${this.friendCode}`;
+            }
+            if (msg.name && !this.playerProfile?.name) {
               document.getElementById('hudPlayerName').textContent = msg.name;
+            }
+            if (msg.hostId !== undefined) {
+              this.roomHostId = msg.hostId;
+              this.isHost = (this.roomHostId === this.playerId);
             }
 
             if (msg.sectors && msg.sectors.length > 0) {
@@ -5943,6 +5959,47 @@
               this.resetPlayer();
             }
             if (msg.bots) this.syncBotsList(msg.bots);
+            break;
+
+          case 'host_update':
+            this.roomHostId = msg.hostId;
+            this.isHost = (this.roomHostId === this.playerId);
+            console.log("Host Update: Host is now", this.roomHostId, "Am I host?", this.isHost);
+            break;
+
+          case 'bot_sync':
+            if (!this.isHost && msg.bots) {
+              msg.bots.forEach(bData => {
+                let b = this.bots.find(x => x.id === bData.id || x.playerId === bData.id);
+                if (!b) {
+                  // Host created a new bot that we don't have
+                  b = new Tank(bData.x, bData.y, bData.name || 'Bot', false, bData.id);
+                  b.id = bData.id;
+                  b.isBot = true;
+                  this.bots.push(b);
+                }
+                if (b && !b.dead) {
+                  b.targetX = bData.x;
+                  b.targetY = bData.y;
+                  b.targetBodyAngle = bData.bodyAngle;
+                  b.targetTurretAngle = bData.turretAngle;
+                  b.hp = bData.hp;
+                }
+              });
+              // Cleanup bots that no longer exist on Host
+              const hostBotIds = new Set(msg.bots.map(b => b.id));
+              this.bots = this.bots.filter(b => hostBotIds.has(b.id || b.playerId));
+            }
+            break;
+
+          case 'barrel_exploded':
+            if (this.barrels && this.barrels[msg.barrelIndex]) {
+              const barrel = this.barrels[msg.barrelIndex];
+              if (!barrel.destroyed) {
+                barrel.takeDamage(9999);
+                this.triggerExplosionAoE(barrel.x, barrel.y, 250, 100);
+              }
+            }
             break;
 
           case 'sectors_update':
@@ -5975,8 +6032,6 @@
             let peer = this.peers.get(msg.playerId);
             if (!peer) {
               peer = new Tank(msg.x, msg.y, msg.name, false, msg.playerId);
-              peer.baseColor = '#ffaa00';
-              peer.accentColor = '#b37700';
               peer.isRemote = true; // this client never resolves damage/death for it -- its owner does
               this.peers.set(msg.playerId, peer);
               try {
@@ -6654,17 +6709,22 @@
             fireBtn.classList.add('active');
             if (this.player && !this.player.dead) {
               this.player.isAfk = false;
+              const prevLen = this.bullets.length;
               const fired = this.player.shoot(this.bullets, this.particles, this.floatingTexts);
               if (fired) {
-                this.sendWs({
-                  type: 'fire_bullet',
-                  x: this.player.x,
-                  y: this.player.y,
-                  vx: Math.cos(this.player.turretAngle) * (this.player.bulletSpeed * 60),
-                  vy: Math.sin(this.player.turretAngle) * (this.player.bulletSpeed * 60),
-                  damage: this.player.bulletDamage,
-                  weaponType: this.player.currentWeapon
-                });
+                for (let i = prevLen; i < this.bullets.length; i++) {
+                  const b = this.bullets[i];
+                  this.sendWs({
+                    type: 'fire_bullet',
+                    x: b.x,
+                    y: b.y,
+                    vx: b.vx,
+                    vy: b.vy,
+                    damage: b.damage,
+                    color: b.color,
+                    weaponType: b.weaponType
+                  });
+                }
               }
             }
           };
@@ -6992,13 +7052,25 @@
             continue;
           }
 
-          for (const barrel of this.barrels) {
+          for (let barrelIndex = 0; barrelIndex < this.barrels.length; barrelIndex++) {
+            const barrel = this.barrels[barrelIndex];
             if (barrel.destroyed) continue;
             if (Math.hypot(b.x - barrel.x, b.y - barrel.y) < barrel.radius + b.size) {
               audio.playImpact('metal', b.x, b.y);
               const exploded = barrel.takeDamage(b.damage);
               if (exploded) {
                 this.triggerExplosionAoE(barrel.x, barrel.y, 170, 90, b.owner);
+                
+                // Broadcast explosion if we caused it or if we are the Host (for bot bullets)
+                if (b.owner === this.player || this.isHost) {
+                  this.sendWs({
+                    type: 'barrel_exploded',
+                    barrelIndex: barrelIndex,
+                    x: barrel.x,
+                    y: barrel.y
+                  });
+                }
+
                 setTimeout(() => {
                   barrel.destroyed = false;
                   barrel.hp = 25;
@@ -7358,17 +7430,22 @@
           audio.updateCombatTension(this.player.hp / this.player.maxHp, dt);
 
           if (this.mouse.isDown) {
+            const prevLen = this.bullets.length;
             const fired = this.player.shoot(this.bullets, this.particles, this.floatingTexts);
             if (fired) {
-              this.sendWs({
-                type: 'fire_bullet',
-                x: this.player.x,
-                y: this.player.y,
-                vx: Math.cos(this.player.turretAngle) * (this.player.bulletSpeed * 60),
-                vy: Math.sin(this.player.turretAngle) * (this.player.bulletSpeed * 60),
-                damage: this.player.bulletDamage,
-                weaponType: this.player.currentWeapon
-              });
+              for (let i = prevLen; i < this.bullets.length; i++) {
+                const b = this.bullets[i];
+                this.sendWs({
+                  type: 'fire_bullet',
+                  x: b.x,
+                  y: b.y,
+                  vx: b.vx,
+                  vy: b.vy,
+                  damage: b.damage,
+                  color: b.color,
+                  weaponType: b.weaponType
+                });
+              }
             }
           }
 
@@ -7548,17 +7625,58 @@
         }
         this.updateVoiceVolumes();
 
+        // Host syncs bots periodically
+        if (this.isHost && (nowTs - (this.lastBotSync || 0) > 150)) {
+          this.lastBotSync = nowTs;
+          this.sendWs({
+            type: 'bot_sync',
+            bots: this.bots.filter(b => !b.dead).map(b => ({
+              id: b.id,
+              x: b.x,
+              y: b.y,
+              bodyAngle: b.bodyAngle,
+              turretAngle: b.turretAngle,
+              hp: b.hp,
+              name: b.name
+            }))
+          });
+        }
+
         // Update Bots
         for (let b = this.bots.length - 1; b >= 0; b--) {
           const bot = this.bots[b];
+
+          if (!this.isHost) {
+            // CLIENT: Interpolate bot physics
+            if (bot.targetX !== undefined) {
+              bot.x += (bot.targetX - bot.x) * (dt * 15);
+              bot.y += (bot.targetY - bot.y) * (dt * 15);
+              
+              let diffB = bot.targetBodyAngle - bot.bodyAngle;
+              while (diffB < -Math.PI) diffB += Math.PI * 2;
+              while (diffB > Math.PI) diffB -= Math.PI * 2;
+              bot.bodyAngle += diffB * (dt * 15);
+
+              let diffT = bot.targetTurretAngle - bot.turretAngle;
+              while (diffT < -Math.PI) diffT += Math.PI * 2;
+              while (diffT > Math.PI) diffT -= Math.PI * 2;
+              bot.turretAngle += diffT * (dt * 15);
+            }
+            continue;
+          }
+
+          // HOST: Run full AI
           if (bot.dead) {
             this.bots.splice(b, 1);
             setTimeout(() => {
+              if (!this.isHost) return; // double check if still host
               const targetSec = this.sectors[Math.floor(Math.random() * this.sectors.length)] || this.sectors[0];
               const spawnX = targetSec.x + SECTOR_SIZE / 2 + (Math.random() - 0.5) * 25;
               const spawnY = targetSec.y + SECTOR_SIZE / 2 + (Math.random() - 0.5) * 25;
               const name = CENTRAL_ASIAN_NAMES[Math.floor(Math.random() * CENTRAL_ASIAN_NAMES.length)];
-              this.bots.push(new Tank(spawnX, spawnY, name, false));
+              const newBot = new Tank(spawnX, spawnY, name, false, `bot-${Date.now()}-${Math.floor(Math.random()*1000)}`);
+              newBot.isBot = true;
+              this.bots.push(newBot);
             }, 3000);
             continue;
           }

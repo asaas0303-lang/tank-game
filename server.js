@@ -48,6 +48,7 @@ function getOrCreateRoom(roomId = 'default-dm', mode = 'Deathmatch') {
       name: roomId === 'default-dm' ? 'Asosiy Arena' : `Xona #${roomId}`,
       mode: mode,
       players: new Set(),
+      hostId: null,
       bots: [],
       sectors: [],
       cols: 2,
@@ -57,6 +58,15 @@ function getOrCreateRoom(roomId = 'default-dm', mode = 'Deathmatch') {
     });
   }
   return rooms.get(roomId);
+}
+
+function updateRoomHost(room) {
+  if (room.players.size === 0) {
+    room.hostId = null;
+  } else if (!room.players.has(room.hostId)) {
+    room.hostId = Array.from(room.players)[0];
+    broadcastToRoom(room.id, { type: 'host_update', hostId: room.hostId });
+  }
 }
 
 // Dynamically generate modular sectors (zones) based on room player count
@@ -238,7 +248,10 @@ wss.on('connection', (ws, req) => {
     try { if (old.ws && old.ws !== ws) old.ws.close(); } catch (e) {}
     if (old.roomId) {
       const oldRoom = rooms.get(old.roomId);
-      if (oldRoom) oldRoom.players.delete(playerId);
+      if (oldRoom) {
+        oldRoom.players.delete(playerId);
+        updateRoomHost(oldRoom);
+      }
     }
     players.delete(playerId);
   }
@@ -270,6 +283,7 @@ wss.on('connection', (ws, req) => {
   const defaultRoom = getOrCreateRoom('default-dm', 'Deathmatch');
   player.roomId = defaultRoom.id;
   defaultRoom.players.add(playerId);
+  updateRoomHost(defaultRoom);
 
   // Rebalance bots and update room sectors
   balanceRoomBots(defaultRoom);
@@ -285,6 +299,11 @@ wss.on('connection', (ws, req) => {
     name: defaultName,
     roomId: defaultRoom.id,
     mode: defaultRoom.mode,
+    hostId: defaultRoom.hostId,
+    players: Array.from(defaultRoom.players).map(pid => {
+      const p = players.get(pid);
+      return p ? { id: p.id, name: p.name, code: p.code, kills: p.kills, level: p.level, isAfk: p.isAfk } : null;
+    }).filter(Boolean),
     bots: defaultRoom.bots,
     sectors: defaultRoom.sectors,
     cols: defaultRoom.cols,
@@ -296,8 +315,8 @@ wss.on('connection', (ws, req) => {
     tashkentOffset: 5 // UTC+5
   }));
 
-  // Rebalance bots in room
-  balanceRoomBots(defaultRoom);
+  // Send current host immediately
+  sendTo(playerId, { type: 'host_update', hostId: defaultRoom.hostId });
 
   // Handle incoming WebSocket messages
   ws.on('message', (msgStr) => {
@@ -336,6 +355,7 @@ wss.on('connection', (ws, req) => {
             const oldRoom = rooms.get(player.roomId);
             if (oldRoom) {
               oldRoom.players.delete(player.id);
+              updateRoomHost(oldRoom);
               broadcastToRoom(oldRoom.id, {
                 type: 'player_left',
                 playerId: player.id
@@ -347,6 +367,7 @@ wss.on('connection', (ws, req) => {
 
           const newRoom = getOrCreateRoom(targetRoomId, mode);
           newRoom.players.add(player.id);
+          updateRoomHost(newRoom);
           player.roomId = newRoom.id;
 
           balanceRoomBots(newRoom);
@@ -356,13 +377,20 @@ wss.on('connection', (ws, req) => {
             type: 'room_joined',
             roomId: newRoom.id,
             mode: newRoom.mode,
+            hostId: newRoom.hostId,
             bots: newRoom.bots,
             sectors: newRoom.sectors,
             cols: newRoom.cols,
             rows: newRoom.rows,
             worldWidth: newRoom.worldWidth,
-            worldHeight: newRoom.worldHeight
+            worldHeight: newRoom.worldHeight,
+            players: Array.from(newRoom.players).map(pid => {
+              const p = players.get(pid);
+              return p ? { id: p.id, name: p.name, code: p.code, kills: p.kills, level: p.level, isAfk: p.isAfk } : null;
+            }).filter(Boolean)
           }));
+
+          sendTo(player.id, { type: 'host_update', hostId: newRoom.hostId });
 
           broadcastToRoom(newRoom.id, {
             type: 'player_joined',
@@ -420,17 +448,20 @@ wss.on('connection', (ws, req) => {
             const currentRoom = rooms.get(player.roomId);
             if (currentRoom) {
               currentRoom.players.delete(player.id);
+              updateRoomHost(currentRoom);
               balanceRoomBots(currentRoom);
             }
 
             const targetRoom = getOrCreateRoom(targetRoomId);
             targetRoom.players.add(player.id);
+            updateRoomHost(targetRoom);
             player.roomId = targetRoom.id;
 
             ws.send(JSON.stringify({
               type: 'room_joined',
               roomId: targetRoom.id,
               mode: targetRoom.mode,
+              hostId: targetRoom.hostId,
               bots: targetRoom.bots
             }));
 
@@ -521,8 +552,21 @@ wss.on('connection', (ws, req) => {
           if (player.roomId) {
             broadcastToRoom(player.roomId, {
               type: 'bot_killed',
-              botId: msg.botId
+              botId: msg.botId,
+              playerId: player.id
             }, player.id);
+          }
+          break;
+
+        case 'bot_sync':
+          if (player.roomId) {
+            const room = rooms.get(player.roomId);
+            if (room && room.hostId === player.id) {
+              broadcastToRoom(player.roomId, {
+                type: 'bot_sync',
+                bots: msg.bots
+              }, player.id);
+            }
           }
           break;
 
@@ -548,6 +592,7 @@ wss.on('connection', (ws, req) => {
       const room = rooms.get(player.roomId);
       if (room) {
         room.players.delete(player.id);
+        updateRoomHost(room);
         broadcastToRoom(room.id, {
           type: 'player_left',
           playerId: player.id

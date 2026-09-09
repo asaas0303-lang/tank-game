@@ -15,6 +15,26 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800;900&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
+  <script>
+    // roundRect polyfill for older Android WebView / browsers
+    if (typeof CanvasRenderingContext2D !== 'undefined' && !CanvasRenderingContext2D.prototype.roundRect) {
+      CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, radii) {
+        let r = typeof radii === 'number' ? radii : (Array.isArray(radii) ? radii[0] : 0);
+        r = Math.min(r, w / 2, h / 2);
+        this.moveTo(x + r, y);
+        this.lineTo(x + w - r, y);
+        this.arcTo(x + w, y, x + w, y + r, r);
+        this.lineTo(x + w, y + h - r);
+        this.arcTo(x + w, y + h, x + w - r, y + h, r);
+        this.lineTo(x + r, y + h);
+        this.arcTo(x, y + h, x, y + h - r, r);
+        this.lineTo(x, y + r);
+        this.arcTo(x, y, x + r, y, r);
+        this.closePath();
+        return this;
+      };
+    }
+  </script>
   <style>
     :root {
       --primary: #00f0ff;
@@ -7633,7 +7653,7 @@
         // Egasi o'zining holatini DOIM yuboradi (o'lganda ham) -> peer hech qachon
         // "javobsiz qolib" stale bo'lib o'chib ketmaydi, o'lim/tirilish darrov ko'rinadi.
         const now = Date.now();
-        if (now - this.lastSyncTime > 20) {
+        if (now - this.lastSyncTime > 50) {
           this.lastSyncTime = now;
           this.sendWs({
             type: 'sync_state',
@@ -7825,14 +7845,18 @@
           }
         }
 
+        // Cap particles to prevent memory buildup
+        while (this.particles.length > 150) this.particles.shift();
         for (let i = this.particles.length - 1; i >= 0; i--) {
           this.particles[i].update(dt);
           if (this.particles[i].life <= 0) this.particles.splice(i, 1);
         }
+        while (this.floatingTexts.length > 30) this.floatingTexts.shift();
         for (let i = this.floatingTexts.length - 1; i >= 0; i--) {
           this.floatingTexts[i].update(dt);
           if (this.floatingTexts[i].life <= 0) this.floatingTexts.splice(i, 1);
         }
+        while (this.treadMarks.length > 80) this.treadMarks.shift();
         for (let i = this.treadMarks.length - 1; i >= 0; i--) {
           this.treadMarks[i].update(dt);
           if (this.treadMarks[i].life <= 0) this.treadMarks.splice(i, 1);
@@ -9111,7 +9135,7 @@
     window.addEventListener('load', () => {
       new GameEngine();
 
-      const BUILD_ID = 'BUILD_2026-09-09-v2';  // har deploy oldidan shu qatorni yangilab turing (yoki build skript avtomatik yozsin)
+      const BUILD_ID = 'BUILD_2026-09-09-v3';  // har deploy oldidan shu qatorni yangilab turing (yoki build skript avtomatik yozsin)
       const buildText = 'build ' + BUILD_ID + (typeof window.Capacitor !== 'undefined' ? ' (APK)' : ' (web)');
       const stamp = document.getElementById('buildStamp');
       if (stamp) stamp.textContent = buildText;

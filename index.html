@@ -7993,9 +7993,26 @@
           this.drawLaserTrajectory();
         }
 
-        // 10. Tanks
-        for (const peer of this.peers.values()) peer.draw(this.ctx);
-        for (const bot of this.bots) bot.draw(this.ctx);
+        // 10. Tanks — tick visual-only timers for peers & bots (their full update() is NOT called here)
+        const frameDt = this.lastDt || 0.016;
+        for (const peer of this.peers.values()) {
+          if (peer.hitFlashTimer > 0) peer.hitFlashTimer = Math.max(0, peer.hitFlashTimer - frameDt);
+          if (peer.muzzleFlashTimer > 0) peer.muzzleFlashTimer = Math.max(0, peer.muzzleFlashTimer - frameDt);
+          if (peer.barrelRecoilTimer > 0) peer.barrelRecoilTimer = Math.max(0, peer.barrelRecoilTimer - frameDt);
+          if (peer.spawnShieldTimer > 0) peer.spawnShieldTimer = Math.max(0, peer.spawnShieldTimer - frameDt);
+          if (peer.barrelOverheat > 0) peer.barrelOverheat = Math.max(0, peer.barrelOverheat - frameDt * 1.0);
+          if (peer.recoil > 0) peer.recoil = Math.max(0, peer.recoil - frameDt * 45);
+          peer.draw(this.ctx);
+        }
+        for (const bot of this.bots) {
+          if (bot.hitFlashTimer > 0) bot.hitFlashTimer = Math.max(0, bot.hitFlashTimer - frameDt);
+          if (bot.muzzleFlashTimer > 0) bot.muzzleFlashTimer = Math.max(0, bot.muzzleFlashTimer - frameDt);
+          if (bot.barrelRecoilTimer > 0) bot.barrelRecoilTimer = Math.max(0, bot.barrelRecoilTimer - frameDt);
+          if (bot.spawnShieldTimer > 0) bot.spawnShieldTimer = Math.max(0, bot.spawnShieldTimer - frameDt);
+          if (bot.barrelOverheat > 0) bot.barrelOverheat = Math.max(0, bot.barrelOverheat - frameDt * 1.0);
+          if (bot.recoil > 0) bot.recoil = Math.max(0, bot.recoil - frameDt * 45);
+          bot.draw(this.ctx);
+        }
         if (!this.player.dead) this.player.draw(this.ctx);
 
         // 11. Bullets
@@ -9106,6 +9123,7 @@
       loop(currentTime) {
         try {
           const dt = Math.min(0.1, (currentTime - this.lastTime) / 1000);
+          this.lastDt = dt;  // store for draw() to use with peer/bot visual timers
           this.lastTime = currentTime;
 
           // 1. HIT-STOP (ZARBA ONIY TO'XTASHI: 40ms Micro-Freeze on fatal blows and heavy blasts)
@@ -9135,7 +9153,7 @@
     window.addEventListener('load', () => {
       new GameEngine();
 
-      const BUILD_ID = 'BUILD_2026-09-09-v3';  // har deploy oldidan shu qatorni yangilab turing (yoki build skript avtomatik yozsin)
+      const BUILD_ID = 'BUILD_2026-09-09-v4';  // har deploy oldidan shu qatorni yangilab turing (yoki build skript avtomatik yozsin)
       const buildText = 'build ' + BUILD_ID + (typeof window.Capacitor !== 'undefined' ? ' (APK)' : ' (web)');
       const stamp = document.getElementById('buildStamp');
       if (stamp) stamp.textContent = buildText;

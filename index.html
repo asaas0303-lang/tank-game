@@ -6028,6 +6028,17 @@
             }
             break;
 
+          case 'player_renamed': {
+            const renamedPeer = this.peers.get(msg.playerId);
+            if (renamedPeer) {
+              renamedPeer.name = msg.name;
+            }
+            if (msg.playerId === this.playerId) {
+              this.playerName = msg.name;
+            }
+            break;
+          }
+
           case 'peer_state': {
             let peer = this.peers.get(msg.playerId);
             if (!peer) {
@@ -6110,21 +6121,31 @@
       }
 
       syncBotsList(botSpecs) {
-        while (this.bots.length < botSpecs.length) {
-          const spec = botSpecs[this.bots.length];
-          const botIdx = this.bots.length;
-          // Spawn bot in its assigned sector
-          const targetSec = this.sectors[(botIdx + 1) % this.sectors.length] || this.sectors[0];
-          const spawnX = targetSec.x + SECTOR_SIZE / 2 + (Math.random() - 0.5) * 25;
-          const spawnY = targetSec.y + SECTOR_SIZE / 2 + (Math.random() - 0.5) * 25;
-
-          const bot = new Tank(spawnX, spawnY, spec.name || 'Bot', false);
-          bot.level = spec.level || 1;
-          this.bots.push(bot);
+        // Remove bots that are no longer in botSpecs
+        for (let i = this.bots.length - 1; i >= 0; i--) {
+          const b = this.bots[i];
+          if (!botSpecs.find(spec => spec.id === b.id)) {
+            this.bots.splice(i, 1);
+          }
         }
-        while (this.bots.length > botSpecs.length) {
-          this.bots.pop();
-        }
+        
+        // Add or update bots from botSpecs
+        botSpecs.forEach((spec, botIdx) => {
+          let bot = this.bots.find(b => b.id === spec.id);
+          if (!bot) {
+            const targetSec = this.sectors[(botIdx + 1) % this.sectors.length] || this.sectors[0];
+            const spawnX = targetSec.x + SECTOR_SIZE / 2 + (Math.random() - 0.5) * 25;
+            const spawnY = targetSec.y + SECTOR_SIZE / 2 + (Math.random() - 0.5) * 25;
+            bot = new Tank(spawnX, spawnY, spec.name || 'Bot', false, spec.id);
+            bot.id = spec.id;
+            bot.isBot = true;
+            bot.level = spec.level || 1;
+            this.bots.push(bot);
+          } else {
+            bot.name = spec.name || 'Bot';
+            bot.level = spec.level || bot.level;
+          }
+        });
       }
 
       renderFriendsList() {
@@ -7668,16 +7689,6 @@
           // HOST: Run full AI
           if (bot.dead) {
             this.bots.splice(b, 1);
-            setTimeout(() => {
-              if (!this.isHost) return; // double check if still host
-              const targetSec = this.sectors[Math.floor(Math.random() * this.sectors.length)] || this.sectors[0];
-              const spawnX = targetSec.x + SECTOR_SIZE / 2 + (Math.random() - 0.5) * 25;
-              const spawnY = targetSec.y + SECTOR_SIZE / 2 + (Math.random() - 0.5) * 25;
-              const name = CENTRAL_ASIAN_NAMES[Math.floor(Math.random() * CENTRAL_ASIAN_NAMES.length)];
-              const newBot = new Tank(spawnX, spawnY, name, false, `bot-${Date.now()}-${Math.floor(Math.random()*1000)}`);
-              newBot.isBot = true;
-              this.bots.push(newBot);
-            }, 3000);
             continue;
           }
           this.updateAI(dt, bot);

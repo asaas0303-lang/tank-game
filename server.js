@@ -550,11 +550,25 @@ wss.on('connection', (ws, req) => {
 
         case 'bot_killed':
           if (player.roomId) {
-            broadcastToRoom(player.roomId, {
-              type: 'bot_killed',
-              botId: msg.botId,
-              playerId: player.id
-            }, player.id);
+            const room = rooms.get(player.roomId);
+            if (room) {
+              const botIndex = room.bots.findIndex(b => b.id === msg.botId);
+              if (botIndex !== -1) {
+                room.bots.splice(botIndex, 1);
+                
+                broadcastToRoom(player.roomId, {
+                  type: 'bot_killed',
+                  botId: msg.botId,
+                  playerId: player.id
+                }, null);
+                
+                setTimeout(() => {
+                  if (rooms.has(room.id)) {
+                    balanceRoomBots(room);
+                  }
+                }, 3000);
+              }
+            }
           }
           break;
 

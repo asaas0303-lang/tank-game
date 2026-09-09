@@ -328,11 +328,12 @@ wss.on('connection', (ws, req) => {
           const cleanName = String(msg.name || '').slice(0, 14).trim();
           if (cleanName) {
             player.name = cleanName;
+            // Broadcast to ALL players in room (including sender) so everyone sees real name
             broadcastToRoom(player.roomId, {
               type: 'player_renamed',
               playerId: player.id,
               name: player.name
-            }, player.id);
+            });
             const curRoom = rooms.get(player.roomId);
             if (curRoom) updateRoomSectors(curRoom);
           }

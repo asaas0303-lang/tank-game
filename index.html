@@ -5959,6 +5959,27 @@
               this.resetPlayer();
             }
             if (msg.bots) this.syncBotsList(msg.bots);
+            // CRITICAL: Send our real name to server immediately after welcome
+            // The server assigns "Commander-XXXX" by default; we must override it
+            if (this.playerProfile && this.playerProfile.name && this.playerProfile.name.trim()) {
+              this.sendWs({ type: 'set_name', name: this.playerProfile.name });
+            }
+            // Also send our current peers list if any
+            if (msg.players && Array.isArray(msg.players)) {
+              msg.players.forEach(p => {
+                if (p.id !== this.playerId) {
+                  let peer = this.peers.get(p.id);
+                  if (!peer) {
+                    peer = new Tank(0, 0, p.name, false, p.id);
+                    peer.isRemote = true;
+                    this.peers.set(p.id, peer);
+                  }
+                  peer.name = p.name;
+                  peer.level = p.level || 1;
+                  peer.kills = p.kills || 0;
+                }
+              });
+            }
             break;
 
           case 'host_update':
@@ -6066,6 +6087,7 @@
             peer.isAfk = msg.isAfk;
             peer.currentWeapon = msg.weapon || 'standard';
             peer.code = msg.code || '';
+            if (msg.name) peer.name = msg.name;  // Always sync name from server
             peer.lastUpdate = Date.now();
 
             // AUTHORITATIVE alive/dead: egasi aytgan holat ishlatiladi (mahalliy zarar peer.dead'ni belgilamaydi)
@@ -9089,7 +9111,7 @@
     window.addEventListener('load', () => {
       new GameEngine();
 
-      const BUILD_ID = 'BUILD_2026-09-09';  // har deploy oldidan shu qatorni yangilab turing (yoki build skript avtomatik yozsin)
+      const BUILD_ID = 'BUILD_2026-09-09-v2';  // har deploy oldidan shu qatorni yangilab turing (yoki build skript avtomatik yozsin)
       const buildText = 'build ' + BUILD_ID + (typeof window.Capacitor !== 'undefined' ? ' (APK)' : ' (web)');
       const stamp = document.getElementById('buildStamp');
       if (stamp) stamp.textContent = buildText;

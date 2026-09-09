@@ -517,6 +517,15 @@ wss.on('connection', (ws, req) => {
           }
           break;
 
+        case 'bot_killed':
+          if (player.roomId) {
+            broadcastToRoom(player.roomId, {
+              type: 'bot_killed',
+              botId: msg.botId
+            }, player.id);
+          }
+          break;
+
         // WebRTC Proximity Voice Signaling
         case 'webrtc_signal':
           if (msg.targetId) {

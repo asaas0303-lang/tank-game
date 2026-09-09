@@ -390,6 +390,7 @@
       pointer-events: auto;
     }
     body.touch-device .leaderboard-card {
+      pointer-events: none;
       position: fixed;
       bottom: max(20px, env(safe-area-inset-bottom, 20px));
       left: 50%;
@@ -4362,6 +4363,13 @@
           if (attacker && attacker !== this) {
             attacker.onKillEnemy(this, floatingTexts);
           }
+
+          if (this.isBot && window.game) {
+            window.game.sendWs({
+              type: 'bot_killed',
+              botId: this.id
+            });
+          }
         }
       }
 
@@ -5953,6 +5961,16 @@
             document.getElementById('hudBotsCount').textContent = msg.targetBotCount;
             break;
 
+          case 'bot_killed':
+            const deadBotIndex = this.bots.findIndex(b => b.id === msg.botId);
+            if (deadBotIndex !== -1) {
+              const b = this.bots[deadBotIndex];
+              b.hp = 0;
+              b.dead = true;
+              this.bots.splice(deadBotIndex, 1);
+            }
+            break;
+
           case 'peer_state': {
             let peer = this.peers.get(msg.playerId);
             if (!peer) {
@@ -7289,7 +7307,7 @@
             while (diff < -Math.PI) diff += Math.PI * 2;
             // tank tanasini yo'nalishga silliq, FPS'dan mustaqil burish
             const fTurn = Math.min(3, dt * 60);
-            this.player.bodyAngle += diff * Math.min(1, 0.25 * fTurn);  // 0.25 = burilish tezligi (kattaroq = keskinroq)
+            this.player.bodyAngle += diff * Math.min(1, 0.7 * fTurn);  // 0.7 = burilish tezligi (kattaroq = keskinroq)
             while (this.player.bodyAngle > Math.PI) this.player.bodyAngle -= Math.PI * 2;
             while (this.player.bodyAngle < -Math.PI) this.player.bodyAngle += Math.PI * 2;
             const facing = Math.cos(diff);

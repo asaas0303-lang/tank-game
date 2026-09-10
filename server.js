@@ -235,10 +235,25 @@ function getFriendsListPayload(playerId) {
 wss.on('connection', (ws, req) => {
   // Client doimiy ID (cid) yuborsa — o'shani ishlat; bo'lmasa yangi raqamli ID ber
   let requestedCid = null;
+  let clientVersion = 0;
   try {
     const qs = (req && req.url && req.url.split('?')[1]) || '';
-    requestedCid = new URLSearchParams(qs).get('cid');
+    const searchParams = new URLSearchParams(qs);
+    requestedCid = searchParams.get('cid');
+    clientVersion = parseInt(searchParams.get('v') || '0', 10);
   } catch (e) { requestedCid = null; }
+
+  const MIN_VERSION = 5;
+  if (clientVersion < MIN_VERSION) {
+    ws.send(JSON.stringify({
+      type: 'friend_error',
+      message: "⚠️ ILTIMOS, O'YINNI YANGILANG! Eski versiya ishlamaydi."
+    }));
+    setTimeout(() => {
+      try { ws.close(); } catch (e) {}
+    }, 1500);
+    return;
+  }
 
   const playerId = requestedCid || ('c' + (nextPlayerId++));
 

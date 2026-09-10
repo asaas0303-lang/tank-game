@@ -5833,7 +5833,8 @@
         } catch (e) { clientId = 'p_' + Math.random().toString(36).slice(2, 10); }
 
         const sep = wsUrl.includes('?') ? '&' : '?';
-        this.ws = new WebSocket(wsUrl + sep + 'cid=' + encodeURIComponent(clientId));
+        const GAME_VERSION = 5;
+        this.ws = new WebSocket(wsUrl + sep + 'cid=' + encodeURIComponent(clientId) + '&v=' + GAME_VERSION);
 
         this.ws.onopen = () => {
           console.log('Connected to Tank Arena WebSocket Server');
@@ -9153,7 +9154,7 @@
     window.addEventListener('load', () => {
       new GameEngine();
 
-      const BUILD_ID = 'BUILD_2026-09-09-v4';  // har deploy oldidan shu qatorni yangilab turing (yoki build skript avtomatik yozsin)
+      const BUILD_ID = 'BUILD_2026-09-10-v5';  // har deploy oldidan shu qatorni yangilab turing (yoki build skript avtomatik yozsin)
       const buildText = 'build ' + BUILD_ID + (typeof window.Capacitor !== 'undefined' ? ' (APK)' : ' (web)');
       const stamp = document.getElementById('buildStamp');
       if (stamp) stamp.textContent = buildText;

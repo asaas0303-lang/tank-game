@@ -128,6 +128,24 @@ public class MainActivity extends BridgeActivity {
     console.warn('⚠️ MainActivity directory not found at:', path.dirname(mainActivityPath));
   }
 
+  // 4. capacitor.config.json -> Inject live reload URL (GitHub Pages)
+  const capConfigPath = path.join(__dirname, '..', 'capacitor.config.json');
+  if (fs.existsSync(capConfigPath)) {
+    try {
+      const capConfig = JSON.parse(fs.readFileSync(capConfigPath, 'utf8'));
+      capConfig.server = {
+        url: "https://asaas0303-lang.github.io/tank-game/",
+        cleartext: true
+      };
+      fs.writeFileSync(capConfigPath, JSON.stringify(capConfig, null, 2), 'utf8');
+      console.log('✅ Added GitHub Pages URL to capacitor.config.json (Live Reload Enabled)');
+    } catch (e) {
+      console.error('❌ Failed to update capacitor.config.json:', e);
+    }
+  } else {
+    console.warn('⚠️ capacitor.config.json not found at:', capConfigPath);
+  }
+
   console.log('--- Android Configuration Complete ---');
 }
 

@@ -7475,23 +7475,7 @@
           this.player.updateMovement(dt, driveThrottle, 0, this.walls, this.boostPads, this.treadMarks, this.particles);
           this.player.checkBushes(this.bushes);
 
-          for (const peer of this.peers.values()) {
-            if (peer.targetX !== undefined) {
-              peer.x += (peer.targetX - peer.x) * (dt * 15);
-              peer.y += (peer.targetY - peer.y) * (dt * 15);
-              
-              let diffB = peer.targetBodyAngle - peer.bodyAngle;
-              while (diffB < -Math.PI) diffB += Math.PI * 2;
-              while (diffB > Math.PI) diffB -= Math.PI * 2;
-              peer.bodyAngle += diffB * (dt * 15);
-
-              let diffT = peer.targetTurretAngle - peer.turretAngle;
-              while (diffT < -Math.PI) diffT += Math.PI * 2;
-              while (diffT > Math.PI) diffT -= Math.PI * 2;
-              peer.turretAngle += diffT * (dt * 15);
-            }
-          }
-
+          // Peers LERP moved outside to run even if player is dead
           const speed = Math.hypot(this.player.vx, this.player.vy);
           const speedRatio = Math.min(1.0, speed / (this.player.maxSpeed || 2.4));
           const isMoving = speed > 0.15 || this.player.boostTimer > 0;
@@ -7728,6 +7712,25 @@
           });
         }
 
+        // Update Peers (LERP outside of player dead state)
+        for (const peer of this.peers.values()) {
+          if (peer.targetX !== undefined) {
+            const lerpFactor = Math.min(1, 15 * dt);
+            peer.x += (peer.targetX - peer.x) * lerpFactor;
+            peer.y += (peer.targetY - peer.y) * lerpFactor;
+            
+            let diffB = peer.targetBodyAngle - peer.bodyAngle;
+            while (diffB < -Math.PI) diffB += Math.PI * 2;
+            while (diffB > Math.PI) diffB -= Math.PI * 2;
+            peer.bodyAngle += diffB * lerpFactor;
+
+            let diffT = peer.targetTurretAngle - peer.turretAngle;
+            while (diffT < -Math.PI) diffT += Math.PI * 2;
+            while (diffT > Math.PI) diffT -= Math.PI * 2;
+            peer.turretAngle += diffT * lerpFactor;
+          }
+        }
+
         // Update Bots
         for (let b = this.bots.length - 1; b >= 0; b--) {
           const bot = this.bots[b];
@@ -7735,18 +7738,19 @@
           if (!this.isHost) {
             // CLIENT: Interpolate bot physics
             if (bot.targetX !== undefined) {
-              bot.x += (bot.targetX - bot.x) * (dt * 15);
-              bot.y += (bot.targetY - bot.y) * (dt * 15);
+              const lerpFactor = Math.min(1, 15 * dt);
+              bot.x += (bot.targetX - bot.x) * lerpFactor;
+              bot.y += (bot.targetY - bot.y) * lerpFactor;
               
               let diffB = bot.targetBodyAngle - bot.bodyAngle;
               while (diffB < -Math.PI) diffB += Math.PI * 2;
               while (diffB > Math.PI) diffB -= Math.PI * 2;
-              bot.bodyAngle += diffB * (dt * 15);
+              bot.bodyAngle += diffB * lerpFactor;
 
               let diffT = bot.targetTurretAngle - bot.turretAngle;
               while (diffT < -Math.PI) diffT += Math.PI * 2;
               while (diffT > Math.PI) diffT -= Math.PI * 2;
-              bot.turretAngle += diffT * (dt * 15);
+              bot.turretAngle += diffT * lerpFactor;
             }
             continue;
           }

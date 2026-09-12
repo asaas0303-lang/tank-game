@@ -1573,6 +1573,7 @@
           <span>Kills: <strong id="hudKills" style="color: var(--primary);">0</strong></span>
           <span>Zarba: <strong id="hudDamage" style="color: var(--accent);">35</strong> HP</span>
           <span>Nitro: <strong id="hudNitroVal" style="color: #ff3366;">TAYYOR</strong></span>
+          <span>Ping: <strong id="hudPingVal" style="color: #00e676;">0 ms</strong></span>
         </div>
 
         <div class="voice-status-bar">
@@ -5460,6 +5461,8 @@
         this.playerId = 100;
         this.peers = new Map();
         this.friends = [];
+        this.ping = 0;
+        this.lastPingSent = 0;
 
         // Audio & Media
         this.micStream = null;
@@ -5955,6 +5958,12 @@
 
       handleServerMessage(msg) {
         switch (msg.type) {
+          case 'pong':
+            if (msg.time) {
+              this.ping = Math.round(performance.now() - msg.time);
+            }
+            break;
+            
           case 'welcome':
           case 'room_joined':
             this.playerId = msg.playerId || this.playerId;
@@ -7609,6 +7618,13 @@
           document.getElementById('hudKills').textContent = this.player.kills;
           document.getElementById('hudDamage').textContent = this.player.bulletDamage;
           document.getElementById('hudMinesVal').textContent = `${this.player.minesCount} ta`;
+          const hudPing = document.getElementById('hudPingVal');
+          if (hudPing) {
+            hudPing.textContent = `${this.ping} ms`;
+            if (this.ping < 100) hudPing.style.color = '#00e676';
+            else if (this.ping < 250) hudPing.style.color = '#ffb800';
+            else hudPing.style.color = '#ff1744';
+          }
           const touchMinesEl = document.getElementById('touchMineCount');
           if (touchMinesEl) touchMinesEl.textContent = this.player.minesCount;
 
@@ -7669,6 +7685,12 @@
             weapon: this.player.currentWeapon,
             dead: this.player.dead
           });
+        }
+
+        // Send ping every 2 seconds
+        if (now - this.lastPingSent > 2000) {
+          this.lastPingSent = now;
+          this.sendWs({ type: 'ping', time: performance.now() });
         }
 
         // 2 & 3. SILLIQ VA ENGIL KUZATUV (SMOOTH INTERPOLATION: 0.12, STRICT TANK CENTER)
@@ -9123,9 +9145,12 @@
 
       loop(currentTime) {
         try {
-          const dt = Math.min(0.1, (currentTime - this.lastTime) / 1000);
-          this.lastDt = dt;  // store for draw() to use with peer/bot visual timers
+          if (!this.lastTime) this.lastTime = currentTime;
+          const elapsed = currentTime - this.lastTime;
           this.lastTime = currentTime;
+
+          const dt = Math.min(0.1, elapsed / 1000);
+          this.lastDt = dt;  // store for draw() to use with peer/bot visual timers
 
           // 1. HIT-STOP (ZARBA ONIY TO'XTASHI: 40ms Micro-Freeze on fatal blows and heavy blasts)
           if (window.freezeTimer > 0) {
@@ -9143,7 +9168,7 @@
           this.update(dt);
           this.draw();
         } catch (e) {
-          console.error('Frame skipped:', e);
+          console.error('Loop error:', e);
         } finally {
           // A single scheduling point: one bad frame can never stop the loop.
           requestAnimationFrame((t) => this.loop(t));
@@ -9154,7 +9179,7 @@
     window.addEventListener('load', () => {
       new GameEngine();
 
-      const BUILD_ID = 'BUILD_2026-09-10-v5';  // har deploy oldidan shu qatorni yangilab turing (yoki build skript avtomatik yozsin)
+      const BUILD_ID = 'BUILD_2026-09-10-v6';  // har deploy oldidan shu qatorni yangilab turing (yoki build skript avtomatik yozsin)
       const buildText = 'build ' + BUILD_ID + (typeof window.Capacitor !== 'undefined' ? ' (APK)' : ' (web)');
       const stamp = document.getElementById('buildStamp');
       if (stamp) stamp.textContent = buildText;

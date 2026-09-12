@@ -315,6 +315,7 @@ wss.on('connection', (ws, req) => {
     roomId: defaultRoom.id,
     mode: defaultRoom.mode,
     hostId: defaultRoom.hostId,
+    serverVersion: 'v6',
     players: Array.from(defaultRoom.players).map(pid => {
       const p = players.get(pid);
       return p ? { id: p.id, name: p.name, code: p.code, kills: p.kills, level: p.level, isAfk: p.isAfk } : null;
@@ -339,6 +340,10 @@ wss.on('connection', (ws, req) => {
       const msg = JSON.parse(msgStr);
 
       switch (msg.type) {
+        case 'ping':
+          sendTo(player.id, { type: 'pong', time: msg.time });
+          break;
+
         case 'set_name': {
           const cleanName = String(msg.name || '').slice(0, 14).trim();
           if (cleanName) {
@@ -579,10 +584,17 @@ wss.on('connection', (ws, req) => {
                 }, null);
                 
                 setTimeout(() => {
+                  if (!room || (room.players && room.players.size === 0)) return;
+                  
                   if (rooms.has(room.id)) {
-                    balanceRoomBots(room);
+                    const humanCount = room.players.size;
+                    const targetBotCount = humanCount > 6 ? 0 : (BOT_COUNT_BY_HUMANS[humanCount] || 0);
+                    
+                    if (room.bots.length < targetBotCount) {
+                      balanceRoomBots(room);
+                    }
                   }
-                }, 3000);
+                }, 3500);
               }
             }
           }

@@ -5825,8 +5825,19 @@
           ? `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}`
           : RAILWAY_WS;
 
-        // Har bir o'yinchiga UNIKAL tasodifiy 4 xonali ID berish (localStorage ishlatilmaydi, to'qnashuv bo'lmasligi uchun)
-        const clientId = 'player_' + Math.floor(1000 + Math.random() * 9000);
+        // Qurilmaga doimiy ID beriladi (localStorage) -- reconnect/reload'da HAM
+        // bir xil qoladi, shuning uchun do'st-kodi va server tomonidagi identifikatsiya
+        // barqaror bo'lib qoladi va to'qnashuv (collision) ehtimoli deyarli nolga tushadi.
+        let clientId = '';
+        try {
+          clientId = localStorage.getItem('tankPlayerCID') || '';
+          if (!clientId) {
+            clientId = 'p_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
+            localStorage.setItem('tankPlayerCID', clientId);
+          }
+        } catch (e) {
+          clientId = 'p_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
+        }
         const sep = wsUrl.includes('?') ? '&' : '?';
         const GAME_VERSION = 5;
         this.ws = new WebSocket(wsUrl + sep + 'cid=' + encodeURIComponent(clientId) + '&v=' + GAME_VERSION);
@@ -9230,7 +9241,7 @@
     window.addEventListener('load', () => {
       new GameEngine();
 
-      const BUILD_ID = 'BUILD_2026-09-14-v7';  // har deploy oldidan shu qatorni yangilab turing (yoki build skript avtomatik yozsin)
+      const BUILD_ID = 'BUILD_2026-09-15-v8';  // har deploy oldidan shu qatorni yangilab turing (yoki build skript avtomatik yozsin)
       const buildText = 'build ' + BUILD_ID + (typeof window.Capacitor !== 'undefined' ? ' (APK)' : ' (web)');
       const stamp = document.getElementById('buildStamp');
       if (stamp) stamp.textContent = buildText;

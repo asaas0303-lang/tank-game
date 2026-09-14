@@ -63,13 +63,50 @@ function getOrCreateRoom(roomId = 'default-dm', mode = 'Deathmatch') {
 function updateRoomHost(room) {
   if (room.players.size === 0) {
     room.hostId = null;
-  } else if (!room.players.has(room.hostId)) {
-    room.hostId = Array.from(room.players)[0];
+    return;
+  }
+  const current = room.hostId ? players.get(room.hostId) : null;
+  const currentFresh = current && room.players.has(room.hostId) &&
+                       (Date.now() - (current.lastSeen || 0) < 10000);
+  if (currentFresh) return;   // hozirgi host yaxshi ishlayapti -- tegmaymiz
+
+  // eng so'nggi faol o'yinchini host qilamiz
+  let best = null;
+  for (const pid of room.players) {
+    const p = players.get(pid);
+    if (!p) continue;
+    if (!best || (p.lastSeen || 0) > (best.lastSeen || 0)) best = p;
+  }
+  const newHost = best ? best.id : Array.from(room.players)[0];
+  if (newHost !== room.hostId) {
+    room.hostId = newHost;
     broadcastToRoom(room.id, { type: 'host_update', hostId: room.hostId });
+    console.log('[host] xona', room.id, 'uchun yangi host:', room.hostId);
   }
 }
 
 // Dynamically generate modular sectors (zones) based on room player count
+// Koordinatasi yo'q botlarga sektor tanlab, spawn joyini SERVER belgilaydi.
+// Shu tufayli bot hamma klientda AYNAN bir joyda tug'iladi (avval har klient uni
+// massiv indeksi bo'yicha o'zi hisoblardi -- indekslar siljiganda botlar bir joyga
+// to'planib qolardi). Band bo'lmagan sektorlar afzal ko'riladi.
+function assignBotSpawns(room) {
+  if (!room.sectors || room.sectors.length === 0) return false;
+  let assigned = false;
+  for (const bot of room.bots) {
+    if (typeof bot.x === 'number' && typeof bot.y === 'number') continue;
+    assigned = true;
+    const used = new Set(room.bots.map(b => b.sectorId).filter(Boolean));
+    const free = room.sectors.filter(s => !used.has(s.id));
+    const pool = free.length > 0 ? free : room.sectors;
+    const sec = pool[Math.floor(Math.random() * pool.length)];
+    bot.sectorId = sec.id;
+    bot.x = sec.x + sec.w / 2 + (Math.random() - 0.5) * 60;
+    bot.y = sec.y + sec.h / 2 + (Math.random() - 0.5) * 60;
+  }
+  return assigned;
+}
+
 function updateRoomSectors(room) {
   const humanCount = room.players.size;
   let cols = 2;
@@ -137,6 +174,20 @@ function updateRoomSectors(room) {
   room.worldWidth = cols * SECTOR_SIZE;
   room.worldHeight = rows * SECTOR_SIZE;
 
+  // Koordinatasi yo'q botlarga joy beramiz. Buni SHU YERDA qilamiz, chunki
+  // balanceRoomBots() har doim updateRoomSectors() dan OLDIN chaqiriladi (sektorlar
+  // bot soniga bog'liq), ya'ni bot yaratilayotganda room.sectors hali bo'sh bo'ladi.
+  // Joy berilgan bo'lsa -- bots_update'ni QAYTA yuboramiz, chunki balanceRoomBots()
+  // dagi birinchi broadcast hali koordinatasiz (null) ketgan edi.
+  if (assignBotSpawns(room)) {
+    broadcastToRoom(room.id, {
+      type: 'bots_update',
+      bots: room.bots,
+      humanCount: room.players.size,
+      targetBotCount: room.bots.length
+    });
+  }
+
   // Broadcast sectors configuration to all players in the room
   broadcastToRoom(room.id, {
     type: 'sectors_update',
@@ -160,11 +211,18 @@ function balanceRoomBots(room) {
     const botId = `bot-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
     const randomName = CENTRAL_ASIAN_NAMES[Math.floor(Math.random() * CENTRAL_ASIAN_NAMES.length)];
     const level = Math.floor(Math.random() * 2) + 1;
+
+    // Koordinata shu yerda berilmaydi: room.sectors hali bo'sh (sektorlar bot soniga
+    // bog'liq, shuning uchun updateRoomSectors keyinroq ishlaydi). Joyni o'sha yerdagi
+    // assignBotSpawns() beradi -- SERVER beradi, ya'ni hamma klientda bir xil.
     room.bots.push({
       id: botId,
       name: randomName,
       level: level,
-      isBot: true
+      isBot: true,
+      sectorId: null,
+      x: null,
+      y: null
     });
   }
 
@@ -232,7 +290,60 @@ function getFriendsListPayload(playerId) {
   return list;
 }
 
+// --- Tiriklik tekshiruvi: yarim-ochiq (half-open) ulanishlarni o'ldirish ---
+// Telefon internetdan uzilsa 'close' hodisasi KELMAYDI. Shuning uchun har 15 soniyada
+// WebSocket-darajasidagi ping yuboramiz; javob bermagan ulanish keyingi turda o'ldiriladi.
+const HEARTBEAT_MS = 15000;
+const heartbeatTimer = setInterval(() => {
+  wss.clients.forEach((client) => {
+    if (client.isAlive === false) {
+      console.log('[heartbeat] javob bermagan ulanish o\'ldirildi');
+      try { client.terminate(); } catch (e) {}
+      return;
+    }
+    client.isAlive = false;
+    try { client.ping(); } catch (e) {}
+  });
+}, HEARTBEAT_MS);
+wss.on('close', () => clearInterval(heartbeatTimer));
+
+// Klient har 2 soniyada 'ping', har ~35ms 'sync_state' yuboradi. 20 soniya mutlaqo jim
+// bo'lsa -- bu o'yinchi yo'q, tozalaymiz.
+const ACTIVITY_TIMEOUT_MS = 20000;
+setInterval(() => {
+  const now = Date.now();
+  for (const [pid, p] of players) {
+    // Tirik ulanish belgisi: app xabari YOKI protokol-darajasidagi pong (pauzada ham keladi).
+    // DIQQAT: lastSeen'ni bu yerda "now" qilib yangilamaymiz -- u host saylovida
+    // ishlatiladi, jim klient o'zini faol ko'rsatib qo'ymasligi kerak.
+    const lastActivity = Math.max(p.lastSeen || 0, (p.ws && p.ws.lastPongAt) || 0);
+    if (now - lastActivity > ACTIVITY_TIMEOUT_MS) {
+      console.log('[reaper] jim qolgan o\'yinchi olib tashlandi:', pid);
+      try { p.ws.terminate(); } catch (e) {}
+    }
+  }
+
+  // Host bot_sync yubormay qo'ygan bo'lsa -- hostni almashtiramiz
+  for (const room of rooms.values()) {
+    if (room.players.size === 0 || room.bots.length === 0) continue;
+    if (now - (room.lastBotSyncAt || 0) > 6000 && room.players.size > 1) {
+      console.log('[host] bot_sync yo\'q -> host almashtirilmoqda, xona:', room.id);
+      room.hostId = null;          // majburan qayta tanlash
+      updateRoomHost(room);
+      room.lastBotSyncAt = Date.now();  // darrov qayta almashmasin
+    }
+  }
+}, 5000);
+
 wss.on('connection', (ws, req) => {
+  ws.isAlive = true;
+  // Brauzer ping freym'iga JS ishtirokisiz javob beradi -- ya'ni o'yin PAUZADA bo'lsa ham
+  // (ism kiritish oynasi: update() ishlamaydi, 'ping'/'sync_state' yuborilmaydi) pong keladi.
+  // Shuning uchun reaper faqat app-xabarlarga emas, pong'ga ham qaraydi, aks holda ismini
+  // yozib turgan o'yinchi 20 soniyada uzilib qolardi.
+  ws.lastPongAt = Date.now();
+  ws.on('pong', () => { ws.isAlive = true; ws.lastPongAt = Date.now(); });
+
   // Client doimiy ID (cid) yuborsa — o'shani ishlat; bo'lmasa yangi raqamli ID ber
   let requestedCid = null;
   let clientVersion = 0;
@@ -289,7 +400,11 @@ wss.on('connection', (ws, req) => {
     isAfk: false,
     friends: new Set(),
     kills: 0,
-    level: 1
+    level: 1,
+    // Ulanish vaqtidan boshlanadi va FAQAT haqiqiy xabar kelganda yangilanadi.
+    // Buni reaper "now" qilib qo'ymasligi kerak -- aks holda hech narsa yubormaydigan
+    // jim klient "eng faol" bo'lib ko'rinib, host saylovida yutib olardi.
+    lastSeen: Date.now()
   };
   players.set(playerId, player);
 
@@ -335,6 +450,7 @@ wss.on('connection', (ws, req) => {
 
   // Handle incoming WebSocket messages
   ws.on('message', (msgStr) => {
+    player.lastSeen = Date.now();
     try {
       const msg = JSON.parse(msgStr);
 
@@ -603,6 +719,7 @@ wss.on('connection', (ws, req) => {
           if (player.roomId) {
             const room = rooms.get(player.roomId);
             if (room && room.hostId === player.id) {
+              room.lastBotSyncAt = Date.now();
               broadcastToRoom(player.roomId, {
                 type: 'bot_sync',
                 bots: msg.bots

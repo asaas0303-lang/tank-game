@@ -6022,6 +6022,7 @@
             break;
 
           case 'bot_sync':
+            this.lastBotSyncAt = Date.now();
             if (!this.isHost && msg.bots) {
               msg.bots.forEach(bData => {
                 let b = this.bots.find(x => x.id === bData.id || x.playerId === bData.id);
@@ -6212,9 +6213,14 @@
         botSpecs.forEach((spec, botIdx) => {
           let bot = this.bots.find(b => b.id === spec.id);
           if (!bot) {
-            const targetSec = this.sectors[(botIdx + 1) % this.sectors.length] || this.sectors[0];
-            const spawnX = targetSec.x + SECTOR_SIZE / 2 + (Math.random() - 0.5) * 25;
-            const spawnY = targetSec.y + SECTOR_SIZE / 2 + (Math.random() - 0.5) * 25;
+            let spawnX, spawnY;
+            if (typeof spec.x === 'number' && typeof spec.y === 'number') {
+              spawnX = spec.x; spawnY = spec.y;          // server bergan joy (hamma klientda bir xil)
+            } else {
+              const targetSec = this.sectors[(botIdx + 1) % this.sectors.length] || this.sectors[0];
+              spawnX = targetSec.x + SECTOR_SIZE / 2 + (Math.random() - 0.5) * 25;
+              spawnY = targetSec.y + SECTOR_SIZE / 2 + (Math.random() - 0.5) * 25;
+            }
             bot = new Tank(spawnX, spawnY, spec.name || 'Bot', false, spec.id);
             bot.id = spec.id;
             bot.isBot = true;
@@ -7777,7 +7783,11 @@
         for (let b = this.bots.length - 1; b >= 0; b--) {
           const bot = this.bots[b];
 
-          if (!this.isHost) {
+          // Host bo'lmasak ham, agar bot_sync 2.5 soniyadan beri kelmasa (host o'lgan
+          // yoki tarmoq uzilgan) -- botlarni o'zimiz harakatlantiramiz, aks holda
+          // butun o'yin muzlab qoladi.
+          const botSyncFresh = (Date.now() - (this.lastBotSyncAt || 0)) < 2500;
+          if (!this.isHost && botSyncFresh) {
             // CLIENT: Interpolate bot physics
             if (bot.targetX !== undefined) {
               const lerpFactor = Math.min(1, 15 * dt);
@@ -7804,20 +7814,23 @@
           }
           const bulletsBefore = this.bullets.length;
           this.updateAI(dt, bot);
-          // Bot AI faqat hostda ishlaydi -- shu kadrda qo'shilgan bot o'qlarini boshqa
-          // klientlarga uzatamiz, aks holda bot faqat host ekranida o'q otadi.
-          for (let nb = bulletsBefore; nb < this.bullets.length; nb++) {
-            const nBullet = this.bullets[nb];
-            this.sendWs({
-              type: 'bot_fired',
-              x: nBullet.x,
-              y: nBullet.y,
-              vx: nBullet.vx,
-              vy: nBullet.vy,
-              damage: nBullet.damage,
-              color: nBullet.color,
-              weaponType: nBullet.weaponType
-            });
+          // Shu kadrda qo'shilgan bot o'qlarini boshqa klientlarga uzatamiz, aks holda
+          // bot faqat host ekranida o'q otadi. FAQAT host yuboradi -- fallback rejimida
+          // (host o'lganda) har bir klient o'zi AI ishlatadi, lekin yubormaydi.
+          if (this.isHost) {
+            for (let nb = bulletsBefore; nb < this.bullets.length; nb++) {
+              const nBullet = this.bullets[nb];
+              this.sendWs({
+                type: 'bot_fired',
+                x: nBullet.x,
+                y: nBullet.y,
+                vx: nBullet.vx,
+                vy: nBullet.vy,
+                damage: nBullet.damage,
+                color: nBullet.color,
+                weaponType: nBullet.weaponType
+              });
+            }
           }
           bot.checkBushes(this.bushes);
         }
@@ -9241,7 +9254,7 @@
     window.addEventListener('load', () => {
       new GameEngine();
 
-      const BUILD_ID = 'BUILD_2026-09-15-v8';  // har deploy oldidan shu qatorni yangilab turing (yoki build skript avtomatik yozsin)
+      const BUILD_ID = 'BUILD_2026-09-15-v9';  // har deploy oldidan shu qatorni yangilab turing (yoki build skript avtomatik yozsin)
       const buildText = 'build ' + BUILD_ID + (typeof window.Capacitor !== 'undefined' ? ' (APK)' : ' (web)');
       const stamp = document.getElementById('buildStamp');
       if (stamp) stamp.textContent = buildText;

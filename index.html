@@ -5825,16 +5825,8 @@
           ? `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}`
           : RAILWAY_WS;
 
-        // Persistent per-device client ID so reconnects keep the same playerId on the server.
-        let clientId = '';
-        try {
-          clientId = localStorage.getItem('tankPlayerCID') || '';
-          if (!clientId) {
-            clientId = 'p_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
-            localStorage.setItem('tankPlayerCID', clientId);
-          }
-        } catch (e) { clientId = 'p_' + Math.random().toString(36).slice(2, 10); }
-
+        // Har bir o'yinchiga UNIKAL tasodifiy 4 xonali ID berish (localStorage ishlatilmaydi, to'qnashuv bo'lmasligi uchun)
+        const clientId = 'player_' + Math.floor(1000 + Math.random() * 9000);
         const sep = wsUrl.includes('?') ? '&' : '?';
         const GAME_VERSION = 5;
         this.ws = new WebSocket(wsUrl + sep + 'cid=' + encodeURIComponent(clientId) + '&v=' + GAME_VERSION);
@@ -6161,6 +6153,30 @@
             this.friends = msg.friends || [];
             this.renderFriendsList();
             break;
+
+          // A remote shooter hit us -- we are the authority on our own hp/death.
+          case 'hit_by_peer': {
+            if (this.player.dead) break;
+            const attacker = this.peers.get(msg.fromId) || null;
+            this.player.takeDamage(msg.damage, attacker, this.floatingTexts, this.particles);
+            this.triggerScreenShake(0.12, 2.4);
+            if (this.player.dead) {
+              this.sendWs({ type: 'kill_credit', targetId: msg.fromId });
+              this.addKillFeedItem(msg.fromName || (attacker && attacker.name) || 'Noma\'lum', this.player.name);
+            }
+            break;
+          }
+
+          // Our shot killed a remote player -- their client confirmed it.
+          case 'kill_credit_awarded': {
+            this.player.kills++;
+            this.hitmarkerTimer = 0.10;
+            this.hitmarkerColor = '#ff2255';
+            window.freezeTimer = 0.04;
+            this.triggerKillPopup("DESTROYED!", "+100 XP");
+            this.addKillFeedItem(this.player.name, msg.targetName || 'Raqib');
+            break;
+          }
 
           case 'friend_error':
             this.addFloatingNotice('⚠️ ' + (msg.message || 'Xatolik'));
@@ -7164,10 +7180,17 @@
             if (tank.dead || tank === b.owner) continue;
 
             if (Math.hypot(b.x - tank.x, b.y - tank.y) < tank.radius + b.size) {
-              // Remote peers resolve their own damage/death on their owner's client -- calling
-              // takeDamage here would desync hp/dead from what that client is authoritatively
-              // broadcasting. The bullet still visibly hits and is destroyed below.
-              if (!tank.isRemote) {
+              // "Shooter is the referee": the client that fired resolves the hit and tells the
+              // victim over the network. The victim's own client applies the damage, so hp/dead
+              // stays authoritative there and never desyncs.
+              if (tank.isRemote) {
+                if (b.owner === this.player && tank.playerId) {
+                  this.sendWs({ type: 'hit_peer', targetId: tank.playerId, damage: b.damage });
+                }
+              } else if (tank === this.player && b.owner && b.owner.isRemote) {
+                // uzoqdagi o'yinchi o'qi mahalliy zarar bermaydi -- zarar faqat
+                // 'hit_by_peer' orqali keladi (ikki karra zarar bo'lmasin)
+              } else {
                 tank.takeDamage(b.damage, b.owner, this.floatingTexts, this.particles);
               }
               audio.playImpact('metal', b.x, b.y, b.damage > 35);
@@ -7301,10 +7324,18 @@
 
         const allTanks = [this.player, ...this.bots, ...this.peers.values()];
         for (const tank of allTanks) {
-          if (tank.dead || tank.isRemote) continue; // remote peers' hp/dead is their own client's call
+          if (tank.dead) continue;
           const dist = Math.hypot(tank.x - x, tank.y - y);
-          if (dist < radius) {
-            const factor = (1 - dist / radius);
+          if (dist >= radius) continue;
+          const factor = (1 - dist / radius);
+          if (tank.isRemote) {
+            // same "shooter is the referee" rule as direct bullet hits
+            if (attacker === this.player && tank.playerId) {
+              this.sendWs({ type: 'hit_peer', targetId: tank.playerId, damage: damage * factor });
+            }
+          } else if (tank === this.player && attacker && attacker.isRemote) {
+            // zarar 'hit_by_peer' orqali keladi
+          } else {
             tank.takeDamage(damage * factor, attacker, this.floatingTexts, this.particles);
           }
         }
@@ -7654,7 +7685,7 @@
         // Egasi o'zining holatini DOIM yuboradi (o'lganda ham) -> peer hech qachon
         // "javobsiz qolib" stale bo'lib o'chib ketmaydi, o'lim/tirilish darrov ko'rinadi.
         const now = Date.now();
-        if (now - this.lastSyncTime > 50) {
+        if (!this.lastSyncTime || now - this.lastSyncTime >= 35) {
           this.lastSyncTime = now;
           this.sendWs({
             type: 'sync_state',
@@ -7760,7 +7791,23 @@
             this.bots.splice(b, 1);
             continue;
           }
+          const bulletsBefore = this.bullets.length;
           this.updateAI(dt, bot);
+          // Bot AI faqat hostda ishlaydi -- shu kadrda qo'shilgan bot o'qlarini boshqa
+          // klientlarga uzatamiz, aks holda bot faqat host ekranida o'q otadi.
+          for (let nb = bulletsBefore; nb < this.bullets.length; nb++) {
+            const nBullet = this.bullets[nb];
+            this.sendWs({
+              type: 'bot_fired',
+              x: nBullet.x,
+              y: nBullet.y,
+              vx: nBullet.vx,
+              vy: nBullet.vy,
+              damage: nBullet.damage,
+              color: nBullet.color,
+              weaponType: nBullet.weaponType
+            });
+          }
           bot.checkBushes(this.bushes);
         }
 
@@ -9183,7 +9230,7 @@
     window.addEventListener('load', () => {
       new GameEngine();
 
-      const BUILD_ID = 'BUILD_2026-09-10-v6';  // har deploy oldidan shu qatorni yangilab turing (yoki build skript avtomatik yozsin)
+      const BUILD_ID = 'BUILD_2026-09-14-v7';  // har deploy oldidan shu qatorni yangilab turing (yoki build skript avtomatik yozsin)
       const buildText = 'build ' + BUILD_ID + (typeof window.Capacitor !== 'undefined' ? ' (APK)' : ' (web)');
       const stamp = document.getElementById('buildStamp');
       if (stamp) stamp.textContent = buildText;

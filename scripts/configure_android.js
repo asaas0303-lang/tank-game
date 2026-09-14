@@ -128,22 +128,37 @@ public class MainActivity extends BridgeActivity {
     console.warn('⚠️ MainActivity directory not found at:', path.dirname(mainActivityPath));
   }
 
-  // 4. capacitor.config.json -> Inject live reload URL (GitHub Pages)
-  const capConfigPath = path.join(__dirname, '..', 'capacitor.config.json');
-  if (fs.existsSync(capConfigPath)) {
+  // 4. capacitor.config.ts (yoki .json) -> Live Reload URL (GitHub Pages) qo'sh
+  // NOTE: the current CLI emits .json, which is what actually gets used today. The .ts branch
+  // is defensive -- some CLI versions emit TypeScript, and a silent miss there would ship a
+  // fully static APK with no way to notice.
+  const LIVE_RELOAD_URL = "https://asaas0303-lang.github.io/tank-game/";
+  const capConfigTsPath = path.join(__dirname, '..', 'capacitor.config.ts');
+  const capConfigJsonPath = path.join(__dirname, '..', 'capacitor.config.json');
+
+  if (fs.existsSync(capConfigTsPath)) {
+    let ts = fs.readFileSync(capConfigTsPath, 'utf8');
+    if (!ts.includes('server:')) {
+      ts = ts.replace(
+        /webDir:\s*(['"])([^'"]+)\1/,
+        `webDir: $1$2$1,\n  server: { url: "${LIVE_RELOAD_URL}", cleartext: true }`
+      );
+      fs.writeFileSync(capConfigTsPath, ts, 'utf8');
+      console.log('✅ Live Reload URL capacitor.config.ts ga qo\'shildi');
+    } else {
+      console.log('ℹ️ capacitor.config.ts da server allaqachon bor, o\'tkazib yuborildi');
+    }
+  } else if (fs.existsSync(capConfigJsonPath)) {
     try {
-      const capConfig = JSON.parse(fs.readFileSync(capConfigPath, 'utf8'));
-      capConfig.server = {
-        url: "https://asaas0303-lang.github.io/tank-game/",
-        cleartext: true
-      };
-      fs.writeFileSync(capConfigPath, JSON.stringify(capConfig, null, 2), 'utf8');
-      console.log('✅ Added GitHub Pages URL to capacitor.config.json (Live Reload Enabled)');
+      const capConfig = JSON.parse(fs.readFileSync(capConfigJsonPath, 'utf8'));
+      capConfig.server = { url: LIVE_RELOAD_URL, cleartext: true };
+      fs.writeFileSync(capConfigJsonPath, JSON.stringify(capConfig, null, 2), 'utf8');
+      console.log('✅ Live Reload URL capacitor.config.json ga qo\'shildi');
     } catch (e) {
-      console.error('❌ Failed to update capacitor.config.json:', e);
+      console.error('❌ capacitor.config.json ni yangilab bo\'lmadi:', e);
     }
   } else {
-    console.warn('⚠️ capacitor.config.json not found at:', capConfigPath);
+    console.warn('⚠️ capacitor.config.ts HAM .json HAM topilmadi -- Live Reload YOQILMADI!');
   }
 
   console.log('--- Android Configuration Complete ---');

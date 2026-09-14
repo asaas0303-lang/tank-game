@@ -245,14 +245,13 @@ wss.on('connection', (ws, req) => {
 
   const MIN_VERSION = 5;
   if (clientVersion < MIN_VERSION) {
-    ws.send(JSON.stringify({
-      type: 'friend_error',
-      message: "⚠️ ILTIMOS, O'YINNI YANGILANG! Eski versiya ishlamaydi."
-    }));
-    setTimeout(() => {
-      try { ws.close(); } catch (e) {}
-    }, 1500);
-    return;
+    try {
+      ws.send(JSON.stringify({
+        type: 'friend_error',
+        message: "⚠️ Eski versiya. Iltimos ilovani yangilang (ba'zi funksiyalar ishlamasligi mumkin)."
+      }));
+    } catch (e) {}
+    // DIQQAT: ulanishni UZMAYMIZ — eski klient ham o'ynasin, faqat ogohlantiramiz.
   }
 
   const playerId = requestedCid || ('c' + (nextPlayerId++));
@@ -609,6 +608,45 @@ wss.on('connection', (ws, req) => {
                 bots: msg.bots
               }, player.id);
             }
+          }
+          break;
+
+        // Bot bullets exist only on the host -- relay them so every client sees/takes them.
+        case 'bot_fired':
+          if (player.roomId) {
+            const botFiredRoom = rooms.get(player.roomId);
+            if (botFiredRoom && botFiredRoom.hostId === player.id) {
+              broadcastToRoom(player.roomId, {
+                type: 'peer_fired',
+                playerId: 'BOT',
+                x: msg.x,
+                y: msg.y,
+                vx: msg.vx,
+                vy: msg.vy,
+                damage: msg.damage,
+                color: msg.color,
+                weaponType: msg.weaponType
+              }, player.id);
+            }
+          }
+          break;
+
+        // "Shooter is the referee": relay a hit to the victim, who applies it authoritatively.
+        case 'hit_peer':
+          if (msg.targetId) {
+            sendTo(msg.targetId, {
+              type: 'hit_by_peer',
+              fromId: player.id,
+              fromName: player.name,
+              damage: Number(msg.damage) || 0
+            });
+          }
+          break;
+
+        // Victim died -> tell the shooter so they get the kill credited.
+        case 'kill_credit':
+          if (msg.targetId) {
+            sendTo(msg.targetId, { type: 'kill_credit_awarded', targetName: player.name });
           }
           break;
 

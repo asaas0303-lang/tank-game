@@ -212,9 +212,9 @@ function balanceRoomBots(room) {
     const randomName = CENTRAL_ASIAN_NAMES[Math.floor(Math.random() * CENTRAL_ASIAN_NAMES.length)];
     const level = Math.floor(Math.random() * 2) + 1;
 
-    // Koordinata shu yerda berilmaydi: room.sectors hali bo'sh (sektorlar bot soniga
-    // bog'liq, shuning uchun updateRoomSectors keyinroq ishlaydi). Joyni o'sha yerdagi
-    // assignBotSpawns() beradi -- SERVER beradi, ya'ni hamma klientda bir xil.
+    // Koordinatani bu yerda emas, quyida assignBotSpawns() beradi: bot yaratilayotganda
+    // sektorlar hali tayyor bo'lmasligi mumkin (birinchi ulanishda sektorlar bot soniga
+    // qarab keyinroq quriladi). Joyni HAR DOIM server beradi -> hamma klientda bir xil.
     room.bots.push({
       id: botId,
       name: randomName,
@@ -229,6 +229,13 @@ function balanceRoomBots(room) {
   while (room.bots.length > targetBotCount) {
     room.bots.pop();
   }
+
+  // Sektorlar allaqachon mavjud bo'lsa (masalan bot o'lib qayta tug'ilganda) -- spawn
+  // joyini SHU YERDA beramiz. Aks holda bot koordinatasiz (null) ketadi va klient uni
+  // yana massiv indeksi bo'yicha joylashtirib, botlarni bir joyga to'playdi.
+  // Birinchi ulanishda sektorlar hali bo'sh -- u holda bu false qaytaradi va joyni
+  // keyinroq updateRoomSectors() dagi chaqiruv beradi (o'sha kod o'z holicha qoladi).
+  assignBotSpawns(room);
 
   // Broadcast bot update to all players in the room
   broadcastToRoom(room.id, {

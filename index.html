@@ -5471,6 +5471,7 @@
         this.micEnabled = false;
         this.speakerEnabled = true;
         this.voicePeers = new Map(); // peerId -> { pc: RTCPeerConnection, audioEl: HTMLAudioElement }
+        window.voiceDebug = () => this.voiceDebug();
 
         // Sectors State
         this.cols = 2;
@@ -5878,7 +5879,15 @@
         let vp = this.voicePeers.get(peerId);
         if (vp) return vp;
 
-        const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+        // TURN kerak bo'lganda faqat shu ro'yxatga qo'shiladi (kodning boshqa joyiga
+        // tegmasdan). STUN faqat bir xil tarmoqda ishonchli; turli tarmoqlarda
+        // (telefon mobil internet <-> kompyuter Wi-Fi) TURN relay kerak bo'ladi.
+        const ICE_SERVERS = [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' }
+          // { urls: 'turn:HOST:3478', username: 'USER', credential: 'PASS' }
+        ];
+        const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
         const audioEl = document.createElement('audio');
         audioEl.autoplay = true;
         audioEl.volume = 0;
@@ -5887,6 +5896,12 @@
 
         if (this.micStream) {
           this.micStream.getTracks().forEach(track => pc.addTrack(track, this.micStream));
+        } else {
+          // Mikrofon o'chiq bo'lsa ham audio liniyasini ochamiz (faqat qabul qilish).
+          // Aks holda taklifda audio m-line bo'lmaydi va ovoz hech qayerga o'tmaydi.
+          try { pc.addTransceiver('audio', { direction: 'recvonly' }); } catch (e) {
+            console.warn('[voice] addTransceiver xato:', e);
+          }
         }
 
         pc.onicecandidate = (e) => {
@@ -5896,11 +5911,45 @@
         };
         pc.ontrack = (e) => {
           audioEl.srcObject = e.streams[0];
+          // Autoplay bloklanganini BILISH uchun play() ni aniq chaqiramiz.
+          audioEl.play()
+            .then(() => console.log('[voice] ovoz oqimi boshlandi:', peerId))
+            .catch(err => console.warn('[voice] play() BLOKLANDI:', peerId, err.name, err.message));
         };
+        pc.onconnectionstatechange = () => console.log('[voice] ulanish holati', peerId, pc.connectionState);
+        pc.oniceconnectionstatechange = () => console.log('[voice] ICE holati', peerId, pc.iceConnectionState);
+        pc.onicegatheringstatechange = () => console.log('[voice] ICE yig\'ish', peerId, pc.iceGatheringState);
 
         vp = { pc, audioEl };
         this.voicePeers.set(peerId, vp);
         return vp;
+      }
+
+      voiceDebug() {
+        const out = {
+          playerId: this.playerId,
+          micOn: !!this.micStream,
+          speakerOn: this.speakerEnabled,
+          peersCount: this.peers.size,
+          voicePeers: []
+        };
+        for (const [pid, vp] of this.voicePeers) {
+          const peer = this.peers.get(pid);
+          out.voicePeers.push({
+            peerId: pid,
+            initiator: this.playerId < pid,
+            connection: vp.pc.connectionState,
+            ice: vp.pc.iceConnectionState,
+            senders: vp.pc.getSenders().filter(s => s.track).length,
+            receivers: vp.pc.getReceivers().filter(r => r.track).length,
+            volume: vp.audioEl.volume,
+            paused: vp.audioEl.paused,
+            hasStream: !!vp.audioEl.srcObject,
+            distance: peer ? Math.round(Math.hypot(this.player.x - peer.x, this.player.y - peer.y)) : null
+          });
+        }
+        console.table(out.voicePeers);
+        return out;
       }
 
       closeVoicePeer(peerId) {
@@ -5914,23 +5963,44 @@
       // Called on mic toggle and whenever a new peer appears: (re)establish connections
       // so mic state (local track present or not) and the current peer roster stay in sync.
       // Glare-free: the lexically-smaller playerId always sends the offer.
-      refreshVoicePeerConnections() {
+      refreshVoicePeerConnections(onlyPeerId = null) {
         if (!this.playerId) return;
-        for (const peerId of this.peers.keys()) {
-          this.closeVoicePeer(peerId); // rebuild fresh so the current mic track (on or off) is included
+        const ids = onlyPeerId ? [onlyPeerId] : [...this.peers.keys()];
+        for (const peerId of ids) {
+          if (!this.peers.has(peerId)) continue;
+          this.closeVoicePeer(peerId); // mikrofon holati o'zgargan bo'lishi mumkin
           const vp = this.getOrCreateVoicePeer(peerId);
-          const isInitiator = this.playerId < peerId;
-          if (isInitiator) {
+          if (this.playerId < peerId) {
             vp.pc.createOffer().then(offer => {
               return vp.pc.setLocalDescription(offer).then(() => {
                 this.sendWs({ type: 'webrtc_signal', targetId: peerId, signal: { sdp: vp.pc.localDescription } });
               });
-            }).catch(err => console.warn('Voice offer failed:', err));
+            }).catch(err => console.warn('[voice] offer xato:', peerId, err));
+          } else {
+            // Biz initiator emasmiz. Ulanishni yopib, hech narsa yubormasak u
+            // BOSHQA TIKLANMAYDI -- shuning uchun qarshi tomondan qayta taklif so'raymiz.
+            console.log('[voice] qayta taklif so\'raldi:', peerId);
+            this.sendWs({ type: 'webrtc_signal', targetId: peerId, signal: { renegotiate: true } });
           }
         }
       }
 
       async handleVoiceSignal(fromId, signal) {
+        // Qarshi tomon qayta taklif so'rayapti (masalan u mikrofonini yoqdi/o'chirdi).
+        // Taklifni faqat initiator (id'si kichikroq tomon) yuborishi mumkin.
+        if (signal && signal.renegotiate) {
+          if (this.playerId < fromId && this.peers.has(fromId)) {
+            this.closeVoicePeer(fromId);
+            const nvp = this.getOrCreateVoicePeer(fromId);
+            try {
+              const offer = await nvp.pc.createOffer();
+              await nvp.pc.setLocalDescription(offer);
+              this.sendWs({ type: 'webrtc_signal', targetId: fromId, signal: { sdp: nvp.pc.localDescription } });
+              console.log('[voice] qayta taklif yuborildi:', fromId);
+            } catch (err) { console.warn('[voice] qayta taklif xato:', fromId, err); }
+          }
+          return;
+        }
         const vp = this.getOrCreateVoicePeer(fromId);
         try {
           if (signal.sdp) {
@@ -5952,7 +6022,7 @@
       // fully muted for everyone when the local speaker toggle is off.
       updateVoiceVolumes() {
         if (this.voicePeers.size === 0) return;
-        const RANGE = 300;
+        const RANGE = 700;   // sektor 650px -- bitta xona ichida eshitilsin
         for (const [peerId, vp] of this.voicePeers) {
           const peer = this.peers.get(peerId);
           let vol = 0;
@@ -6111,7 +6181,7 @@
               peer.isRemote = true; // this client never resolves damage/death for it -- its owner does
               this.peers.set(msg.playerId, peer);
               try {
-                this.refreshVoicePeerConnections();
+                this.refreshVoicePeerConnections(msg.playerId);
               } catch (e) {
                 console.warn('Voice Connection Error:', e);
               }
@@ -9355,7 +9425,7 @@
     window.addEventListener('load', () => {
       new GameEngine();
 
-      const BUILD_ID = 'BUILD_2026-09-15-v14';  // har deploy oldidan shu qatorni yangilab turing (yoki build skript avtomatik yozsin)
+      const BUILD_ID = 'BUILD_2026-09-15-v15';  // har deploy oldidan shu qatorni yangilab turing (yoki build skript avtomatik yozsin)
       const buildText = 'build ' + BUILD_ID + (typeof window.Capacitor !== 'undefined' ? ' (APK)' : ' (web)');
       const stamp = document.getElementById('buildStamp');
       if (stamp) stamp.textContent = buildText;

@@ -5296,6 +5296,8 @@
             // Bot collects the crate!
             crate.collected = true;
             this.pickupCrate(crate.type, engine.floatingTexts);
+            // Bot AI faqat hostda ishlaydi -- uning qarorini hammaga tarqatamiz.
+            if (engine.isHost) engine.sendWs({ type: 'crate_collected', crateId: crate.id });
             setTimeout(() => { crate.collected = false; }, 12000);
             this.aiState = 'PATROL';
             this.aiLootTarget = null;
@@ -6195,6 +6197,25 @@
             window.freezeTimer = 0.04;
             this.triggerKillPopup("DESTROYED!", "+100 XP");
             this.addKillFeedItem(this.player.name, msg.targetName || 'Raqib');
+            break;
+          }
+
+          // Boshqa o'yinchi (yoki hostdagi bot) qutini oldi -- bizda ham yo'qolsin.
+          case 'crate_collected': {
+            const c = this.crates.find(cr => cr.id === msg.crateId);
+            if (c && !c.collected) {
+              c.collected = true;
+              setTimeout(() => { c.collected = false; }, 12000);
+            }
+            break;
+          }
+
+          // Boshqa o'yinchi devorni buzdi -- bizda ham buzilsin.
+          case 'wall_damaged': {
+            const w = this.walls[msg.wallIndex];
+            if (w && w.destructible && !w.destroyed) {
+              w.takeDamage(msg.damage, this.particles, this.debrisChunks);
+            }
             break;
           }
 
@@ -7107,9 +7128,24 @@
                 b.y + b.size > w.y && b.y - b.size < w.y + w.h) {
 
               if (w.destructible) {
-                const broke = w.takeDamage(b.damage, this.particles, this.debrisChunks);
-                if (broke) {
-                  audio.playExplosion(false, b.x, b.y);
+                // Zararni faqat o'q EGASI hisoblaydi va tarqatadi. Bot o'qlari uchun
+                // egasi -- host. Boshqalarning o'qi bizda faqat ko'rinadi va ovoz
+                // chiqaradi, zarar esa 'wall_damaged' orqali keladi (aks holda devor
+                // ikki marta zarar olardi).
+                const iOwnThisBullet = (b.owner === this.player) ||
+                                       (this.isHost && b.owner && b.owner.isBot);
+                if (iOwnThisBullet) {
+                  const broke = w.takeDamage(b.damage, this.particles, this.debrisChunks);
+                  this.sendWs({
+                    type: 'wall_damaged',
+                    wallIndex: this.walls.indexOf(w),
+                    damage: b.damage
+                  });
+                  if (broke) {
+                    audio.playExplosion(false, b.x, b.y);
+                  } else {
+                    audio.playImpact('brick', b.x, b.y);
+                  }
                 } else {
                   audio.playImpact('brick', b.x, b.y);
                 }
@@ -7564,11 +7600,17 @@
 
           for (const crate of this.crates) {
             if (crate.collected) continue;
-            const allTanks = [this.player, ...this.bots];
+            // Botlar faqat HOSTDA quti oladi: host bo'lmagan klientda botlar LERP
+            // qilingan "qo'g'irchoq", ular qutini mahalliy olib qo'ysa ekranlar bir-biriga
+            // mos kelmay qoladi. Hostning qarori 'crate_collected' orqali hammaga yetadi.
+            const allTanks = this.isHost ? [this.player, ...this.bots] : [this.player];
             for (const t of allTanks) {
               if (t && !t.dead && Math.hypot(t.x - crate.x, t.y - crate.y) < t.radius + crate.size / 2) {
                 crate.collected = true;
                 t.pickupCrate(crate.type, this.floatingTexts);
+                // Boshqa qurilmalarga xabar beramiz. Server relay'i allaqachon mavjud
+                // (server.js -> case 'crate_collected'), faqat klient uni yubormagan.
+                this.sendWs({ type: 'crate_collected', crateId: crate.id });
                 setTimeout(() => {
                   crate.collected = false;
                 }, 12000);
@@ -9262,7 +9304,7 @@
     window.addEventListener('load', () => {
       new GameEngine();
 
-      const BUILD_ID = 'BUILD_2026-09-15-v11';  // har deploy oldidan shu qatorni yangilab turing (yoki build skript avtomatik yozsin)
+      const BUILD_ID = 'BUILD_2026-09-15-v12';  // har deploy oldidan shu qatorni yangilab turing (yoki build skript avtomatik yozsin)
       const buildText = 'build ' + BUILD_ID + (typeof window.Capacitor !== 'undefined' ? ' (APK)' : ' (web)');
       const stamp = document.getElementById('buildStamp');
       if (stamp) stamp.textContent = buildText;

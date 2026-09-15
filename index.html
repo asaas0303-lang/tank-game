@@ -6219,6 +6219,44 @@
             break;
           }
 
+          // Kimdir bizni do'st sifatida qo'shdi (bizga faqat shu xabar keladi,
+          // friends_list esa qo'shgan odamga ketadi -- shuning uchun o'zimiz qo'shamiz).
+          case 'friend_added': {
+            if (msg.friend && msg.friend.id) {
+              if (!this.friends.some(f => f.id === msg.friend.id)) {
+                this.friends.push(msg.friend);
+              }
+              this.renderFriendsList();
+              this.addFloatingNotice(`👥 ${msg.friend.name} sizni do'st sifatida qo'shdi`);
+            }
+            break;
+          }
+
+          // Taklifimizga javob keldi.
+          case 'invite_answered': {
+            const who = msg.fromName || 'O\'yinchi';
+            this.addFloatingNotice(
+              msg.accept ? `✅ ${who} taklifni qabul qildi` : `❌ ${who} taklifni rad etdi`
+            );
+            break;
+          }
+
+          // Xonaga yangi o'yinchi qo'shildi. Tankning o'zi birinchi peer_state kelganda
+          // paydo bo'ladi -- bu yerda faqat xabar beramiz.
+          case 'player_joined': {
+            if (msg.playerId !== this.playerId) {
+              this.addFloatingNotice(`🎮 ${msg.name || 'O\'yinchi'} o'yinga qo'shildi`);
+            }
+            break;
+          }
+
+          // AFK holati o'zgardi -- darrov yangilaymiz.
+          case 'player_afk_status': {
+            const ap = this.peers.get(msg.playerId);
+            if (ap) ap.isAfk = !!msg.isAfk;
+            break;
+          }
+
           case 'friend_error':
             this.addFloatingNotice('⚠️ ' + (msg.message || 'Xatolik'));
             break;
@@ -9317,7 +9355,7 @@
     window.addEventListener('load', () => {
       new GameEngine();
 
-      const BUILD_ID = 'BUILD_2026-09-15-v13';  // har deploy oldidan shu qatorni yangilab turing (yoki build skript avtomatik yozsin)
+      const BUILD_ID = 'BUILD_2026-09-15-v14';  // har deploy oldidan shu qatorni yangilab turing (yoki build skript avtomatik yozsin)
       const buildText = 'build ' + BUILD_ID + (typeof window.Capacitor !== 'undefined' ? ' (APK)' : ' (web)');
       const stamp = document.getElementById('buildStamp');
       if (stamp) stamp.textContent = buildText;

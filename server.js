@@ -504,6 +504,8 @@ wss.on('connection', (ws, req) => {
           }, player.id);
           break;
 
+        // ESLATMA: klient hozir bu xabarni yubormaydi (xonaga o'tish 'invite_response'
+        // orqali bo'ladi). Xona tanlash UI qo'shilganda ishlatiladi.
         case 'join_room': {
           const targetRoomId = msg.roomId || 'default-dm';
           const mode = msg.mode || 'Deathmatch';

@@ -5597,8 +5597,8 @@
         if (modal) modal.classList.remove('active');
 
         const homeSec = this.sectors.find(s => s.id === this.mySectorId) || this.sectors[0];
-        const spawnX = homeSec.x + homeSec.w / 2;
-        const spawnY = homeSec.y + homeSec.h / 2;
+        const spawnX = homeSec.x + homeSec.w / 2 + (Math.random() - 0.5) * 70;
+        const spawnY = homeSec.y + homeSec.h / 2 + (Math.random() - 0.5) * 70;
 
         this.player.x = spawnX;
         this.player.y = spawnY;
@@ -5787,8 +5787,11 @@
       resetPlayer() {
         // Find player's assigned home sector
         const homeSec = this.sectors.find(s => s.id === this.mySectorId) || this.sectors[0];
-        const spawnX = homeSec ? (homeSec.x + SECTOR_SIZE / 2) : 325;
-        const spawnY = homeSec ? (homeSec.y + SECTOR_SIZE / 2) : 325;
+        // Sektor markaziga aniq tushmasin: ikki tank piksel-ba-piksel ustma-ust
+        // tushmasligi uchun kichik tasodifiy siljish (botlarda bu allaqachon bor edi).
+        const jx = (Math.random() - 0.5) * 70, jy = (Math.random() - 0.5) * 70;
+        const spawnX = homeSec ? (homeSec.x + SECTOR_SIZE / 2 + jx) : 325;
+        const spawnY = homeSec ? (homeSec.y + SECTOR_SIZE / 2 + jy) : 325;
 
         const currentName = (this.playerProfile && this.playerProfile.name) ? this.playerProfile.name : 'Commander';
         this.player = new Tank(spawnX, spawnY, currentName, true, this.playerId);
@@ -6063,6 +6066,11 @@
               this.cols = msg.cols;
               this.rows = msg.rows;
               this.sectors = msg.sectors;
+              // Server xona tarkibi o'zgarganda uy-sektorlarni qayta taqsimlaydi.
+              // Buni yangilamasak klient eski sektorda tug'ilaveradi va ikki o'yinchi
+              // bitta nuqtaga tushadi. DIQQAT: tirik o'yinchini KO'CHIRMAYMIZ --
+              // bu faqat keyingi tug'ilishga (respawn) ta'sir qiladi.
+              if (msg.mySectorId) this.mySectorId = msg.mySectorId;
               this.rebuildSectorEntities();
               this.addFloatingNotice(`🗺️ Xarita kengaytirildi: ${this.sectors.length} ta Sektor!`);
             }
@@ -9254,7 +9262,7 @@
     window.addEventListener('load', () => {
       new GameEngine();
 
-      const BUILD_ID = 'BUILD_2026-09-15-v10';  // har deploy oldidan shu qatorni yangilab turing (yoki build skript avtomatik yozsin)
+      const BUILD_ID = 'BUILD_2026-09-15-v11';  // har deploy oldidan shu qatorni yangilab turing (yoki build skript avtomatik yozsin)
       const buildText = 'build ' + BUILD_ID + (typeof window.Capacitor !== 'undefined' ? ' (APK)' : ' (web)');
       const stamp = document.getElementById('buildStamp');
       if (stamp) stamp.textContent = buildText;

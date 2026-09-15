@@ -97,8 +97,13 @@ function assignBotSpawns(room) {
     if (typeof bot.x === 'number' && typeof bot.y === 'number') continue;
     assigned = true;
     const used = new Set(room.bots.map(b => b.sectorId).filter(Boolean));
-    const free = room.sectors.filter(s => !used.has(s.id));
-    const pool = free.length > 0 ? free : room.sectors;
+    // O'yinchi egallagan sektorlarni ham chetlab o'tamiz -- hozir bu tekshiruv yo'q,
+    // shuning uchun bot to'g'ridan-to'g'ri o'yinchining tug'ilish nuqtasiga tushardi.
+    let pool = room.sectors.filter(s =>
+      !used.has(s.id) && !(s.ownerPlayerId && players.has(s.ownerPlayerId))
+    );
+    if (pool.length === 0) pool = room.sectors.filter(s => !used.has(s.id));
+    if (pool.length === 0) pool = room.sectors;
     const sec = pool[Math.floor(Math.random() * pool.length)];
     bot.sectorId = sec.id;
     bot.x = sec.x + sec.w / 2 + (Math.random() - 0.5) * 60;
@@ -188,16 +193,24 @@ function updateRoomSectors(room) {
     });
   }
 
-  // Broadcast sectors configuration to all players in the room
-  broadcastToRoom(room.id, {
-    type: 'sectors_update',
-    cols: room.cols,
-    rows: room.rows,
-    worldWidth: room.worldWidth,
-    worldHeight: room.worldHeight,
-    sectorSize: SECTOR_SIZE,
-    sectors: room.sectors
-  });
+  // Har bir o'yinchiga O'ZINING sektor id'sini alohida yuboramiz. Buni broadcast bilan
+  // qilib bo'lmaydi -- bitta paket hammaga bir xil ketadi, mySectorId esa har kimda
+  // boshqacha. Aynan shu sabab mySectorId avval FAQAT welcome'da yuborilardi va xona
+  // tarkibi o'zgarganda klientdagi qiymat eskirib qolardi -> ikki o'yinchi bitta
+  // sektor markazida tug'ilardi.
+  for (const pid of room.players) {
+    const mySec = room.sectors.find(s => s.ownerPlayerId === pid);
+    sendTo(pid, {
+      type: 'sectors_update',
+      cols: room.cols,
+      rows: room.rows,
+      worldWidth: room.worldWidth,
+      worldHeight: room.worldHeight,
+      sectorSize: SECTOR_SIZE,
+      sectors: room.sectors,
+      mySectorId: mySec ? mySec.id : null
+    });
+  }
 }
 
 // Balance bots in room by human player count (easy to retune, see the map below)

@@ -7128,21 +7128,30 @@
                 b.y + b.size > w.y && b.y - b.size < w.y + w.h) {
 
               if (w.destructible) {
-                // Zararni faqat o'q EGASI hisoblaydi va tarqatadi. Bot o'qlari uchun
-                // egasi -- host. Boshqalarning o'qi bizda faqat ko'rinadi va ovoz
-                // chiqaradi, zarar esa 'wall_damaged' orqali keladi (aks holda devor
-                // ikki marta zarar olardi).
-                const iOwnThisBullet = (b.owner === this.player) ||
-                                       (this.isHost && b.owner && b.owner.isBot);
-                if (iOwnThisBullet) {
-                  const broke = w.takeDamage(b.damage, this.particles, this.debrisChunks);
-                  this.sendWs({
-                    type: 'wall_damaged',
-                    wallIndex: this.walls.indexOf(w),
-                    damage: b.damage
-                  });
-                  if (broke) {
-                    audio.playExplosion(false, b.x, b.y);
+                // Bitta o'q AYNAN SHU devorga faqat bir marta zarar bersin. Sakragandan
+                // keyin o'q ko'pincha devor ichida qolib, keyingi kadrlarda yana zarar
+                // berardi (bitta o'q bilan 65 -> 25 -> 0).
+                if (!b.damagedWalls) b.damagedWalls = new Set();
+                const alreadyHitThisWall = b.damagedWalls.has(w);
+                if (!alreadyHitThisWall) {
+                  b.damagedWalls.add(w);
+                  // Zararni faqat o'q EGASI hisoblaydi va tarqatadi. Bot o'qlari uchun
+                  // egasi -- host. Boshqalarning o'qi bizda faqat ko'rinadi, zarar esa
+                  // 'wall_damaged' orqali keladi (aks holda devor ikki marta zarar olardi).
+                  const iOwnThisBullet = (b.owner === this.player) ||
+                                         (this.isHost && b.owner && b.owner.isBot);
+                  if (iOwnThisBullet) {
+                    const broke = w.takeDamage(b.damage, this.particles, this.debrisChunks);
+                    this.sendWs({
+                      type: 'wall_damaged',
+                      wallIndex: this.walls.indexOf(w),
+                      damage: b.damage
+                    });
+                    if (broke) {
+                      audio.playExplosion(false, b.x, b.y);
+                    } else {
+                      audio.playImpact('brick', b.x, b.y);
+                    }
                   } else {
                     audio.playImpact('brick', b.x, b.y);
                   }
@@ -7160,12 +7169,16 @@
                 const overlapBottom = Math.abs((w.y + w.h) - (b.y - b.size));
                 const minO = Math.min(overlapLeft, overlapRight, overlapTop, overlapBottom);
 
+                // O'qni devordan TO'LIQ chiqaramiz. Avval `b.vx * dt * 2` ishlatilardi --
+                // bu ~7 px, devor esa 20 px qalin, shuning uchun o'q devor ichida qolib
+                // ketardi va qayta-qayta to'qnashardi. Endi kirib ketgan chuqurlik
+                // (minO) qancha bo'lsa, shuncha + 1 px chiqaramiz.
                 if (minO === overlapLeft || minO === overlapRight) {
                   b.vx = -b.vx;
-                  b.x += b.vx * dt * 2;
+                  b.x += (b.vx > 0 ? 1 : -1) * (minO + 1);
                 } else {
                   b.vy = -b.vy;
-                  b.y += b.vy * dt * 2;
+                  b.y += (b.vy > 0 ? 1 : -1) * (minO + 1);
                 }
                 b.bounces++;
                 audio.playRicochet(b.x, b.y);
@@ -9304,7 +9317,7 @@
     window.addEventListener('load', () => {
       new GameEngine();
 
-      const BUILD_ID = 'BUILD_2026-09-15-v12';  // har deploy oldidan shu qatorni yangilab turing (yoki build skript avtomatik yozsin)
+      const BUILD_ID = 'BUILD_2026-09-15-v13';  // har deploy oldidan shu qatorni yangilab turing (yoki build skript avtomatik yozsin)
       const buildText = 'build ' + BUILD_ID + (typeof window.Capacitor !== 'undefined' ? ' (APK)' : ' (web)');
       const stamp = document.getElementById('buildStamp');
       if (stamp) stamp.textContent = buildText;

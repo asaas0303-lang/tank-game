@@ -792,6 +792,14 @@
       animation: modalPop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
     }
 
+    /* Telefon yotiq holatda (masalan 740x360) sozlamalar modali ekrandan baland
+       bo'lib qoladi, `overflow: visible` bo'lgani uchun uni aylantirib bo'lmasdi --
+       pastdagi ovoz diagnostikasi paneli ko'rinmay qolardi. Faqat SHU modalga. */
+    #escModal .modal-box {
+      max-height: 92vh;
+      overflow-y: auto;
+    }
+
     @keyframes modalPop {
       from { transform: scale(0.9); opacity: 0; }
       to { transform: scale(1); opacity: 1; }
@@ -1671,6 +1679,15 @@
 
         <div class="modal-actions">
           <button class="btn-modal-primary" id="btnCloseEsc">JANGGA QAYTISH</button>
+        </div>
+        <div style="margin-top:12px; padding:8px; border:1px solid rgba(0,240,255,0.35);
+                    border-radius:6px; background:rgba(0,0,0,0.5);">
+          <div style="font:bold 11px monospace; color:#00f0ff; margin-bottom:6px;">
+            🎙️ OVOZ DIAGNOSTIKASI
+          </div>
+          <pre id="voiceDiagBox" style="margin:0; font:10px/1.35 monospace; color:#cfe8ff;
+               white-space:pre-wrap; word-break:break-all; max-height:45vh; overflow-y:auto;">
+yuklanmoqda…</pre>
         </div>
         <div style="text-align:center; margin-top:10px; font:10px monospace; color:rgba(255,255,255,0.35);" id="buildStampInModal">build …</div>
       </div>
@@ -5473,6 +5490,34 @@
         this.voicePeers = new Map(); // peerId -> { pc: RTCPeerConnection, audioEl: HTMLAudioElement }
         window.voiceDebug = () => this.voiceDebug();
 
+        // Telefonda konsol yo'q -- [voice] loglarini xotirada saqlab, panelda ko'rsatamiz.
+        this.voiceLog = [];
+        const pushVoiceLog = (level, args) => {
+          const first = args[0];
+          if (typeof first === 'string' && first.indexOf('[voice]') === 0) {
+            const line = args.map(a => {
+              if (a instanceof Error) return a.name + ': ' + a.message;
+              if (typeof a === 'object') { try { return JSON.stringify(a); } catch (e) { return String(a); } }
+              return String(a);
+            }).join(' ');
+            this.voiceLog.push((level === 'warn' ? '⚠ ' : '') + line.replace('[voice] ', ''));
+            if (this.voiceLog.length > 12) this.voiceLog.shift();
+          }
+        };
+        const origLog = console.log.bind(console);
+        const origWarn = console.warn.bind(console);
+        console.log = (...a) => { pushVoiceLog('log', a); origLog(...a); };
+        console.warn = (...a) => { pushVoiceLog('warn', a); origWarn(...a); };
+
+        setInterval(() => { this.pollVoiceStats(); }, 1000);
+
+        setInterval(() => {
+          // Modal `display:none` emas, `opacity:0` bilan yashiriladi -- shuning uchun
+          // offsetParent har doim mavjud bo'ladi. Ochiqlikni `.active` klassi bildiradi.
+          const m = document.getElementById('escModal');
+          if (m && m.classList.contains('active')) this.renderVoiceDiag();
+        }, 500);
+
         // Sectors State
         this.cols = 2;
         this.rows = 2;
@@ -5882,6 +5927,7 @@
         // TURN kerak bo'lganda faqat shu ro'yxatga qo'shiladi (kodning boshqa joyiga
         // tegmasdan). STUN faqat bir xil tarmoqda ishonchli; turli tarmoqlarda
         // (telefon mobil internet <-> kompyuter Wi-Fi) TURN relay kerak bo'ladi.
+        let vpCandidateTypes = new Set();
         const ICE_SERVERS = [
           { urls: 'stun:stun.l.google.com:19302' },
           { urls: 'stun:stun1.l.google.com:19302' }
@@ -5906,6 +5952,10 @@
 
         pc.onicecandidate = (e) => {
           if (e.candidate) {
+            // Qanday turdagi nomzod topilgani ICE muvaffaqiyatsizligini tushuntiradi:
+            // host = bir xil tarmoq, srflx = STUN orqali, relay = TURN orqali.
+            if (!vpCandidateTypes) vpCandidateTypes = new Set();
+            if (e.candidate.type) vpCandidateTypes.add(e.candidate.type);
             this.sendWs({ type: 'webrtc_signal', targetId: peerId, signal: { candidate: e.candidate } });
           }
         };
@@ -5920,7 +5970,7 @@
         pc.oniceconnectionstatechange = () => console.log('[voice] ICE holati', peerId, pc.iceConnectionState);
         pc.onicegatheringstatechange = () => console.log('[voice] ICE yig\'ish', peerId, pc.iceGatheringState);
 
-        vp = { pc, audioEl };
+        vp = { pc, audioEl, candidateTypes: vpCandidateTypes, stats: null, gumError: null };
         this.voicePeers.set(peerId, vp);
         return vp;
       }
@@ -5950,6 +6000,57 @@
         }
         console.table(out.voicePeers);
         return out;
+      }
+
+      // Har soniyada RTP hisoblagichlarini yangilab turamiz. bytesReceived o'ssa --
+      // ovoz HAQIQATAN oqyapti; o'smasa -- ulanish bor-u, ovoz yo'q.
+      async pollVoiceStats() {
+        for (const [pid, vp] of this.voicePeers) {
+          try {
+            const report = await vp.pc.getStats();
+            let recv = 0, sent = 0;
+            report.forEach(s => {
+              if (s.type === 'inbound-rtp' && s.kind === 'audio') recv += (s.bytesReceived || 0);
+              if (s.type === 'outbound-rtp' && s.kind === 'audio') sent += (s.bytesSent || 0);
+            });
+            vp.stats = { recv, sent, at: Date.now() };
+          } catch (e) { vp.stats = null; }
+        }
+      }
+
+      renderVoiceDiag() {
+        const box = document.getElementById('voiceDiagBox');
+        if (!box) return;
+        const L = [];
+        L.push('men   : ' + (this.playerId || '-'));
+        L.push('mic   : ' + (this.micStream ? 'ON (trek ' + this.micStream.getAudioTracks().length + ')' : 'OFF'));
+        if (this.micError) L.push('micXATO: ' + this.micError);
+        L.push('karnay: ' + (this.speakerEnabled ? 'ON' : 'OFF'));
+        L.push('peers : ' + this.peers.size + '  voicePeers: ' + this.voicePeers.size);
+        L.push('');
+        if (this.voicePeers.size === 0) {
+          L.push('(ovoz ulanishi yo\'q -- yoningizda o\'yinchi bormi?)');
+        }
+        for (const [pid, vp] of this.voicePeers) {
+          const peer = this.peers.get(pid);
+          const dist = peer && this.player
+            ? Math.round(Math.hypot(this.player.x - peer.x, this.player.y - peer.y)) : -1;
+          L.push('— ' + (peer ? peer.name : '?') + ' (' + pid.slice(-6) + ')');
+          L.push('  init=' + (this.playerId < pid) +
+                 ' conn=' + vp.pc.connectionState + ' ice=' + vp.pc.iceConnectionState);
+          L.push('  send=' + vp.pc.getSenders().filter(s => s.track).length +
+                 ' recv=' + vp.pc.getReceivers().filter(r => r.track).length +
+                 ' paused=' + vp.audioEl.paused +
+                 ' vol=' + vp.audioEl.volume.toFixed(2));
+          L.push('  masofa=' + dist + 'px (700 dan kichik bo\'lsin)');
+          L.push('  nomzod=' + (vp.candidateTypes ? [...vp.candidateTypes].join(',') : '-'));
+          L.push('  RTP qabul=' + (vp.stats ? vp.stats.recv : '-') +
+                 ' yubor=' + (vp.stats ? vp.stats.sent : '-'));
+        }
+        L.push('');
+        L.push('--- loglar ---');
+        L.push(this.voiceLog.length ? this.voiceLog.join('\n') : '(bo\'sh)');
+        box.textContent = L.join('\n');
       }
 
       closeVoicePeer(peerId) {
@@ -6514,6 +6615,8 @@
             try {
               const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
               this.micStream = stream;
+              this.micError = null;
+              console.log('[voice] mikrofon olindi, treklar:', stream.getAudioTracks().length);
               this.micEnabled = true;
               micBtn.textContent = '🎙️ MIC: ON';
               micBtn.classList.add('active');
@@ -6521,7 +6624,8 @@
               this.addFloatingNotice("🎙️ Mikrofon yoqildi!");
               this.refreshVoicePeerConnections();
             } catch (err) {
-              console.warn("Mikrofon ruxsati berilmadi:", err);
+              this.micError = (err && (err.name + ': ' + err.message)) || String(err);
+              console.warn('[voice] getUserMedia XATO:', this.micError);
               this.addFloatingNotice("⚠️ Mikrofonga ruxsat berilmadi!");
             }
           } else {
@@ -9425,7 +9529,7 @@
     window.addEventListener('load', () => {
       new GameEngine();
 
-      const BUILD_ID = 'BUILD_2026-09-15-v15';  // har deploy oldidan shu qatorni yangilab turing (yoki build skript avtomatik yozsin)
+      const BUILD_ID = 'BUILD_2026-09-15-v16';  // har deploy oldidan shu qatorni yangilab turing (yoki build skript avtomatik yozsin)
       const buildText = 'build ' + BUILD_ID + (typeof window.Capacitor !== 'undefined' ? ' (APK)' : ' (web)');
       const stamp = document.getElementById('buildStamp');
       if (stamp) stamp.textContent = buildText;

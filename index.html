@@ -44,6 +44,26 @@
         };
       }
     </script>
+    <script type="module">
+      import { Engine3D } from './src/3d/Engine3D.js';
+      window.Engine3D = Engine3D;
+      function launch3D() {
+        const container = document.getElementById('game-container');
+        if (container && !window.engine3D) {
+          try {
+            window.engine3D = new Engine3D(container);
+            console.log('🌟 [3D Engine] Ultra-HD Three.js WebGL muvaffaqiyatli ishga tushdi!');
+          } catch (e) {
+            console.error('❌ [3D Engine] Init error:', e);
+          }
+        }
+      }
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', launch3D);
+      } else {
+        launch3D();
+      }
+    </script>
     <style>
       :root {
         --primary: #00f0ff;
@@ -6226,14 +6246,25 @@ yuklanmoqda…</pre>
           this.initWebSocket();
 
           // 3D Engine Initialization (Three.js WebGL TPS Battlefield)
-          import('./src/3d/Engine3D.js')
-            .then(({ Engine3D }) => {
-              window.engine3D = new Engine3D(document.getElementById('game-container'));
-              console.log('[3D Engine] Ultra-HD Three.js WebGL muvaffaqiyatli ishga tushdi!');
-            })
-            .catch((err) => {
+          if (!window.engine3D && window.Engine3D) {
+            try {
+              window.engine3D = new window.Engine3D(document.getElementById('game-container'));
+              console.log('🌟 [3D Engine] Ultra-HD Three.js WebGL muvaffaqiyatli ishga tushdi!');
+            } catch (err) {
               console.warn('[3D Engine] 3D yuklanmadi, 2D rejimda davom etiladi:', err);
-            });
+            }
+          } else if (!window.engine3D) {
+            import('./src/3d/Engine3D.js')
+              .then(({ Engine3D }) => {
+                if (!window.engine3D) {
+                  window.engine3D = new Engine3D(document.getElementById('game-container'));
+                  console.log('🌟 [3D Engine] Ultra-HD Three.js WebGL muvaffaqiyatli ishga tushdi!');
+                }
+              })
+              .catch((err) => {
+                console.warn('[3D Engine] 3D yuklanmadi, 2D rejimda davom etiladi:', err);
+              });
+          }
 
           window.addEventListener('resize', () => this.resize());
           this.setupInputListeners();
@@ -8089,6 +8120,10 @@ yuklanmoqda…</pre>
 
           this.viewWidth = window.innerWidth;
           this.viewHeight = window.innerHeight;
+
+          if (window.engine3D && typeof window.engine3D.onResize === 'function') {
+            window.engine3D.onResize();
+          }
         }
 
         setupInputListeners() {

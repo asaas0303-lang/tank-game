@@ -131,8 +131,8 @@ export class Engine3D {
   renderGameState(game, dt = 0.016) {
     if (!game || !game.player) return;
 
-    const worldW = game.worldWidth || 1300;
-    const worldH = game.worldHeight || 1300;
+    const worldW = (typeof window !== 'undefined' && window.WORLD && window.WORLD.width) || game.worldWidth || 1300;
+    const worldH = (typeof window !== 'undefined' && window.WORLD && window.WORLD.height) || game.worldHeight || 1300;
 
     // 1. Synchronize Player Tank
     const player3D = this.getOrCreateTank(this.playerTankId, {
@@ -142,32 +142,43 @@ export class Engine3D {
 
     const pPos3D = this.to3DCoords(game.player.x, game.player.y, worldW, worldH);
     player3D.root.position.set(pPos3D.x, 0, pPos3D.z);
-    player3D.root.rotation.y = -game.player.angle;
-    player3D.turret.rotation.y = -(game.player.turretAngle - game.player.angle);
+
+    const playerAngle = game.player.bodyAngle !== undefined ? game.player.bodyAngle : (game.player.angle || 0);
+    const playerTurretAngle = game.player.turretAngle !== undefined ? game.player.turretAngle : playerAngle;
+
+    player3D.root.rotation.y = -playerAngle;
+    player3D.turret.rotation.y = -(playerTurretAngle - playerAngle);
 
     // Firing recoil animation
-    if (game.player.recoilOffset) {
-      player3D.barrel.position.z = 0.85 - game.player.recoilOffset * 0.04;
+    const recoilVal = game.player.barrelRecoilOffset || game.player.recoilOffset || 0;
+    if (recoilVal > 0) {
+      player3D.barrel.position.z = 0.85 - recoilVal * 0.04;
     } else {
       player3D.barrel.position.z = 0.85;
     }
 
     // 2. TPS Chaser Camera positioning
-    const playerRot = -game.player.angle;
+    const playerRot = -playerAngle;
     const targetCamX = pPos3D.x + Math.sin(playerRot) * this.cameraDistance;
     const targetCamZ = pPos3D.z + Math.cos(playerRot) * this.cameraDistance;
-
-    const smoothFactor = Math.min(1.0, dt * 6.0);
-    this.camera.position.x += (targetCamX - this.camera.position.x) * smoothFactor;
-    this.camera.position.y += (this.cameraHeight - this.camera.position.y) * smoothFactor;
-    this.camera.position.z += (targetCamZ - this.camera.position.z) * smoothFactor;
 
     const lookTarget = new THREE.Vector3(
       pPos3D.x - Math.sin(playerRot) * 4,
       this.cameraLookHeight,
       pPos3D.z - Math.cos(playerRot) * 4
     );
-    this.camera.lookAt(lookTarget);
+
+    if (!this.cameraInitialized) {
+      this.camera.position.set(targetCamX, this.cameraHeight, targetCamZ);
+      this.camera.lookAt(lookTarget);
+      this.cameraInitialized = true;
+    } else {
+      const smoothFactor = Math.min(1.0, dt * 6.0);
+      this.camera.position.x += (targetCamX - this.camera.position.x) * smoothFactor;
+      this.camera.position.y += (this.cameraHeight - this.camera.position.y) * smoothFactor;
+      this.camera.position.z += (targetCamZ - this.camera.position.z) * smoothFactor;
+      this.camera.lookAt(lookTarget);
+    }
 
     // Keep sunlight tracking player
     this.sunLight.position.set(pPos3D.x + 40, 65, pPos3D.z + 30);
@@ -193,8 +204,10 @@ export class Engine3D {
           bot3D.root.visible = true;
           const bPos = this.to3DCoords(bot.x, bot.y, worldW, worldH);
           bot3D.root.position.set(bPos.x, 0, bPos.z);
-          bot3D.root.rotation.y = -bot.angle;
-          bot3D.turret.rotation.y = -(bot.turretAngle - bot.angle);
+          const bAngle = bot.bodyAngle !== undefined ? bot.bodyAngle : (bot.angle || 0);
+          const bTurretAngle = bot.turretAngle !== undefined ? bot.turretAngle : bAngle;
+          bot3D.root.rotation.y = -bAngle;
+          bot3D.turret.rotation.y = -(bTurretAngle - bAngle);
         }
       });
     }
@@ -216,8 +229,10 @@ export class Engine3D {
           rp3D.root.visible = true;
           const rPos = this.to3DCoords(rp.x, rp.y, worldW, worldH);
           rp3D.root.position.set(rPos.x, 0, rPos.z);
-          rp3D.root.rotation.y = -rp.angle;
-          rp3D.turret.rotation.y = -(rp.turretAngle - rp.angle);
+          const rAngle = rp.bodyAngle !== undefined ? rp.bodyAngle : (rp.angle || 0);
+          const rTurretAngle = rp.turretAngle !== undefined ? rp.turretAngle : rAngle;
+          rp3D.root.rotation.y = -rAngle;
+          rp3D.turret.rotation.y = -(rTurretAngle - rAngle);
         }
       });
     }
@@ -245,7 +260,8 @@ export class Engine3D {
         const b = activeBullets[i];
         const b3D = this.to3DCoords(b.x, b.y, worldW, worldH);
         mesh.position.set(b3D.x, 0.9, b3D.z);
-        mesh.rotation.y = -b.angle;
+        const bRot = b.angle !== undefined ? b.angle : Math.atan2(b.vy || 0, b.vx || 1);
+        mesh.rotation.y = -bRot;
         mesh.visible = true;
       } else {
         mesh.visible = false;

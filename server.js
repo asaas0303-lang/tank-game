@@ -2,12 +2,23 @@ const express = require('express');
 const http = require('http');
 const path = require('path');
 const WebSocket = require('ws');
+const { Sentry } = require('./lib/sentry');
 
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 
 const PORT = process.env.PORT || 3000;
+
+process.on('uncaughtException', (err) => {
+  console.error('UNCAUGHT EXCEPTION:', err);
+  Sentry.captureException(err);
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.error('UNHANDLED REJECTION:', reason);
+  Sentry.captureException(reason);
+});
 
 // Serve static assets from project root
 app.use(express.static(path.join(__dirname)));
@@ -18,9 +29,26 @@ app.get('*', (req, res) => {
 
 // Central Asian bot names
 const CENTRAL_ASIAN_NAMES = [
-  'Temur', 'Dias', 'Manas', 'Rustam', 'Ivan', 'Alixon', 'Farhod',
-  'Bobur', 'Sherdor', 'Alexey', 'Daniyar', 'Chingiz', 'Sanzhar',
-  'Andrey', 'Valisher', 'Bekzod', 'Nurbol', 'Erlan', 'Jalol', 'Samat'
+  'Temur',
+  'Dias',
+  'Manas',
+  'Rustam',
+  'Ivan',
+  'Alixon',
+  'Farhod',
+  'Bobur',
+  'Sherdor',
+  'Alexey',
+  'Daniyar',
+  'Chingiz',
+  'Sanzhar',
+  'Andrey',
+  'Valisher',
+  'Bekzod',
+  'Nurbol',
+  'Erlan',
+  'Jalol',
+  'Samat',
 ];
 
 // Global Player ID counter (starts from 100, 3 digits)
@@ -29,8 +57,8 @@ let nextPlayerId = 100;
 // Short, stable "friend code" per device (cid), so players can share a typeable number
 // even though the real internal playerId is a long persistent cid string.
 let nextFriendCode = 1000;
-const cidToCode = new Map();   // playerId(cid) -> qisqa kod (string)
-const codeToCid = new Map();   // qisqa kod -> playerId(cid)
+const cidToCode = new Map(); // playerId(cid) -> qisqa kod (string)
+const codeToCid = new Map(); // qisqa kod -> playerId(cid)
 
 // Connected players: playerId -> { id, name, ws, roomId, isAfk, friends: Set, kills: 0, level: 1 }
 const players = new Map();
@@ -39,7 +67,16 @@ const players = new Map();
 const rooms = new Map();
 
 const SECTOR_SIZE = 650;
-const SECTOR_THEMES = ['#00f0ff', '#ff2a5f', '#ffaa00', '#00ff88', '#a855f7', '#ec4899', '#3b82f6', '#14b8a6'];
+const SECTOR_THEMES = [
+  '#00f0ff',
+  '#ff2a5f',
+  '#ffaa00',
+  '#00ff88',
+  '#a855f7',
+  '#ec4899',
+  '#3b82f6',
+  '#14b8a6',
+];
 
 function getOrCreateRoom(roomId = 'default-dm', mode = 'Deathmatch') {
   if (!rooms.has(roomId)) {
@@ -54,7 +91,7 @@ function getOrCreateRoom(roomId = 'default-dm', mode = 'Deathmatch') {
       cols: 2,
       rows: 2,
       worldWidth: 1300,
-      worldHeight: 1300
+      worldHeight: 1300,
     });
   }
   return rooms.get(roomId);
@@ -66,9 +103,9 @@ function updateRoomHost(room) {
     return;
   }
   const current = room.hostId ? players.get(room.hostId) : null;
-  const currentFresh = current && room.players.has(room.hostId) &&
-                       (Date.now() - (current.lastSeen || 0) < 10000);
-  if (currentFresh) return;   // hozirgi host yaxshi ishlayapti -- tegmaymiz
+  const currentFresh =
+    current && room.players.has(room.hostId) && Date.now() - (current.lastSeen || 0) < 10000;
+  if (currentFresh) return; // hozirgi host yaxshi ishlayapti -- tegmaymiz
 
   // eng so'nggi faol o'yinchini host qilamiz
   let best = null;
@@ -96,13 +133,13 @@ function assignBotSpawns(room) {
   for (const bot of room.bots) {
     if (typeof bot.x === 'number' && typeof bot.y === 'number') continue;
     assigned = true;
-    const used = new Set(room.bots.map(b => b.sectorId).filter(Boolean));
+    const used = new Set(room.bots.map((b) => b.sectorId).filter(Boolean));
     // O'yinchi egallagan sektorlarni ham chetlab o'tamiz -- hozir bu tekshiruv yo'q,
     // shuning uchun bot to'g'ridan-to'g'ri o'yinchining tug'ilish nuqtasiga tushardi.
-    let pool = room.sectors.filter(s =>
-      !used.has(s.id) && !(s.ownerPlayerId && players.has(s.ownerPlayerId))
+    let pool = room.sectors.filter(
+      (s) => !used.has(s.id) && !(s.ownerPlayerId && players.has(s.ownerPlayerId))
     );
-    if (pool.length === 0) pool = room.sectors.filter(s => !used.has(s.id));
+    if (pool.length === 0) pool = room.sectors.filter((s) => !used.has(s.id));
     if (pool.length === 0) pool = room.sectors;
     const sec = pool[Math.floor(Math.random() * pool.length)];
     bot.sectorId = sec.id;
@@ -118,18 +155,24 @@ function updateRoomSectors(room) {
   let rows = 2;
 
   if (humanCount <= 1) {
-    cols = 2; rows = 2; // 4 sectors (A1, A2, B1, B2)
+    cols = 2;
+    rows = 2; // 4 sectors (A1, A2, B1, B2)
   } else if (humanCount === 2) {
-    cols = 3; rows = 2; // 6 sectors (A1, A2, A3, B1, B2, B3)
+    cols = 3;
+    rows = 2; // 6 sectors (A1, A2, A3, B1, B2, B3)
   } else if (humanCount === 3) {
-    cols = 3; rows = 3; // 9 sectors (A1..A3, B1..B3, C1..C3)
+    cols = 3;
+    rows = 3; // 9 sectors (A1..A3, B1..B3, C1..C3)
   } else {
-    cols = 4; rows = Math.ceil(Math.max(4, humanCount * 3) / 4);
+    cols = 4;
+    rows = Math.ceil(Math.max(4, humanCount * 3) / 4);
   }
 
   const sectors = [];
   const rowLetters = ['A', 'B', 'C', 'D', 'E', 'F'];
-  const playerList = Array.from(room.players).map(pId => players.get(pId)).filter(Boolean);
+  const playerList = Array.from(room.players)
+    .map((pId) => players.get(pId))
+    .filter(Boolean);
 
   let sIdx = 0;
   for (let r = 0; r < rows; r++) {
@@ -167,7 +210,7 @@ function updateRoomSectors(room) {
         y: r * SECTOR_SIZE,
         w: SECTOR_SIZE,
         h: SECTOR_SIZE,
-        themeColor: themeColor
+        themeColor: themeColor,
       });
       sIdx++;
     }
@@ -189,7 +232,7 @@ function updateRoomSectors(room) {
       type: 'bots_update',
       bots: room.bots,
       humanCount: room.players.size,
-      targetBotCount: room.bots.length
+      targetBotCount: room.bots.length,
     });
   }
 
@@ -199,7 +242,7 @@ function updateRoomSectors(room) {
   // tarkibi o'zgarganda klientdagi qiymat eskirib qolardi -> ikki o'yinchi bitta
   // sektor markazida tug'ilardi.
   for (const pid of room.players) {
-    const mySec = room.sectors.find(s => s.ownerPlayerId === pid);
+    const mySec = room.sectors.find((s) => s.ownerPlayerId === pid);
     sendTo(pid, {
       type: 'sectors_update',
       cols: room.cols,
@@ -208,7 +251,7 @@ function updateRoomSectors(room) {
       worldHeight: room.worldHeight,
       sectorSize: SECTOR_SIZE,
       sectors: room.sectors,
-      mySectorId: mySec ? mySec.id : null
+      mySectorId: mySec ? mySec.id : null,
     });
   }
 }
@@ -217,7 +260,7 @@ function updateRoomSectors(room) {
 const BOT_COUNT_BY_HUMANS = { 1: 3, 2: 4, 3: 3, 4: 2, 5: 1, 6: 1 };
 function balanceRoomBots(room) {
   const humanCount = room.players.size;
-  const targetBotCount = humanCount > 6 ? 0 : (BOT_COUNT_BY_HUMANS[humanCount] || 0);
+  const targetBotCount = humanCount > 6 ? 0 : BOT_COUNT_BY_HUMANS[humanCount] || 0;
 
   // Adjust bots array
   while (room.bots.length < targetBotCount) {
@@ -235,7 +278,7 @@ function balanceRoomBots(room) {
       isBot: true,
       sectorId: null,
       x: null,
-      y: null
+      y: null,
     });
   }
 
@@ -255,7 +298,7 @@ function balanceRoomBots(room) {
     type: 'bots_update',
     bots: room.bots,
     humanCount: humanCount,
-    targetBotCount: targetBotCount
+    targetBotCount: targetBotCount,
   });
 }
 
@@ -264,7 +307,7 @@ function broadcastToRoom(roomId, message, senderId = null) {
   if (!room) return;
   const data = JSON.stringify(message);
 
-  room.players.forEach(pId => {
+  room.players.forEach((pId) => {
     if (pId !== senderId) {
       const player = players.get(pId);
       if (player && player.ws.readyState === WebSocket.OPEN) {
@@ -285,7 +328,7 @@ function getFriendsListPayload(playerId) {
   const player = players.get(playerId);
   if (!player) return [];
   const list = [];
-  player.friends.forEach(fId => {
+  player.friends.forEach((fId) => {
     const friend = players.get(fId);
     if (friend) {
       list.push({
@@ -294,7 +337,7 @@ function getFriendsListPayload(playerId) {
         code: cidToCode.get(friend.id) || '',
         online: true,
         roomId: friend.roomId,
-        isAfk: friend.isAfk
+        isAfk: friend.isAfk,
       });
     } else {
       list.push({
@@ -303,7 +346,7 @@ function getFriendsListPayload(playerId) {
         code: cidToCode.get(fId) || '',
         online: false,
         roomId: null,
-        isAfk: false
+        isAfk: false,
       });
     }
   });
@@ -317,12 +360,16 @@ const HEARTBEAT_MS = 15000;
 const heartbeatTimer = setInterval(() => {
   wss.clients.forEach((client) => {
     if (client.isAlive === false) {
-      console.log('[heartbeat] javob bermagan ulanish o\'ldirildi');
-      try { client.terminate(); } catch (e) {}
+      console.log("[heartbeat] javob bermagan ulanish o'ldirildi");
+      try {
+        client.terminate();
+      } catch (e) {}
       return;
     }
     client.isAlive = false;
-    try { client.ping(); } catch (e) {}
+    try {
+      client.ping();
+    } catch (e) {}
   });
 }, HEARTBEAT_MS);
 wss.on('close', () => clearInterval(heartbeatTimer));
@@ -338,8 +385,10 @@ setInterval(() => {
     // ishlatiladi, jim klient o'zini faol ko'rsatib qo'ymasligi kerak.
     const lastActivity = Math.max(p.lastSeen || 0, (p.ws && p.ws.lastPongAt) || 0);
     if (now - lastActivity > ACTIVITY_TIMEOUT_MS) {
-      console.log('[reaper] jim qolgan o\'yinchi olib tashlandi:', pid);
-      try { p.ws.terminate(); } catch (e) {}
+      console.log("[reaper] jim qolgan o'yinchi olib tashlandi:", pid);
+      try {
+        p.ws.terminate();
+      } catch (e) {}
     }
   }
 
@@ -347,10 +396,10 @@ setInterval(() => {
   for (const room of rooms.values()) {
     if (room.players.size === 0 || room.bots.length === 0) continue;
     if (now - (room.lastBotSyncAt || 0) > 6000 && room.players.size > 1) {
-      console.log('[host] bot_sync yo\'q -> host almashtirilmoqda, xona:', room.id);
-      room.hostId = null;          // majburan qayta tanlash
+      console.log("[host] bot_sync yo'q -> host almashtirilmoqda, xona:", room.id);
+      room.hostId = null; // majburan qayta tanlash
       updateRoomHost(room);
-      room.lastBotSyncAt = Date.now();  // darrov qayta almashmasin
+      room.lastBotSyncAt = Date.now(); // darrov qayta almashmasin
     }
   }
 }, 5000);
@@ -362,7 +411,10 @@ wss.on('connection', (ws, req) => {
   // Shuning uchun reaper faqat app-xabarlarga emas, pong'ga ham qaraydi, aks holda ismini
   // yozib turgan o'yinchi 20 soniyada uzilib qolardi.
   ws.lastPongAt = Date.now();
-  ws.on('pong', () => { ws.isAlive = true; ws.lastPongAt = Date.now(); });
+  ws.on('pong', () => {
+    ws.isAlive = true;
+    ws.lastPongAt = Date.now();
+  });
 
   // Client doimiy ID (cid) yuborsa — o'shani ishlat; bo'lmasa yangi raqamli ID ber
   let requestedCid = null;
@@ -372,25 +424,32 @@ wss.on('connection', (ws, req) => {
     const searchParams = new URLSearchParams(qs);
     requestedCid = searchParams.get('cid');
     clientVersion = parseInt(searchParams.get('v') || '0', 10);
-  } catch (e) { requestedCid = null; }
+  } catch (e) {
+    requestedCid = null;
+  }
 
   const MIN_VERSION = 5;
   if (clientVersion < MIN_VERSION) {
     try {
-      ws.send(JSON.stringify({
-        type: 'friend_error',
-        message: "⚠️ Eski versiya. Iltimos ilovani yangilang (ba'zi funksiyalar ishlamasligi mumkin)."
-      }));
+      ws.send(
+        JSON.stringify({
+          type: 'friend_error',
+          message:
+            "⚠️ Eski versiya. Iltimos ilovani yangilang (ba'zi funksiyalar ishlamasligi mumkin).",
+        })
+      );
     } catch (e) {}
     // DIQQAT: ulanishni UZMAYMIZ — eski klient ham o'ynasin, faqat ogohlantiramiz.
   }
 
-  const playerId = requestedCid || ('c' + (nextPlayerId++));
+  const playerId = requestedCid || 'c' + nextPlayerId++;
 
   // Agar shu ID bilan eski (uzilib qolgan) ulanish hali ro'yxatda bo'lsa — uni almashtir
   if (players.has(playerId)) {
     const old = players.get(playerId);
-    try { if (old.ws && old.ws !== ws) old.ws.close(); } catch (e) {}
+    try {
+      if (old.ws && old.ws !== ws) old.ws.close();
+    } catch (e) {}
     if (old.roomId) {
       const oldRoom = rooms.get(old.roomId);
       if (oldRoom) {
@@ -424,7 +483,7 @@ wss.on('connection', (ws, req) => {
     // Ulanish vaqtidan boshlanadi va FAQAT haqiqiy xabar kelganda yangilanadi.
     // Buni reaper "now" qilib qo'ymasligi kerak -- aks holda hech narsa yubormaydigan
     // jim klient "eng faol" bo'lib ko'rinib, host saylovida yutib olardi.
-    lastSeen: Date.now()
+    lastSeen: Date.now(),
   };
   players.set(playerId, player);
 
@@ -438,32 +497,46 @@ wss.on('connection', (ws, req) => {
   balanceRoomBots(defaultRoom);
   updateRoomSectors(defaultRoom);
 
-  const mySector = defaultRoom.sectors.find(s => s.ownerPlayerId === playerId) || defaultRoom.sectors[0];
+  const mySector =
+    defaultRoom.sectors.find((s) => s.ownerPlayerId === playerId) || defaultRoom.sectors[0];
 
   // Send Welcome & ID configuration with full sectors layout
-  ws.send(JSON.stringify({
-    type: 'welcome',
-    playerId: playerId,
-    code: friendCode,
-    name: defaultName,
-    roomId: defaultRoom.id,
-    mode: defaultRoom.mode,
-    hostId: defaultRoom.hostId,
-    serverVersion: 'v6',
-    players: Array.from(defaultRoom.players).map(pid => {
-      const p = players.get(pid);
-      return p ? { id: p.id, name: p.name, code: p.code, kills: p.kills, level: p.level, isAfk: p.isAfk } : null;
-    }).filter(Boolean),
-    bots: defaultRoom.bots,
-    sectors: defaultRoom.sectors,
-    cols: defaultRoom.cols,
-    rows: defaultRoom.rows,
-    worldWidth: defaultRoom.worldWidth,
-    worldHeight: defaultRoom.worldHeight,
-    sectorSize: SECTOR_SIZE,
-    mySectorId: mySector ? mySector.id : 'A1',
-    tashkentOffset: 5 // UTC+5
-  }));
+  ws.send(
+    JSON.stringify({
+      type: 'welcome',
+      playerId: playerId,
+      code: friendCode,
+      name: defaultName,
+      roomId: defaultRoom.id,
+      mode: defaultRoom.mode,
+      hostId: defaultRoom.hostId,
+      serverVersion: 'v6',
+      players: Array.from(defaultRoom.players)
+        .map((pid) => {
+          const p = players.get(pid);
+          return p
+            ? {
+                id: p.id,
+                name: p.name,
+                code: p.code,
+                kills: p.kills,
+                level: p.level,
+                isAfk: p.isAfk,
+              }
+            : null;
+        })
+        .filter(Boolean),
+      bots: defaultRoom.bots,
+      sectors: defaultRoom.sectors,
+      cols: defaultRoom.cols,
+      rows: defaultRoom.rows,
+      worldWidth: defaultRoom.worldWidth,
+      worldHeight: defaultRoom.worldHeight,
+      sectorSize: SECTOR_SIZE,
+      mySectorId: mySector ? mySector.id : 'A1',
+      tashkentOffset: 5, // UTC+5
+    })
+  );
 
   // Send current host immediately
   sendTo(playerId, { type: 'host_update', hostId: defaultRoom.hostId });
@@ -480,14 +553,16 @@ wss.on('connection', (ws, req) => {
           break;
 
         case 'set_name': {
-          const cleanName = String(msg.name || '').slice(0, 14).trim();
+          const cleanName = String(msg.name || '')
+            .slice(0, 14)
+            .trim();
           if (cleanName) {
             player.name = cleanName;
             // Broadcast to ALL players in room (including sender) so everyone sees real name
             broadcastToRoom(player.roomId, {
               type: 'player_renamed',
               playerId: player.id,
-              name: player.name
+              name: player.name,
             });
             const curRoom = rooms.get(player.roomId);
             if (curRoom) updateRoomSectors(curRoom);
@@ -497,11 +572,15 @@ wss.on('connection', (ws, req) => {
 
         case 'set_afk':
           player.isAfk = !!msg.isAfk;
-          broadcastToRoom(player.roomId, {
-            type: 'player_afk_status',
-            playerId: player.id,
-            isAfk: player.isAfk
-          }, player.id);
+          broadcastToRoom(
+            player.roomId,
+            {
+              type: 'player_afk_status',
+              playerId: player.id,
+              isAfk: player.isAfk,
+            },
+            player.id
+          );
           break;
 
         // ESLATMA: klient hozir bu xabarni yubormaydi (xonaga o'tish 'invite_response'
@@ -516,7 +595,7 @@ wss.on('connection', (ws, req) => {
               updateRoomHost(oldRoom);
               broadcastToRoom(oldRoom.id, {
                 type: 'player_left',
-                playerId: player.id
+                playerId: player.id,
               });
               balanceRoomBots(oldRoom);
               updateRoomSectors(oldRoom);
@@ -531,30 +610,47 @@ wss.on('connection', (ws, req) => {
           balanceRoomBots(newRoom);
           updateRoomSectors(newRoom);
 
-          ws.send(JSON.stringify({
-            type: 'room_joined',
-            roomId: newRoom.id,
-            mode: newRoom.mode,
-            hostId: newRoom.hostId,
-            bots: newRoom.bots,
-            sectors: newRoom.sectors,
-            cols: newRoom.cols,
-            rows: newRoom.rows,
-            worldWidth: newRoom.worldWidth,
-            worldHeight: newRoom.worldHeight,
-            players: Array.from(newRoom.players).map(pid => {
-              const p = players.get(pid);
-              return p ? { id: p.id, name: p.name, code: p.code, kills: p.kills, level: p.level, isAfk: p.isAfk } : null;
-            }).filter(Boolean)
-          }));
+          ws.send(
+            JSON.stringify({
+              type: 'room_joined',
+              roomId: newRoom.id,
+              mode: newRoom.mode,
+              hostId: newRoom.hostId,
+              bots: newRoom.bots,
+              sectors: newRoom.sectors,
+              cols: newRoom.cols,
+              rows: newRoom.rows,
+              worldWidth: newRoom.worldWidth,
+              worldHeight: newRoom.worldHeight,
+              players: Array.from(newRoom.players)
+                .map((pid) => {
+                  const p = players.get(pid);
+                  return p
+                    ? {
+                        id: p.id,
+                        name: p.name,
+                        code: p.code,
+                        kills: p.kills,
+                        level: p.level,
+                        isAfk: p.isAfk,
+                      }
+                    : null;
+                })
+                .filter(Boolean),
+            })
+          );
 
           sendTo(player.id, { type: 'host_update', hostId: newRoom.hostId });
 
-          broadcastToRoom(newRoom.id, {
-            type: 'player_joined',
-            playerId: player.id,
-            name: player.name
-          }, player.id);
+          broadcastToRoom(
+            newRoom.id,
+            {
+              type: 'player_joined',
+              playerId: player.id,
+              name: player.name,
+            },
+            player.id
+          );
           break;
         }
 
@@ -562,7 +658,7 @@ wss.on('connection', (ws, req) => {
         case 'add_friend': {
           const targetCid = codeToCid.get(String(msg.targetId).trim());
           if (!targetCid || targetCid === player.id) {
-            sendTo(player.id, { type: 'friend_error', message: 'Bunday kodli o\'yinchi topilmadi' });
+            sendTo(player.id, { type: 'friend_error', message: "Bunday kodli o'yinchi topilmadi" });
             break;
           }
           player.friends.add(targetCid);
@@ -571,13 +667,22 @@ wss.on('connection', (ws, req) => {
             targetPlayer.friends.add(player.id); // Mutual friendship
             sendTo(targetCid, {
               type: 'friend_added',
-              friend: { id: player.id, name: player.name, code: friendCode, online: true, roomId: player.roomId, isAfk: player.isAfk }
+              friend: {
+                id: player.id,
+                name: player.name,
+                code: friendCode,
+                online: true,
+                roomId: player.roomId,
+                isAfk: player.isAfk,
+              },
             });
           }
-          ws.send(JSON.stringify({
-            type: 'friends_list',
-            friends: getFriendsListPayload(player.id)
-          }));
+          ws.send(
+            JSON.stringify({
+              type: 'friends_list',
+              friends: getFriendsListPayload(player.id),
+            })
+          );
           break;
         }
 
@@ -590,7 +695,7 @@ wss.on('connection', (ws, req) => {
               fromId: player.id,
               fromName: player.name,
               roomId: player.roomId,
-              mode: rooms.get(player.roomId)?.mode || 'Deathmatch'
+              mode: rooms.get(player.roomId)?.mode || 'Deathmatch',
             });
           }
           break;
@@ -615,13 +720,15 @@ wss.on('connection', (ws, req) => {
             updateRoomHost(targetRoom);
             player.roomId = targetRoom.id;
 
-            ws.send(JSON.stringify({
-              type: 'room_joined',
-              roomId: targetRoom.id,
-              mode: targetRoom.mode,
-              hostId: targetRoom.hostId,
-              bots: targetRoom.bots
-            }));
+            ws.send(
+              JSON.stringify({
+                type: 'room_joined',
+                roomId: targetRoom.id,
+                mode: targetRoom.mode,
+                hostId: targetRoom.hostId,
+                bots: targetRoom.bots,
+              })
+            );
 
             balanceRoomBots(targetRoom);
           }
@@ -630,7 +737,7 @@ wss.on('connection', (ws, req) => {
             type: 'invite_answered',
             fromId: player.id,
             fromName: player.name,
-            accept: accept
+            accept: accept,
           });
           break;
         }
@@ -638,71 +745,91 @@ wss.on('connection', (ws, req) => {
         // Multiplayer State Synchronization
         case 'sync_state':
           if (player.roomId) {
-            broadcastToRoom(player.roomId, {
-              type: 'peer_state',
-              playerId: player.id,
-              code: friendCode,
-              name: player.name,
-              x: msg.x,
-              y: msg.y,
-              bodyAngle: msg.bodyAngle,
-              turretAngle: msg.turretAngle,
-              hp: msg.hp,
-              maxHp: msg.maxHp,
-              shield: msg.shield,
-              level: msg.level,
-              isAfk: player.isAfk,
-              hasShield: msg.hasShield,
-              weapon: msg.weapon,
-              dead: msg.dead
-            }, player.id);
+            broadcastToRoom(
+              player.roomId,
+              {
+                type: 'peer_state',
+                playerId: player.id,
+                code: friendCode,
+                name: player.name,
+                x: msg.x,
+                y: msg.y,
+                bodyAngle: msg.bodyAngle,
+                turretAngle: msg.turretAngle,
+                hp: msg.hp,
+                maxHp: msg.maxHp,
+                shield: msg.shield,
+                level: msg.level,
+                isAfk: player.isAfk,
+                hasShield: msg.hasShield,
+                weapon: msg.weapon,
+                dead: msg.dead,
+              },
+              player.id
+            );
           }
           break;
 
         case 'fire_bullet':
           if (player.roomId) {
-            broadcastToRoom(player.roomId, {
-              type: 'peer_fired',
-              playerId: player.id,
-              x: msg.x,
-              y: msg.y,
-              vx: msg.vx,
-              vy: msg.vy,
-              damage: msg.damage,
-              color: msg.color,
-              weaponType: msg.weaponType
-            }, player.id);
+            broadcastToRoom(
+              player.roomId,
+              {
+                type: 'peer_fired',
+                playerId: player.id,
+                x: msg.x,
+                y: msg.y,
+                vx: msg.vx,
+                vy: msg.vy,
+                damage: msg.damage,
+                color: msg.color,
+                weaponType: msg.weaponType,
+              },
+              player.id
+            );
           }
           break;
 
         case 'wall_damaged':
           if (player.roomId) {
-            broadcastToRoom(player.roomId, {
-              type: 'wall_damaged',
-              wallIndex: msg.wallIndex,
-              damage: msg.damage
-            }, player.id);
+            broadcastToRoom(
+              player.roomId,
+              {
+                type: 'wall_damaged',
+                wallIndex: msg.wallIndex,
+                damage: msg.damage,
+              },
+              player.id
+            );
           }
           break;
 
         case 'barrel_exploded':
           if (player.roomId) {
-            broadcastToRoom(player.roomId, {
-              type: 'barrel_exploded',
-              barrelIndex: msg.barrelIndex,
-              x: msg.x,
-              y: msg.y
-            }, player.id);
+            broadcastToRoom(
+              player.roomId,
+              {
+                type: 'barrel_exploded',
+                barrelIndex: msg.barrelIndex,
+                x: msg.x,
+                y: msg.y,
+              },
+              player.id
+            );
           }
           break;
 
         case 'crate_collected':
           if (player.roomId) {
-            broadcastToRoom(player.roomId, {
-              type: 'crate_collected',
-              crateId: msg.crateId,
-              playerId: player.id
-            }, player.id);
+            broadcastToRoom(
+              player.roomId,
+              {
+                type: 'crate_collected',
+                crateId: msg.crateId,
+                playerId: player.id,
+              },
+              player.id
+            );
           }
           break;
 
@@ -710,23 +837,28 @@ wss.on('connection', (ws, req) => {
           if (player.roomId) {
             const room = rooms.get(player.roomId);
             if (room) {
-              const botIndex = room.bots.findIndex(b => b.id === msg.botId);
+              const botIndex = room.bots.findIndex((b) => b.id === msg.botId);
               if (botIndex !== -1) {
                 room.bots.splice(botIndex, 1);
-                
-                broadcastToRoom(player.roomId, {
-                  type: 'bot_killed',
-                  botId: msg.botId,
-                  playerId: player.id
-                }, null);
-                
+
+                broadcastToRoom(
+                  player.roomId,
+                  {
+                    type: 'bot_killed',
+                    botId: msg.botId,
+                    playerId: player.id,
+                  },
+                  null
+                );
+
                 setTimeout(() => {
                   if (!room || (room.players && room.players.size === 0)) return;
-                  
+
                   if (rooms.has(room.id)) {
                     const humanCount = room.players.size;
-                    const targetBotCount = humanCount > 6 ? 0 : (BOT_COUNT_BY_HUMANS[humanCount] || 0);
-                    
+                    const targetBotCount =
+                      humanCount > 6 ? 0 : BOT_COUNT_BY_HUMANS[humanCount] || 0;
+
                     if (room.bots.length < targetBotCount) {
                       balanceRoomBots(room);
                     }
@@ -742,10 +874,14 @@ wss.on('connection', (ws, req) => {
             const room = rooms.get(player.roomId);
             if (room && room.hostId === player.id) {
               room.lastBotSyncAt = Date.now();
-              broadcastToRoom(player.roomId, {
-                type: 'bot_sync',
-                bots: msg.bots
-              }, player.id);
+              broadcastToRoom(
+                player.roomId,
+                {
+                  type: 'bot_sync',
+                  bots: msg.bots,
+                },
+                player.id
+              );
             }
           }
           break;
@@ -755,17 +891,21 @@ wss.on('connection', (ws, req) => {
           if (player.roomId) {
             const botFiredRoom = rooms.get(player.roomId);
             if (botFiredRoom && botFiredRoom.hostId === player.id) {
-              broadcastToRoom(player.roomId, {
-                type: 'peer_fired',
-                playerId: 'BOT',
-                x: msg.x,
-                y: msg.y,
-                vx: msg.vx,
-                vy: msg.vy,
-                damage: msg.damage,
-                color: msg.color,
-                weaponType: msg.weaponType
-              }, player.id);
+              broadcastToRoom(
+                player.roomId,
+                {
+                  type: 'peer_fired',
+                  playerId: 'BOT',
+                  x: msg.x,
+                  y: msg.y,
+                  vx: msg.vx,
+                  vy: msg.vy,
+                  damage: msg.damage,
+                  color: msg.color,
+                  weaponType: msg.weaponType,
+                },
+                player.id
+              );
             }
           }
           break;
@@ -777,7 +917,7 @@ wss.on('connection', (ws, req) => {
               type: 'hit_by_peer',
               fromId: player.id,
               fromName: player.name,
-              damage: Number(msg.damage) || 0
+              damage: Number(msg.damage) || 0,
             });
           }
           break;
@@ -795,7 +935,7 @@ wss.on('connection', (ws, req) => {
             sendTo(msg.targetId, {
               type: 'webrtc_signal',
               fromId: player.id,
-              signal: msg.signal
+              signal: msg.signal,
             });
           }
           break;
@@ -803,6 +943,7 @@ wss.on('connection', (ws, req) => {
     } catch (err) {
       console.error('CRITICAL WS ERROR handling message from', player.id, ':', err);
       console.error('Raw message was:', msgStr.substring(0, 200));
+      Sentry.captureException(err);
     }
   });
 
@@ -814,7 +955,7 @@ wss.on('connection', (ws, req) => {
         updateRoomHost(room);
         broadcastToRoom(room.id, {
           type: 'player_left',
-          playerId: player.id
+          playerId: player.id,
         });
         balanceRoomBots(room);
         updateRoomSectors(room);

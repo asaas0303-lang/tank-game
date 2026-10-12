@@ -5,7 +5,15 @@ function configureAndroid() {
   console.log('--- Configuring Android for Strict Landscape & Immersive Fullscreen ---');
 
   // 1. AndroidManifest.xml -> Add screenOrientation="sensorLandscape" + mic permissions
-  const manifestPath = path.join(__dirname, '..', 'android', 'app', 'src', 'main', 'AndroidManifest.xml');
+  const manifestPath = path.join(
+    __dirname,
+    '..',
+    'android',
+    'app',
+    'src',
+    'main',
+    'AndroidManifest.xml'
+  );
   if (fs.existsSync(manifestPath)) {
     let manifest = fs.readFileSync(manifestPath, 'utf8');
     if (!manifest.includes('android:screenOrientation')) {
@@ -34,7 +42,17 @@ function configureAndroid() {
   }
 
   // 2. styles.xml -> Add windowFullscreen and layoutInDisplayCutoutMode
-  const stylesPath = path.join(__dirname, '..', 'android', 'app', 'src', 'main', 'res', 'values', 'styles.xml');
+  const stylesPath = path.join(
+    __dirname,
+    '..',
+    'android',
+    'app',
+    'src',
+    'main',
+    'res',
+    'values',
+    'styles.xml'
+  );
   if (fs.existsSync(stylesPath)) {
     let styles = fs.readFileSync(stylesPath, 'utf8');
     if (!styles.includes('android:windowFullscreen')) {
@@ -132,7 +150,7 @@ public class MainActivity extends BridgeActivity {
   // NOTE: the current CLI emits .json, which is what actually gets used today. The .ts branch
   // is defensive -- some CLI versions emit TypeScript, and a silent miss there would ship a
   // fully static APK with no way to notice.
-  const LIVE_RELOAD_URL = "https://asaas0303-lang.github.io/tank-game/";
+  const LIVE_RELOAD_URL = 'https://asaas0303-lang.github.io/tank-game/';
   const capConfigTsPath = path.join(__dirname, '..', 'capacitor.config.ts');
   const capConfigJsonPath = path.join(__dirname, '..', 'capacitor.config.json');
 
@@ -144,18 +162,18 @@ public class MainActivity extends BridgeActivity {
         `webDir: $1$2$1,\n  server: { url: "${LIVE_RELOAD_URL}", cleartext: true }`
       );
       fs.writeFileSync(capConfigTsPath, ts, 'utf8');
-      console.log('✅ Live Reload URL capacitor.config.ts ga qo\'shildi');
+      console.log("✅ Live Reload URL capacitor.config.ts ga qo'shildi");
     } else {
-      console.log('ℹ️ capacitor.config.ts da server allaqachon bor, o\'tkazib yuborildi');
+      console.log("ℹ️ capacitor.config.ts da server allaqachon bor, o'tkazib yuborildi");
     }
   } else if (fs.existsSync(capConfigJsonPath)) {
     try {
       const capConfig = JSON.parse(fs.readFileSync(capConfigJsonPath, 'utf8'));
       capConfig.server = { url: LIVE_RELOAD_URL, cleartext: true };
       fs.writeFileSync(capConfigJsonPath, JSON.stringify(capConfig, null, 2), 'utf8');
-      console.log('✅ Live Reload URL capacitor.config.json ga qo\'shildi');
+      console.log("✅ Live Reload URL capacitor.config.json ga qo'shildi");
     } catch (e) {
-      console.error('❌ capacitor.config.json ni yangilab bo\'lmadi:', e);
+      console.error("❌ capacitor.config.json ni yangilab bo'lmadi:", e);
     }
   } else {
     console.warn('⚠️ capacitor.config.ts HAM .json HAM topilmadi -- Live Reload YOQILMADI!');

@@ -142,13 +142,18 @@
     </script>
     <script type="module">
       import { Engine3D } from './src/3d/Engine3D.js';
+      import { BattlefieldMap3D } from './src/3d/BattlefieldMap.js';
       window.Engine3D = Engine3D;
+      window.BattlefieldMap3D = BattlefieldMap3D;
       function launch3D() {
         const container = document.getElementById('game-container');
         if (container && !window.engine3D) {
           try {
             window.engine3D = new Engine3D(container);
             console.log('🌟 [3D Engine] Ultra-HD Three.js WebGL muvaffaqiyatli ishga tushdi!');
+            if (window.game && typeof window.game.rebuildSectorEntities === 'function') {
+              window.game.rebuildSectorEntities();
+            }
           } catch (e) {
             console.error('❌ [3D Engine] Init error:', e);
           }
@@ -1287,18 +1292,59 @@
       /* Right-edge column: Mina (top) + Nitro (bottom), flexibly spaced between the
        FIRE button above and the aim joystick below -- sized to still fit (no squashing)
        on a short ~340px-tall landscape phone viewport. */
-      .mobile-action-cluster {
-        position: fixed;
-        top: 92px;
-        bottom: calc(max(20px, env(safe-area-inset-bottom, 20px)) + 146px);
-        right: max(14px, env(safe-area-inset-right, 14px));
-        width: 36px;
+      /* WoT Blitz Touch-Look Swipe Zone (Covers right 55% of the screen) */
+      .touch-look-zone {
+        position: absolute;
+        top: 0;
+        right: 0;
+        width: 55%;
+        height: 100%;
+        z-index: 9999;
+        touch-action: none;
+        pointer-events: auto;
+      }
+
+      .touch-look-hint {
+        position: absolute;
+        top: 40%;
+        right: 32%;
         display: flex;
         flex-direction: column;
         align-items: center;
-        justify-content: space-between;
+        opacity: 0.45;
         pointer-events: none;
-        touch-action: none;
+        transition: opacity 0.6s ease;
+        font-family: 'Orbitron', monospace;
+        color: #00f0ff;
+        font-size: 11px;
+        letter-spacing: 1px;
+        text-shadow: 0 0 10px rgba(0, 240, 255, 0.8);
+      }
+      .touch-look-hint.hidden {
+        opacity: 0 !important;
+        pointer-events: none;
+      }
+      .touch-look-icon {
+        font-size: 24px;
+        margin-bottom: 4px;
+        animation: pulseIcon 1.8s infinite ease-in-out;
+      }
+      @keyframes pulseIcon {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.15); }
+      }
+
+      /* Yordamchi Taktik Tugmalar (Mina va Nitro): Fire tugmasining chapida */
+      .mobile-action-cluster {
+        position: fixed;
+        bottom: max(32px, env(safe-area-inset-bottom, 32px));
+        right: calc(max(24px, env(safe-area-inset-right, 24px)) + 98px);
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        gap: 14px;
+        z-index: 100002;
+        pointer-events: auto;
       }
 
       .touch-action-btn {
@@ -1330,24 +1376,37 @@
         filter: brightness(1.35);
       }
 
-      /* Katta qizil FIRE tugmasi — mustaqil, yuqori-o'ng burchak, yozuvsiz */
+      /* Katta qizil FIRE tugmasi — WoT Blitz: o'ng bosh barmoq ostida (bottom-right) */
       .touch-btn-fire {
         position: fixed;
-        top: max(14px, env(safe-area-inset-top, 14px));
-        right: max(14px, env(safe-area-inset-right, 14px));
-        width: 72px;
-        height: 72px;
-        background: radial-gradient(circle, #ff1744 0%, #b71c1c 100%);
-        border: 3.5px solid #ff5252;
+        bottom: max(24px, env(safe-area-inset-bottom, 24px));
+        right: max(24px, env(safe-area-inset-right, 24px));
+        width: 84px;
+        height: 84px;
+        border-radius: 50%;
+        background: radial-gradient(circle, #ff2233 0%, #a00010 100%);
+        border: 3.5px solid #ff5566;
         box-shadow:
-          0 0 30px rgba(255, 23, 68, 0.9),
-          inset 0 2px 6px rgba(255, 255, 255, 0.5);
-        z-index: 100001;
+          0 0 35px rgba(255, 34, 51, 0.9),
+          inset 0 2px 6px rgba(255, 255, 255, 0.6);
+        z-index: 100002;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
       }
 
-      .fire-icon {
-        font-size: 26px;
+      .touch-btn-fire .fire-icon {
+        font-size: 30px;
         line-height: 1;
+      }
+      .touch-btn-fire .fire-label {
+        font-size: 10px;
+        font-weight: 900;
+        letter-spacing: 1.5px;
+        color: #ffffff;
+        margin-top: 2px;
+        text-shadow: 0 0 6px rgba(0, 0, 0, 0.8);
       }
 
       /* Nitro Tugmasi */
@@ -2077,22 +2136,21 @@ yuklanmoqda…</pre>
           </div>
         </div>
 
-        <!-- O'ng Joystik (Nishon / Minora 360°) -->
-        <div id="joystickRightZone" class="joystick-zone joystick-zone-right">
-          <div id="joystickRightBase" class="joystick-base joystick-base-aim">
-            <div class="joystick-ring ring-aim"></div>
-            <div id="joystickRightThumb" class="joystick-thumb thumb-aim">
-              <div class="thumb-core"></div>
-            </div>
+        <!-- O'ng Tomon: World of Tanks Blitz Uslubidagi Erkin Nishon Maydoni (Touch-Look Zone) -->
+        <div id="touchLookZone" class="touch-look-zone">
+          <div class="touch-look-hint">
+            <span class="touch-look-icon">👆 ↔️</span>
+            <span class="touch-look-text">Minorani burish uchun suring</span>
           </div>
         </div>
 
-        <!-- Katta Qizil FIRE Tugmasi (yolg'iz, yuqori-o'ng burchak) -->
+        <!-- WoT Blitz: Katta Qizil FIRE Tugmasi (O'ng bosh barmoq ostida) -->
         <button id="btnTouchFire" class="touch-action-btn touch-btn-fire" aria-label="Otish">
           <span class="fire-icon">🎯</span>
+          <span class="fire-label">OTISH</span>
         </button>
 
-        <!-- O'ng chekka ustuni: Mina (tepada) va Nitro (pastroq, nishon joystigiga yaqin) -->
+        <!-- Yordamchi Taktik Tugmalar: Mina va Nitro -->
         <div class="mobile-action-cluster">
           <button id="btnTouchMine" class="touch-action-btn touch-btn-mine" aria-label="Mina">
             <span class="btn-icon">💣</span>
@@ -3724,7 +3782,7 @@ yuklanmoqda…</pre>
 
       // Destructible Brick Walls & Solid Sci-fi Barriers
       class Wall {
-        constructor(x, y, w, h, destructible = false, hp = 70) {
+        constructor(x, y, w, h, destructible = false, hp = 70, rot = 0) {
           this.x = x;
           this.y = y;
           this.w = w;
@@ -3733,6 +3791,7 @@ yuklanmoqda…</pre>
           this.maxHp = hp;
           this.hp = hp;
           this.destroyed = false;
+          this.rot = rot || 0;
         }
 
         takeDamage(dmg, particles, debrisChunks) {
@@ -5278,16 +5337,49 @@ yuklanmoqda…</pre>
 
           for (const w of walls) {
             if (w.destroyed) continue;
-            const cX = Math.max(w.x, Math.min(nextX, w.x + w.w));
-            const cY = Math.max(w.y, Math.min(nextY, w.y + w.h));
-            const dx = nextX - cX;
-            const dy = nextY - cY;
-            const distSq = dx * dx + dy * dy;
+            let nx = 0,
+              ny = 0,
+              overlap = 0;
 
-            if (distSq < this.radius * this.radius) {
+            if (w.rot && Math.abs(w.rot) > 0.001) {
+              // Oriented Bounding Box (OBB) circle collision
+              const cenX = w.x + w.w / 2;
+              const cenY = w.y + w.h / 2;
+              const dpx = nextX - cenX;
+              const dpy = nextY - cenY;
+              const cos = Math.cos(-w.rot);
+              const sin = Math.sin(-w.rot);
+              const lx = dpx * cos - dpy * sin;
+              const ly = dpx * sin + dpy * cos;
+              const hw = w.w / 2;
+              const hh = w.h / 2;
+              const clx = Math.max(-hw, Math.min(lx, hw));
+              const cly = Math.max(-hh, Math.min(ly, hh));
+              const edx = lx - clx;
+              const edy = ly - cly;
+              const distSq = edx * edx + edy * edy;
+
+              if (distSq >= this.radius * this.radius) continue;
+
               const dist = Math.sqrt(distSq);
-              let nx = 0,
-                ny = 0;
+              let lnx = dist > 0.001 ? edx / dist : (lx > 0 ? 1 : -1);
+              let lny = dist > 0.001 ? edy / dist : 0;
+              const cosP = Math.cos(w.rot);
+              const sinP = Math.sin(w.rot);
+              nx = lnx * cosP - lny * sinP;
+              ny = lnx * sinP + lny * cosP;
+              overlap = this.radius - dist;
+            } else {
+              // Standard Axis-Aligned Box (AABB) collision
+              const cX = Math.max(w.x, Math.min(nextX, w.x + w.w));
+              const cY = Math.max(w.y, Math.min(nextY, w.y + w.h));
+              const dx = nextX - cX;
+              const dy = nextY - cY;
+              const distSq = dx * dx + dy * dy;
+
+              if (distSq >= this.radius * this.radius) continue;
+
+              const dist = Math.sqrt(distSq);
               if (dist > 0.001) {
                 nx = dx / dist;
                 ny = dy / dist;
@@ -5295,37 +5387,40 @@ yuklanmoqda…</pre>
                 nx = nextX > w.x + w.w / 2 ? 1 : -1;
                 ny = 0;
               }
-              const overlap = this.radius - dist;
-              nextX += nx * overlap;
-              nextY += ny * overlap;
+              overlap = this.radius - dist;
+            }
 
-              // Velocity component along normal
-              const vn = this.vx * nx + this.vy * ny;
-              if (vn < 0) {
-                // Elastic bounce with 0.35 restitution
-                this.vx = this.vx - (1 + 0.35) * vn * nx;
-                this.vy = this.vy - (1 + 0.35) * vn * ny;
+            nextX += nx * overlap;
+            nextY += ny * overlap;
 
-                const impactSpeed = Math.abs(vn);
-                if (impactSpeed > 0.8) {
-                  // Micro camera shake & metal sparks
-                  if (this.isPlayer && window.game) {
-                    window.game.triggerScreenShake(0.08, 1.8);
-                  }
-                  for (let k = 0; k < 4; k++) {
-                    particles.push(
-                      new Particle(
-                        cX,
-                        cY,
-                        (Math.random() - 0.5) * 120,
-                        (Math.random() - 0.5) * 120,
-                        '#ffd700',
-                        3.0,
-                        0.2,
-                        'spark'
-                      )
-                    );
-                  }
+            // Velocity component along normal
+            const vn = this.vx * nx + this.vy * ny;
+            if (vn < 0) {
+              // Elastic bounce with 0.35 restitution
+              this.vx = this.vx - (1 + 0.35) * vn * nx;
+              this.vy = this.vy - (1 + 0.35) * vn * ny;
+
+              const impactSpeed = Math.abs(vn);
+              if (impactSpeed > 0.8) {
+                // Micro camera shake & metal sparks
+                if (this.isPlayer && window.game) {
+                  window.game.triggerScreenShake(0.08, 1.8);
+                }
+                const sparkX = nextX - nx * this.radius;
+                const sparkY = nextY - ny * this.radius;
+                for (let k = 0; k < 4; k++) {
+                  particles.push(
+                    new Particle(
+                      sparkX,
+                      sparkY,
+                      (Math.random() - 0.5) * 120,
+                      (Math.random() - 0.5) * 120,
+                      '#ffd700',
+                      3.0,
+                      0.2,
+                      'spark'
+                    )
+                  );
                 }
               }
             }
@@ -6372,12 +6467,39 @@ yuklanmoqda…</pre>
           const modal = document.getElementById('respawnModal');
           if (modal) modal.classList.remove('active');
 
-          const homeSec = this.sectors.find((s) => s.id === this.mySectorId) || this.sectors[0];
-          const spawnX = homeSec.x + homeSec.w / 2 + (Math.random() - 0.5) * 70;
-          const spawnY = homeSec.y + homeSec.h / 2 + (Math.random() - 0.5) * 70;
+          const spawnsBySector = {
+            A1: { x: 99, y: 99, angle: Math.PI / 4 },
+            A2: { x: 1201, y: 99, angle: (Math.PI * 3) / 4 },
+            B1: { x: 99, y: 1201, angle: -Math.PI / 4 },
+            B2: { x: 1201, y: 1201, angle: -(Math.PI * 3) / 4 },
+          };
+
+          const is3DActive =
+            (window.BattlefieldMap3D && typeof window.BattlefieldMap3D.getColliders === 'function') ||
+            !!window.engine3D;
+
+          let spawnX, spawnY, spawnAngle;
+          if (is3DActive) {
+            const spawnCfg = spawnsBySector[this.mySectorId] || spawnsBySector['A1'];
+            spawnX = spawnCfg.x;
+            spawnY = spawnCfg.y;
+            spawnAngle = spawnCfg.angle;
+          } else {
+            const homeSec = this.sectors.find((s) => s.id === this.mySectorId) || this.sectors[0];
+            const jx = (Math.random() - 0.5) * 70,
+              jy = (Math.random() - 0.5) * 70;
+            spawnX = homeSec ? homeSec.x + homeSec.w / 2 + jx : 325;
+            spawnY = homeSec ? homeSec.y + homeSec.h / 2 + jy : 325;
+            spawnAngle = 0;
+          }
 
           this.player.x = spawnX;
           this.player.y = spawnY;
+          this.player.bodyAngle = spawnAngle;
+          this.player.turretAngle = spawnAngle;
+          this.player.targetTurretAngle = spawnAngle;
+          this.player.vx = 0;
+          this.player.vy = 0;
           this.player.hp = this.player.maxHp;
           this.player.shield = 0;
           this.player.magazine = this.player.maxMagazine;
@@ -6501,61 +6623,64 @@ yuklanmoqda…</pre>
           WORLD.width = totalW;
           WORLD.height = totalH;
 
-          // 1. Arena Outer Boundary Walls (24px thick)
-          this.walls.push(new Wall(0, 0, totalW, 24));
-          this.walls.push(new Wall(0, totalH - 24, totalW, 24));
-          this.walls.push(new Wall(0, 0, 24, totalH));
-          this.walls.push(new Wall(totalW - 24, 0, 24, totalH));
+          // 1. Check if 3D Battlefield map is active: synchronize EXACT 3D colliders
+          const is3DActive =
+            (window.BattlefieldMap3D && typeof window.BattlefieldMap3D.getColliders === 'function') ||
+            !!window.engine3D;
 
-          // 2. Inter-Sector Dividing Walls with Open Gateways (170px wide passage)
-          const gateWidth = 170;
-          const halfSegment = (SECTOR_SIZE - gateWidth) / 2; // (650 - 170) / 2 = 240px
+          if (is3DActive && window.BattlefieldMap3D) {
+            // Load exact 3D colliders: 4 Garages, 4 Ruin brick walls, 12 Pine tree trunks, boundary walls
+            const mapColliders = window.BattlefieldMap3D.getColliders(totalW, totalH, 0.085);
+            mapColliders.forEach((c) => {
+              this.walls.push(new Wall(c.x, c.y, c.w, c.h, c.destructible, c.hp, c.rot));
+            });
+          } else {
+            // Legacy 2D Arena Outer Boundary Walls (24px thick)
+            this.walls.push(new Wall(0, 0, totalW, 24));
+            this.walls.push(new Wall(0, totalH - 24, totalW, 24));
+            this.walls.push(new Wall(0, 0, 24, totalH));
+            this.walls.push(new Wall(totalW - 24, 0, 24, totalH));
 
-          // Vertical dividing walls between column c and c + 1
-          for (let c = 0; c < this.cols - 1; c++) {
-            const wallX = (c + 1) * SECTOR_SIZE;
-            for (let r = 0; r < this.rows; r++) {
-              const startY = r * SECTOR_SIZE;
-              // Top wall
-              this.walls.push(new Wall(wallX - 12, startY, 24, halfSegment));
-              // Bottom wall
-              this.walls.push(
-                new Wall(wallX - 12, startY + halfSegment + gateWidth, 24, halfSegment)
-              );
+            // Legacy 2D Inter-Sector Dividing Walls with Open Gateways
+            const gateWidth = 170;
+            const halfSegment = (SECTOR_SIZE - gateWidth) / 2;
 
-              // Record gateway passage location for visual chevrons
-              this.gateways.push({
-                x: wallX,
-                y: startY + halfSegment + gateWidth / 2,
-                isVertical: true,
-                size: gateWidth,
-              });
+            for (let c = 0; c < this.cols - 1; c++) {
+              const wallX = (c + 1) * SECTOR_SIZE;
+              for (let r = 0; r < this.rows; r++) {
+                const startY = r * SECTOR_SIZE;
+                this.walls.push(new Wall(wallX - 12, startY, 24, halfSegment));
+                this.walls.push(
+                  new Wall(wallX - 12, startY + halfSegment + gateWidth, 24, halfSegment)
+                );
+                this.gateways.push({
+                  x: wallX,
+                  y: startY + halfSegment + gateWidth / 2,
+                  isVertical: true,
+                  size: gateWidth,
+                });
+              }
+            }
+
+            for (let r = 0; r < this.rows - 1; r++) {
+              const wallY = (r + 1) * SECTOR_SIZE;
+              for (let c = 0; c < this.cols; c++) {
+                const startX = c * SECTOR_SIZE;
+                this.walls.push(new Wall(startX, wallY - 12, halfSegment, 24));
+                this.walls.push(
+                  new Wall(startX + halfSegment + gateWidth, wallY - 12, halfSegment, 24)
+                );
+                this.gateways.push({
+                  x: startX + halfSegment + gateWidth / 2,
+                  y: wallY,
+                  isVertical: false,
+                  size: gateWidth,
+                });
+              }
             }
           }
 
-          // Horizontal dividing walls between row r and r + 1
-          for (let r = 0; r < this.rows - 1; r++) {
-            const wallY = (r + 1) * SECTOR_SIZE;
-            for (let c = 0; c < this.cols; c++) {
-              const startX = c * SECTOR_SIZE;
-              // Left wall
-              this.walls.push(new Wall(startX, wallY - 12, halfSegment, 24));
-              // Right wall
-              this.walls.push(
-                new Wall(startX + halfSegment + gateWidth, wallY - 12, halfSegment, 24)
-              );
-
-              // Record gateway passage location
-              this.gateways.push({
-                x: startX + halfSegment + gateWidth / 2,
-                y: wallY,
-                isVertical: false,
-                size: gateWidth,
-              });
-            }
-          }
-
-          // 3. Inside Each Sector (Dense Tactical Maze, L/T Corners, 6 Brick Walls, 4 Bushes, 5 TNT Barrels)
+          // 3. Inside Each Sector: Pylons, Boost Pads, Crates (Maze walls only for legacy 2D fallback)
           this.sectors.forEach((sec, idx) => {
             const cx = sec.x + SECTOR_SIZE / 2;
             const cy = sec.y + SECTOR_SIZE / 2;
@@ -6570,49 +6695,38 @@ yuklanmoqda…</pre>
               color: sec.themeColor,
             });
 
-            // --- Top-Left Quadrant Maze ---
-            // Solid L-shape corner wall
-            this.walls.push(new Wall(cx - 210, cy - 210, 85, 20));
-            this.walls.push(new Wall(cx - 210, cy - 210, 20, 85));
-            // Destructible brick wall 1
-            this.walls.push(new Wall(cx - 210, cy - 110, 20, 50, true, 65));
-            // Camouflage Bush 1 (tucked into the L-cover)
-            this.bushes.push({ x: cx - 245, y: cy - 130, radius: 42 });
+            // Only generate legacy 2D maze walls if NOT in 3D mode
+            if (!is3DActive) {
+              // Top-Left Quadrant Maze
+              this.walls.push(new Wall(cx - 210, cy - 210, 85, 20));
+              this.walls.push(new Wall(cx - 210, cy - 210, 20, 85));
+              this.walls.push(new Wall(cx - 210, cy - 110, 20, 50, true, 65));
+              this.bushes.push({ x: cx - 245, y: cy - 130, radius: 42 });
 
-            // --- Top-Right Quadrant Maze ---
-            // Solid inverted L-shape / T-corner wall
-            this.walls.push(new Wall(cx + 125, cy - 210, 85, 20));
-            this.walls.push(new Wall(cx + 190, cy - 210, 20, 85));
-            // Destructible brick wall 2
-            this.walls.push(new Wall(cx + 190, cy - 110, 20, 50, true, 65));
-            // Camouflage Bush 2
-            this.bushes.push({ x: cx + 245, y: cy - 130, radius: 42 });
+              // Top-Right Quadrant Maze
+              this.walls.push(new Wall(cx + 125, cy - 210, 85, 20));
+              this.walls.push(new Wall(cx + 190, cy - 210, 20, 85));
+              this.walls.push(new Wall(cx + 190, cy - 110, 20, 50, true, 65));
+              this.bushes.push({ x: cx + 245, y: cy - 130, radius: 42 });
 
-            // --- Bottom-Left Quadrant Maze ---
-            // Solid corner maze wall
-            this.walls.push(new Wall(cx - 210, cy + 190, 85, 20));
-            this.walls.push(new Wall(cx - 210, cy + 125, 20, 85));
-            // Destructible brick wall 3
-            this.walls.push(new Wall(cx - 210, cy + 60, 20, 50, true, 65));
-            // Camouflage Bush 3
-            this.bushes.push({ x: cx - 245, y: cy + 130, radius: 42 });
+              // Bottom-Left Quadrant Maze
+              this.walls.push(new Wall(cx - 210, cy + 190, 85, 20));
+              this.walls.push(new Wall(cx - 210, cy + 125, 20, 85));
+              this.walls.push(new Wall(cx - 210, cy + 60, 20, 50, true, 65));
+              this.bushes.push({ x: cx - 245, y: cy + 130, radius: 42 });
 
-            // --- Bottom-Right Quadrant Maze ---
-            // Solid corner maze wall
-            this.walls.push(new Wall(cx + 125, cy + 190, 85, 20));
-            this.walls.push(new Wall(cx + 190, cy + 125, 20, 85));
-            // Destructible brick wall 4
-            this.walls.push(new Wall(cx + 190, cy + 60, 20, 50, true, 65));
-            // Camouflage Bush 4
-            this.bushes.push({ x: cx + 245, y: cy + 130, radius: 42 });
+              // Bottom-Right Quadrant Maze
+              this.walls.push(new Wall(cx + 125, cy + 190, 85, 20));
+              this.walls.push(new Wall(cx + 190, cy + 125, 20, 85));
+              this.walls.push(new Wall(cx + 190, cy + 60, 20, 50, true, 65));
+              this.bushes.push({ x: cx + 245, y: cy + 130, radius: 42 });
 
-            // --- Center Tactical Hub & Chokepoints ---
-            // Two solid cover pillars
-            this.walls.push(new Wall(cx - 50, cy - 50, 20, 45));
-            this.walls.push(new Wall(cx + 30, cy + 5, 20, 45));
-            // Destructible brick walls 5 & 6 (protecting center hub)
-            this.walls.push(new Wall(cx - 25, cy - 50, 55, 20, true, 65));
-            this.walls.push(new Wall(cx - 30, cy + 30, 60, 20, true, 65));
+              // Center Tactical Hub
+              this.walls.push(new Wall(cx - 50, cy - 50, 20, 45));
+              this.walls.push(new Wall(cx + 30, cy + 5, 20, 45));
+              this.walls.push(new Wall(cx - 25, cy - 50, 55, 20, true, 65));
+              this.walls.push(new Wall(cx - 30, cy + 30, 60, 20, true, 65));
+            }
 
             // Boost Pad in gateway channel propelling tank into adjacent sector
             const padAngles = [0, Math.PI / 2, Math.PI, -Math.PI / 2];
@@ -6634,18 +6748,43 @@ yuklanmoqda…</pre>
         }
 
         resetPlayer() {
-          // Find player's assigned home sector
-          const homeSec = this.sectors.find((s) => s.id === this.mySectorId) || this.sectors[0];
-          // Sektor markaziga aniq tushmasin: ikki tank piksel-ba-piksel ustma-ust
-          // tushmasligi uchun kichik tasodifiy siljish (botlarda bu allaqachon bor edi).
-          const jx = (Math.random() - 0.5) * 70,
-            jy = (Math.random() - 0.5) * 70;
-          const spawnX = homeSec ? homeSec.x + SECTOR_SIZE / 2 + jx : 325;
-          const spawnY = homeSec ? homeSec.y + SECTOR_SIZE / 2 + jy : 325;
+          // Inside-Garage spawn coordinates (Tank spawns inside the wooden hangar facing the exit beam):
+          // Garage 1 (top-left, Sec A1): inside at (99, 99), angle: Math.PI / 4 (facing center)
+          // Garage 4 (top-right, Sec A2): inside at (1201, 99), angle: (Math.PI * 3) / 4 (facing center)
+          // Garage 2 (bottom-left, Sec B1): inside at (99, 1201), angle: -Math.PI / 4 (facing center)
+          // Garage 3 (bottom-right, Sec B2): inside at (1201, 1201), angle: -(Math.PI * 3) / 4 (facing center)
+          const spawnsBySector = {
+            A1: { x: 99, y: 99, angle: Math.PI / 4 },
+            A2: { x: 1201, y: 99, angle: (Math.PI * 3) / 4 },
+            B1: { x: 99, y: 1201, angle: -Math.PI / 4 },
+            B2: { x: 1201, y: 1201, angle: -(Math.PI * 3) / 4 },
+          };
+
+          const is3DActive =
+            (window.BattlefieldMap3D && typeof window.BattlefieldMap3D.getColliders === 'function') ||
+            !!window.engine3D;
+
+          let spawnX, spawnY, spawnAngle;
+          if (is3DActive) {
+            const spawnCfg = spawnsBySector[this.mySectorId] || spawnsBySector['A1'];
+            spawnX = spawnCfg.x;
+            spawnY = spawnCfg.y;
+            spawnAngle = spawnCfg.angle;
+          } else {
+            const homeSec = this.sectors.find((s) => s.id === this.mySectorId) || this.sectors[0];
+            const jx = (Math.random() - 0.5) * 70,
+              jy = (Math.random() - 0.5) * 70;
+            spawnX = homeSec ? homeSec.x + SECTOR_SIZE / 2 + jx : 325;
+            spawnY = homeSec ? homeSec.y + SECTOR_SIZE / 2 + jy : 325;
+            spawnAngle = 0;
+          }
 
           const currentName =
             this.playerProfile && this.playerProfile.name ? this.playerProfile.name : 'Commander';
           this.player = new Tank(spawnX, spawnY, currentName, true, this.playerId);
+          this.player.bodyAngle = spawnAngle;
+          this.player.turretAngle = spawnAngle;
+          this.player.targetTurretAngle = spawnAngle;
           this.player.code = this.friendCode || '';
           if (this.playerProfile && this.playerProfile.level > 1) {
             this.player.level = this.playerProfile.level;
@@ -7951,79 +8090,92 @@ yuklanmoqda…</pre>
             leftZone.addEventListener('pointercancel', endLeftPointer);
           }
 
-          const handleRightMove = (clientX, clientY) => {
-            const screenDx = clientX - rightCenter.x;
-            const screenDy = clientY - rightCenter.y;
-            let dx = window._forcedLandscape ? screenDy : screenDx;
-            let dy = window._forcedLandscape ? -screenDx : screenDy;
-            const dist = Math.hypot(dx, dy);
+          // World of Tanks Blitz Touch-Swipe Look & Aim System (Right half of screen)
+          const touchLookZone = document.getElementById('touchLookZone');
+          let touchLookId = null;
+          let lastLookX = 0;
+          let lastLookY = 0;
 
-            if (dist > maxRadius) {
-              dx = (dx / dist) * maxRadius;
-              dy = (dy / dist) * maxRadius;
-            }
+          const handleLookStart = (id, clientX, clientY) => {
+            touchLookId = id;
+            if (this.mobileInput) this.mobileInput.touchLookActive = true;
+            lastLookX = clientX;
+            lastLookY = clientY;
+            const hint = document.querySelector('.touch-look-hint');
+            if (hint) hint.classList.add('hidden');
+          };
 
-            if (rightThumb) rightThumb.style.transform = `translate3d(${dx}px, ${dy}px, 0)`;
+          const handleLookMove = (clientX, clientY) => {
+            const rawDx = clientX - lastLookX;
+            const rawDy = clientY - lastLookY;
+            lastLookX = clientX;
+            lastLookY = clientY;
 
-            if (dist > 6) {
-              const angle = Math.atan2(dy, dx);
-              this.mobileInput.aimAngle = angle;
-              this.mobileInput.hasAim = true;
-              if (this.player) {
-                this.player.targetTurretAngle = angle;
-              }
+            // Rotate delta based on screen orientation
+            let dragX = window._forcedLandscape ? rawDy : rawDx;
+            const sens = 0.0075; // Smooth, precise turret turning
+            if (this.player && !this.player.dead) {
+              this.player.turretAngle += dragX * sens;
+              while (this.player.turretAngle > Math.PI) this.player.turretAngle -= Math.PI * 2;
+              while (this.player.turretAngle < -Math.PI) this.player.turretAngle += Math.PI * 2;
+              this.player.targetTurretAngle = this.player.turretAngle;
             }
           };
 
-          const resetRightJoystick = () => {
-            rightTouchId = null;
-            if (rightThumb) rightThumb.style.transform = 'translate3d(0, 0, 0)';
+          const resetLookTouch = () => {
+            touchLookId = null;
+            if (this.mobileInput) this.mobileInput.touchLookActive = false;
           };
 
-          if (rightZone) {
-            rightZone.addEventListener(
+          if (touchLookZone) {
+            touchLookZone.addEventListener(
               'touchstart',
               (e) => {
-                e.preventDefault();
                 audio.init();
-                if (rightTouchId === null && e.changedTouches.length > 0) {
-                  const touch = e.changedTouches[0];
-                  rightTouchId = touch.identifier;
-                  updateCenters();
-                  handleRightMove(touch.clientX, touch.clientY);
+                if (touchLookId === null && e.changedTouches.length > 0) {
+                  const t = e.changedTouches[0];
+                  handleLookStart(t.identifier, t.clientX, t.clientY);
                 }
               },
-              { passive: false }
+              { passive: true }
             );
 
-            rightZone.addEventListener('pointerdown', (e) => {
-              if (e.pointerType === 'mouse' || rightTouchId === null) {
-                e.preventDefault();
-                audio.init();
-                rightTouchId = 'pointer_' + e.pointerId;
-                updateCenters();
-                handleRightMove(e.clientX, e.clientY);
-                try {
-                  rightZone.setPointerCapture(e.pointerId);
-                } catch (_) {}
-              }
-            });
-            rightZone.addEventListener('pointermove', (e) => {
-              if (rightTouchId === 'pointer_' + e.pointerId) {
-                e.preventDefault();
-                handleRightMove(e.clientX, e.clientY);
-              }
-            });
-            const endRightPointer = (e) => {
-              if (rightTouchId === 'pointer_' + e.pointerId) {
-                resetRightJoystick();
-                try {
-                  rightZone.releasePointerCapture(e.pointerId);
-                } catch (_) {}
+            touchLookZone.addEventListener(
+              'touchmove',
+              (e) => {
+                for (let i = 0; i < e.changedTouches.length; i++) {
+                  const t = e.changedTouches[i];
+                  if (t.identifier === touchLookId) {
+                    handleLookMove(t.clientX, t.clientY);
+                  }
+                }
+              },
+              { passive: true }
+            );
+
+            const endLook = (e) => {
+              for (let i = 0; i < e.changedTouches.length; i++) {
+                if (e.changedTouches[i].identifier === touchLookId) {
+                  resetLookTouch();
+                }
               }
             };
-            rightZone.addEventListener('pointerup', endRightPointer);
-            rightZone.addEventListener('pointercancel', endRightPointer);
+            touchLookZone.addEventListener('touchend', endLook, { passive: true });
+            touchLookZone.addEventListener('touchcancel', endLook, { passive: true });
+
+            touchLookZone.addEventListener('pointerdown', (e) => {
+              if (e.pointerType === 'mouse' && e.button === 0) {
+                handleLookStart('mouse', e.clientX, e.clientY);
+              }
+            });
+            window.addEventListener('pointermove', (e) => {
+              if (touchLookId === 'mouse') {
+                handleLookMove(e.clientX, e.clientY);
+              }
+            });
+            window.addEventListener('pointerup', () => {
+              if (touchLookId === 'mouse') resetLookTouch();
+            });
           }
 
           // Multi-touch window tracker
@@ -8035,9 +8187,8 @@ yuklanmoqda…</pre>
                 if (t.identifier === leftTouchId) {
                   e.preventDefault();
                   handleLeftMove(t.clientX, t.clientY);
-                } else if (t.identifier === rightTouchId) {
-                  e.preventDefault();
-                  handleRightMove(t.clientX, t.clientY);
+                } else if (t.identifier === touchLookId) {
+                  handleLookMove(t.clientX, t.clientY);
                 }
               }
             },
@@ -8050,7 +8201,7 @@ yuklanmoqda…</pre>
               for (let i = 0; i < e.changedTouches.length; i++) {
                 const t = e.changedTouches[i];
                 if (t.identifier === leftTouchId) resetLeftJoystick();
-                if (t.identifier === rightTouchId) resetRightJoystick();
+                if (t.identifier === touchLookId) resetLookTouch();
               }
             },
             { passive: false }
@@ -8062,7 +8213,7 @@ yuklanmoqda…</pre>
               for (let i = 0; i < e.changedTouches.length; i++) {
                 const t = e.changedTouches[i];
                 if (t.identifier === leftTouchId) resetLeftJoystick();
-                if (t.identifier === rightTouchId) resetRightJoystick();
+                if (t.identifier === touchLookId) resetLookTouch();
               }
             },
             { passive: false }
@@ -8888,34 +9039,20 @@ yuklanmoqda…</pre>
             throttle = Math.max(-1.0, Math.min(1.0, throttle));
             steer = Math.max(-1.0, Math.min(1.0, steer));
 
-            // === DIRECTIONAL MOVEMENT: tank joystik/klaviatura ko'rsatgan tomonga yuradi ===
-            // throttle/steer aslida yo'nalish vektorini beradi: (mx,my) = (steer, -throttle)
-            let mx = steer;
-            let my = -throttle;
-            const moveMag = Math.min(1, Math.hypot(mx, my));
-            let driveThrottle = 0;
-            if (moveMag > 0.05) {
-              const desired = Math.atan2(my, mx); // yurish kerak bo'lgan yo'nalish
-              let diff = desired - this.player.bodyAngle;
-              while (diff > Math.PI) diff -= Math.PI * 2;
-              while (diff < -Math.PI) diff += Math.PI * 2;
-              // tank tanasini yo'nalishga silliq, FPS'dan mustaqil burish
-              const fTurn = Math.min(3, dt * 60);
-              this.player.bodyAngle += diff * Math.min(1, 0.7 * fTurn); // 0.7 = burilish tezligi (kattaroq = keskinroq)
-              while (this.player.bodyAngle > Math.PI) this.player.bodyAngle -= Math.PI * 2;
-              while (this.player.bodyAngle < -Math.PI) this.player.bodyAngle += Math.PI * 2;
-              const facing = Math.cos(diff);
-              driveThrottle = moveMag * (facing > 0 ? 1 : 0.3); // qaragach to'liq tezlik; teskari bo'lsa sekin buriladi
-            }
+            // Authentic 3D World of Tanks Blitz Tank Physics:
+            // throttle > 0 drives forward, throttle < 0 reverses, steer turns chassis left/right
+            this.player.updateMovement(
+              dt,
+              throttle,
+              steer,
+              this.walls,
+              this.boostPads,
+              this.treadMarks,
+              this.particles
+            );
 
-            // Aiming: If right virtual joystick has active aim, rotate turret 360 degrees
-            if (this.mobileInput && this.mobileInput.hasAim && this.mobileInput.aimAngle !== null) {
-              this.player.targetTurretAngle = this.mobileInput.aimAngle;
-              this.mouse.worldX = this.player.x + Math.cos(this.mobileInput.aimAngle) * 350;
-              this.mouse.worldY = this.player.y + Math.sin(this.mobileInput.aimAngle) * 350;
-              this.mouse.x = this.viewWidth / 2 + Math.cos(this.mobileInput.aimAngle) * 220;
-              this.mouse.y = this.viewHeight / 2 + Math.sin(this.mobileInput.aimAngle) * 220;
-            } else {
+            // Turret Aiming: Desktop Mouse or Mobile Touch
+            if (!this.mobileInput || !this.mobileInput.touchLookActive) {
               this.mouse.worldX = this.mouse.x / this.cameraZoom + this.camera.x;
               this.mouse.worldY = this.mouse.y / this.cameraZoom + this.camera.y;
               this.player.targetTurretAngle = Math.atan2(
@@ -8924,15 +9061,40 @@ yuklanmoqda…</pre>
               );
             }
 
-            this.player.updateMovement(
-              dt,
-              driveThrottle,
-              0,
-              this.walls,
-              this.boostPads,
-              this.treadMarks,
-              this.particles
-            );
+            // World of Tanks Blitz Auto-Aim Assist (Soft magnetism lock on visible enemies):
+            const is3DGame = !!window.engine3D;
+            if (is3DGame) {
+              let bestTarget = null;
+              let bestScore = -Infinity;
+              const allEnemies = [...this.bots, ...Array.from(this.remotePlayers.values())];
+              for (const enemy of allEnemies) {
+                if (!enemy || enemy.dead || enemy.hp <= 0) continue;
+                const edx = enemy.x - this.player.x;
+                const edy = enemy.y - this.player.y;
+                const dist = Math.hypot(edx, edy);
+                if (dist > 750 || dist < 20) continue;
+                const angleToEnemy = Math.atan2(edy, edx);
+                let angDiff = Math.abs(angleToEnemy - this.player.turretAngle);
+                while (angDiff > Math.PI) angDiff = Math.PI * 2 - angDiff;
+                if (angDiff < 0.45) {
+                  // Within ~26 degrees aiming cone
+                  if (hasLineOfSight(this.player.x, this.player.y, enemy.x, enemy.y, this.walls)) {
+                    const score = (1.0 - angDiff / 0.45) * 500 - dist * 0.5;
+                    if (score > bestScore) {
+                      bestScore = score;
+                      bestTarget = { angle: angleToEnemy };
+                    }
+                  }
+                }
+              }
+              if (bestTarget) {
+                let diff = bestTarget.angle - this.player.turretAngle;
+                while (diff > Math.PI) diff -= Math.PI * 2;
+                while (diff < -Math.PI) diff += Math.PI * 2;
+                this.player.turretAngle += diff * 0.12;
+                this.player.targetTurretAngle = this.player.turretAngle;
+              }
+            }
             this.player.checkBushes(this.bushes);
 
             // Peers LERP moved outside to run even if player is dead

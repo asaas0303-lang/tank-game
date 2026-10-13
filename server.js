@@ -142,9 +142,20 @@ function assignBotSpawns(room) {
     if (pool.length === 0) pool = room.sectors.filter((s) => !used.has(s.id));
     if (pool.length === 0) pool = room.sectors;
     const sec = pool[Math.floor(Math.random() * pool.length)];
+    const garageSpawns = {
+      A1: { x: 99, y: 99 },
+      A2: { x: 1201, y: 99 },
+      B1: { x: 99, y: 1201 },
+      B2: { x: 1201, y: 1201 },
+    };
     bot.sectorId = sec.id;
-    bot.x = sec.x + sec.w / 2 + (Math.random() - 0.5) * 60;
-    bot.y = sec.y + sec.h / 2 + (Math.random() - 0.5) * 60;
+    if (garageSpawns[sec.id]) {
+      bot.x = garageSpawns[sec.id].x;
+      bot.y = garageSpawns[sec.id].y;
+    } else {
+      bot.x = sec.x + sec.w / 2 + (Math.random() - 0.5) * 60;
+      bot.y = sec.y + sec.h / 2 + (Math.random() - 0.5) * 60;
+    }
   }
   return assigned;
 }

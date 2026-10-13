@@ -10,6 +10,10 @@ import * as THREE from '../../lib/three.module.js';
 import { TankModel3D } from './TankModel.js';
 import { BattlefieldMap3D } from './BattlefieldMap.js';
 
+if (typeof window !== 'undefined') {
+  window.BattlefieldMap3D = BattlefieldMap3D;
+}
+
 export class Engine3D {
   constructor(canvasContainer) {
     this.container = canvasContainer || document.getElementById('game-container') || document.body;

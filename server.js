@@ -974,4 +974,12 @@ server.listen(PORT, () => {
   console.log(`🌐 Local Port: ${PORT}`);
   console.log(`📡 WebSocket Multiplayer & WebRTC Ready!`);
   console.log(`=========================================`);
+
+  // Optional Telegram Bot Mini App Service
+  const { initTelegramBot } = require('./lib/telegramBot');
+  const tgToken = process.env.TELEGRAM_BOT_TOKEN;
+  const gameUrl = process.env.GAME_URL || 'https://tank-game-production-c104.up.railway.app';
+  if (tgToken) {
+    initTelegramBot(tgToken, gameUrl);
+  }
 });

@@ -62,6 +62,7 @@
 
           if (isPortrait) {
             window._forcedLandscape = true;
+            if (document.body) document.body.classList.add('forced-landscape');
             container.style.width = h + 'px';
             container.style.height = w + 'px';
             container.style.transform = 'rotate(90deg)';
@@ -72,6 +73,7 @@
             container.style.overflow = 'hidden';
           } else {
             window._forcedLandscape = false;
+            if (document.body) document.body.classList.remove('forced-landscape');
             container.style.width = '100vw';
             container.style.height = '100vh';
             container.style.transform = '';
@@ -1175,56 +1177,7 @@
         text-shadow: 0 1px 2px #000;
         pointer-events: none;
       }
-      /* Touch-only: gear -> mic -> speaker, stacked vertically in the top-left column */
-      .mobile-voice-cluster {
-        display: none;
-        position: fixed;
-        top: 58px;
-        left: max(10px, env(safe-area-inset-left, 10px));
-        z-index: 100001;
-        flex-direction: column;
-        gap: 8px;
-        pointer-events: auto;
-      }
-      body.touch-device .mobile-voice-cluster {
-        display: flex;
-      }
-      .voice-circle-btn {
-        width: 40px;
-        height: 40px;
-        border-radius: 50%;
-        background: rgba(10, 18, 36, 0.92);
-        border: 1.5px solid var(--primary);
-        color: var(--primary);
-        font-size: 16px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        cursor: pointer;
-        outline: none;
-        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
-        transition:
-          transform 0.15s,
-          filter 0.15s;
-      }
-      .voice-circle-btn:active {
-        transform: scale(0.9);
-      }
-      .voice-circle-btn.active {
-        filter: brightness(1.3);
-      }
-      #mobileBtnSpeaker {
-        border-color: #2ecc71;
-        color: #2ecc71;
-      }
-      #mobileBtnSpeaker.muted {
-        border-color: #64748b;
-        color: #64748b;
-      }
-      #mobileBtnMic.muted {
-        border-color: #64748b;
-        color: #64748b;
-      }
+
 
       /* Hide the giant desktop HUD on touch devices */
       body.touch-device .hud-top-left {
@@ -1445,13 +1398,13 @@
         box-shadow: 0 0 6px #ffb800;
       }
 
-      /* Quick Settings Gear Button (Safe-Area & Top-Layer Aware) */
+      /* Quick Settings Gear Button (Single Settings Button) */
       .mobile-gear-btn {
-        position: absolute;
-        top: max(10px, env(safe-area-inset-top, 10px));
-        right: max(10px, env(safe-area-inset-right, 10px));
-        width: 40px;
-        height: 40px;
+        position: fixed;
+        top: 16px;
+        right: 16px;
+        width: 44px;
+        height: 44px;
         border-radius: 50%;
         background: rgba(10, 18, 36, 0.92);
         backdrop-filter: blur(12px);
@@ -1461,26 +1414,32 @@
           0 4px 18px rgba(0, 0, 0, 0.6),
           0 0 15px var(--primary-glow);
         color: var(--primary);
-        font-size: 18px;
+        font-size: 20px;
         display: flex;
         align-items: center;
         justify-content: center;
         cursor: pointer;
         z-index: 100000;
         outline: none;
+        touch-action: manipulation;
         transition:
           transform 0.2s,
           box-shadow 0.2s;
       }
-      .mobile-gear-btn:hover,
       .mobile-gear-btn:active {
-        transform: scale(1.08) rotate(30deg);
+        transform: scale(0.92) rotate(30deg);
         box-shadow: 0 0 22px var(--primary);
       }
-      /* Mobile: gear moves to the top-left column (mic/speaker/HP stack below it) */
-      body.touch-device .mobile-gear-btn {
-        left: max(10px, env(safe-area-inset-left, 10px));
-        right: auto;
+      /* In forced landscape: single settings gear button sits exactly in the red circle position below Telegram header */
+      body.forced-landscape .mobile-gear-btn {
+        top: 110px !important;
+        right: 18px !important;
+        left: auto !important;
+      }
+      /* In forced landscape: shift the blue movement joystick down to be completely safe from Telegram's top-left "X Yopish" button */
+      body.forced-landscape .joystick-zone-left {
+        left: max(65px, env(safe-area-inset-left, 65px)) !important;
+        bottom: max(30px, env(safe-area-inset-bottom, 30px)) !important;
       }
 
       /* Name Prompt Cyber Modal */
@@ -1728,24 +1687,18 @@
     </style>
   </head>
   <body>
+    <!-- Quick Settings Gear Button (Single Button located at the Red Circle position) -->
+    <button
+      class="mobile-gear-btn"
+      id="btnQuickSettings"
+      aria-label="Sozlamalar"
+      title="Sozlamalar"
+    >
+      ⚙️
+    </button>
+
     <div id="game-container">
       <canvas id="gameCanvas" tabindex="0"></canvas>
-
-      <!-- Quick Settings Gear Button (Always Accessible on Mobile & Desktop) -->
-      <button
-        class="mobile-gear-btn"
-        id="btnQuickSettings"
-        aria-label="Sozlamalar"
-        title="Sozlamalar"
-      >
-        ⚙️
-      </button>
-
-      <!-- Mobile mic/speaker (touch-only, stacked under the gear button) -->
-      <div class="mobile-voice-cluster">
-        <button class="voice-circle-btn" id="mobileBtnMic" aria-label="Mikrofon">🎙️</button>
-        <button class="voice-circle-btn" id="mobileBtnSpeaker" aria-label="Karnay">🔊</button>
-      </div>
 
       <!-- MOBILE MINI-HUD (ultra-compact HP+reload only, shown only on touch devices) -->
       <div class="mobile-mini-hud" id="mobileMinHud">
@@ -1835,47 +1788,7 @@
         </div>
       </div>
 
-      <!-- WW2 Match Header Banner (Reference Image 2) -->
-      <div
-        id="ww2MatchBanner"
-        style="
-          position: absolute;
-          top: 10px;
-          left: 50%;
-          transform: translateX(-50%);
-          text-align: center;
-          z-index: 22;
-          pointer-events: none;
-        "
-      >
-        <div
-          style="
-            font-family: 'Orbitron', monospace;
-            font-size: 17px;
-            font-weight: 900;
-            color: #ffffff;
-            text-shadow:
-              0 0 10px rgba(0, 255, 136, 0.6),
-              0 2px 4px #000;
-            letter-spacing: 1.5px;
-          "
-        >
-          BIR-BIRIGA QARSHI JANG!
-        </div>
-        <div
-          id="ww2SubBanner"
-          style="
-            font-family: 'Rajdhani', sans-serif;
-            font-size: 13px;
-            font-weight: 700;
-            color: #00ff88;
-            letter-spacing: 0.8px;
-            text-shadow: 0 1px 3px #000;
-          "
-        >
-          4 TA GARAJ VA O'YINCHI ISHTIROK ETMOQDA
-        </div>
-      </div>
+
 
       <!-- Top Center Time & Killstreak Banner -->
       <div class="hud-top-center" style="top: 56px">
@@ -1940,6 +1853,32 @@
           <h2 class="modal-title">⚙️ SOZLAMALAR VA BOSHQARUV</h2>
 
           <div class="setting-group">
+            <div
+              class="setting-item"
+              style="
+                background: rgba(0, 240, 255, 0.08);
+                border: 1px solid rgba(0, 240, 255, 0.25);
+                border-radius: 8px;
+                padding: 10px 12px;
+                margin-bottom: 6px;
+              "
+            >
+              <span style="font-weight: 700; color: #fff">🔊 Ovoz & Karnay:</span>
+              <button class="btn-toggle-switch active" id="btnEscToggleSpeaker">YOQILGAN</button>
+            </div>
+            <div
+              class="setting-item"
+              style="
+                background: rgba(0, 240, 255, 0.08);
+                border: 1px solid rgba(0, 240, 255, 0.25);
+                border-radius: 8px;
+                padding: 10px 12px;
+                margin-bottom: 8px;
+              "
+            >
+              <span style="font-weight: 700; color: #fff">🎙️ Ovozli Chat (Mikrofon):</span>
+              <button class="btn-toggle-switch" id="btnEscToggleMic">O'CHIRILGAN</button>
+            </div>
             <div class="setting-item">
               <span>Musiqa Ovoz Balandligi:</span>
               <input type="range" id="sliderMusic" min="0" max="100" value="30" />
@@ -7566,12 +7505,11 @@ yuklanmoqda…</pre>
             }
           });
 
-          // Mic & Speaker: desktop HUD buttons + mobile circular buttons share one toggle each,
-          // so both stay in sync no matter which one the player taps.
+          // Mic & Speaker: desktop HUD + ESC Settings modal share state
           const micBtn = document.getElementById('hudBtnMic');
-          const mobileMicBtn = document.getElementById('mobileBtnMic');
           const spkBtn = document.getElementById('hudBtnSpeaker');
-          const mobileSpkBtn = document.getElementById('mobileBtnSpeaker');
+          const escMicBtn = document.getElementById('btnEscToggleMic');
+          const escSpkBtn = document.getElementById('btnEscToggleSpeaker');
 
           const toggleMic = async () => {
             audio.init();
@@ -7582,9 +7520,14 @@ yuklanmoqda…</pre>
                 this.micError = null;
                 console.log('[voice] mikrofon olindi, treklar:', stream.getAudioTracks().length);
                 this.micEnabled = true;
-                micBtn.textContent = '🎙️ MIC: ON';
-                micBtn.classList.add('active');
-                if (mobileMicBtn) mobileMicBtn.classList.remove('muted');
+                if (micBtn) {
+                  micBtn.textContent = '🎙️ MIC: ON';
+                  micBtn.classList.add('active');
+                }
+                if (escMicBtn) {
+                  escMicBtn.textContent = 'YOQILGAN';
+                  escMicBtn.classList.add('active');
+                }
                 this.addFloatingNotice('🎙️ Mikrofon yoqildi!');
                 this.refreshVoicePeerConnections();
               } catch (err) {
@@ -7596,22 +7539,30 @@ yuklanmoqda…</pre>
               this.micStream.getTracks().forEach((track) => track.stop());
               this.micStream = null;
               this.micEnabled = false;
-              micBtn.textContent = '🎙️ MIC: OFF';
-              micBtn.classList.remove('active');
-              if (mobileMicBtn) mobileMicBtn.classList.add('muted');
+              if (micBtn) {
+                micBtn.textContent = '🎙️ MIC: OFF';
+                micBtn.classList.remove('active');
+              }
+              if (escMicBtn) {
+                escMicBtn.textContent = "O'CHIRILGAN";
+                escMicBtn.classList.remove('active');
+              }
               this.addFloatingNotice("🎙️ Mikrofon o'chirildi");
               this.refreshVoicePeerConnections();
             }
           };
-          micBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            toggleMic();
-          });
-          if (mobileMicBtn)
-            mobileMicBtn.addEventListener('click', (e) => {
+          if (micBtn) {
+            micBtn.addEventListener('click', (e) => {
               e.stopPropagation();
               toggleMic();
             });
+          }
+          if (escMicBtn) {
+            escMicBtn.addEventListener('click', (e) => {
+              e.stopPropagation();
+              toggleMic();
+            });
+          }
 
           const toggleSpeaker = () => {
             this.speakerEnabled = !this.speakerEnabled;
@@ -7622,22 +7573,30 @@ yuklanmoqda…</pre>
                 audio.ctx.currentTime
               );
             }
-            spkBtn.textContent = this.speakerEnabled ? '🔊 KARNAY: ON' : '🔇 KARNAY: OFF';
-            spkBtn.classList.toggle('active', this.speakerEnabled);
-            if (mobileSpkBtn) mobileSpkBtn.classList.toggle('muted', !this.speakerEnabled);
+            if (spkBtn) {
+              spkBtn.textContent = this.speakerEnabled ? '🔊 KARNAY: ON' : '🔇 KARNAY: OFF';
+              spkBtn.classList.toggle('active', this.speakerEnabled);
+            }
+            if (escSpkBtn) {
+              escSpkBtn.textContent = this.speakerEnabled ? 'YOQILGAN' : "O'CHIRILGAN";
+              escSpkBtn.classList.toggle('active', this.speakerEnabled);
+            }
             const killFeedEl = document.getElementById('killFeed');
             if (killFeedEl) killFeedEl.style.display = this.speakerEnabled ? '' : 'none';
             this.addFloatingNotice(this.speakerEnabled ? '🔊 Ovoz yoqildi' : "🔇 Ovoz o'chirildi");
           };
-          spkBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            toggleSpeaker();
-          });
-          if (mobileSpkBtn)
-            mobileSpkBtn.addEventListener('click', (e) => {
+          if (spkBtn) {
+            spkBtn.addEventListener('click', (e) => {
               e.stopPropagation();
               toggleSpeaker();
             });
+          }
+          if (escSpkBtn) {
+            escSpkBtn.addEventListener('click', (e) => {
+              e.stopPropagation();
+              toggleSpeaker();
+            });
+          }
 
           document.getElementById('btnRespawn').addEventListener('click', () => {
             document.getElementById('gameOverModal').classList.remove('active');
@@ -8230,6 +8189,16 @@ yuklanmoqda…</pre>
 
           if (nextState) {
             modal.classList.add('active');
+            const escSpk = document.getElementById('btnEscToggleSpeaker');
+            if (escSpk) {
+              escSpk.textContent = this.speakerEnabled ? 'YOQILGAN' : "O'CHIRILGAN";
+              escSpk.classList.toggle('active', !!this.speakerEnabled);
+            }
+            const escMic = document.getElementById('btnEscToggleMic');
+            if (escMic) {
+              escMic.textContent = this.micEnabled ? 'YOQILGAN' : "O'CHIRILGAN";
+              escMic.classList.toggle('active', !!this.micEnabled);
+            }
             this.player.isAfk = true;
             this.player.vx = 0;
             this.player.vy = 0;

@@ -143,3 +143,26 @@ Sizga: oddiy tilda hisobot — "Tayyor, ro'yxatdan o'tish qo'shildi, testlar o't
 ## 5. 🌐 Deployment (o'zgarishsiz)
 
 Kod → GitHub (`asaas0303-lang`) → Render yoki Railway orqali avtomatik deploy. Deploy'dan oldin har doim ESLint/Prettier tekshiruvi va (kerak bo'lsa) Claude Security skanidan o'tkaziladi.
+
+---
+
+## 6. 🛠 Maxsus Vositalar va Ularni O'z O'rnida Ishlatish Qat'iy Qoidalari
+
+Har qanday loyihada har bir vosita faqat o'zining aniq maqsadiga muvofiq qo'llanilishi shart:
+
+### 🎨 1) Dizayn va UI/UX:
+- **Tailwind CSS & Framer Motion Generator:** Promt orqali zamonaviy to'q rangli (dark mode), neon/glassmorphism va silliq animatsiyali veb-saytlar va portfoliolar yaratishda qo'llaniladi.
+- **AI UI Components (Shadcn / v0):** Ochiladigan modallar, formalar va boshqaruv panellarini noldan chizmasdan, to'liq a11y standartlariga mos holda tezkor yaratish.
+
+### 📱 2) Telegram Web Apps (TWA) va Botlar:
+- **Telegram Web Apps SDK:** To'liq ekran (`requestFullscreen`), qulay orientatsiya boshqaruvi va tizimli tugmalarga (`X Yopish`) xalaqit bermaydigan Safe-Area joylashuv.
+- **NestJS & Telegraf Visualizer:** Telegram botlar va Prisma DB mantiqini modulli va xavfsiz boshqarish.
+
+### 🎮 3) 3D O'yinlar (Three.js & WebGL):
+- **Three.js / WebGL Inspector:** 3D jang maydoni, tank modellari, realistik soyalar va TPS kameralarni kalibrlash.
+- **Touch & Mobile Controls:** Telefon 90° burilganda (forced landscape) joystik koordinatalarini matematik to'g'ri hisoblash va silliq harakat (LERP).
+
+### 📦 4) APK va Mobil Ilovalar:
+- **Capacitor / Cordova Wrapper:** Veb/Canvas o'yinni alohida Android kod yozmasdan, bitta buyruq bilan mustaqil APK ga aylantirish.
+- **Flutter Code Generator:** Kross-platforma mobil ilovalarni Clean Architecture asosida kengaytirish.
+

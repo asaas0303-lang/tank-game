@@ -17,6 +17,38 @@
     <title>AAA 2D Tank Battle Arena - Sektorlar & Hududlar Tizimi</title>
     <!-- Telegram Mini App SDK -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script>
+      (function () {
+        function setupTelegram() {
+          if (window.Telegram && window.Telegram.WebApp) {
+            const tg = window.Telegram.WebApp;
+            try {
+              tg.ready();
+              tg.expand();
+              if (typeof tg.requestFullscreen === 'function') {
+                tg.requestFullscreen();
+              }
+              if (typeof tg.lockOrientation === 'function') {
+                tg.lockOrientation('landscape');
+              }
+              if (typeof tg.disableVerticalSwipes === 'function') {
+                tg.disableVerticalSwipes();
+              }
+              if (tg.setHeaderColor) tg.setHeaderColor('#060913');
+              if (tg.setBackgroundColor) tg.setBackgroundColor('#060913');
+            } catch (e) {
+              console.warn('Telegram setup error:', e);
+            }
+          }
+          if (screen.orientation && typeof screen.orientation.lock === 'function') {
+            screen.orientation.lock('landscape').catch(() => {});
+          }
+        }
+        setupTelegram();
+        window.addEventListener('pointerdown', setupTelegram, { passive: true });
+        window.addEventListener('touchstart', setupTelegram, { passive: true });
+      })();
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -1510,10 +1542,13 @@
         max-width: 320px;
       }
 
-      /* Orientation query: show rotate prompt when in portrait mode */
+      /* Orientation query: rotate prompt overlay completely disabled for Telegram Web App */
+      .rotate-prompt-overlay {
+        display: none !important;
+      }
       @media screen and (orientation: portrait) {
         .rotate-prompt-overlay {
-          display: flex !important;
+          display: none !important;
         }
       }
 
@@ -7625,6 +7660,12 @@ yuklanmoqda…</pre>
               const tg = window.Telegram.WebApp;
               tg.ready();
               tg.expand();
+              if (typeof tg.requestFullscreen === 'function') {
+                tg.requestFullscreen();
+              }
+              if (typeof tg.lockOrientation === 'function') {
+                tg.lockOrientation('landscape');
+              }
               if (typeof tg.disableVerticalSwipes === 'function') {
                 tg.disableVerticalSwipes();
               }

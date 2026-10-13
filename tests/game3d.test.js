@@ -35,7 +35,10 @@ describe('Tank Game 3D & Security Verification', () => {
   });
 
   test('WW2 Battlefield has 4 garages configured', () => {
-    const mapContent = fs.readFileSync(path.join(__dirname, '..', 'src', '3d', 'BattlefieldMap.js'), 'utf8');
+    const mapContent = fs.readFileSync(
+      path.join(__dirname, '..', 'src', '3d', 'BattlefieldMap.js'),
+      'utf8'
+    );
     expect(mapContent).toContain('GARAJ 1');
     expect(mapContent).toContain('GARAJ 2');
     expect(mapContent).toContain('GARAJ 3');

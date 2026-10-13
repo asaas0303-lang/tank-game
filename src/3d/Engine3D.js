@@ -13,8 +13,10 @@ import { BattlefieldMap3D } from './BattlefieldMap.js';
 export class Engine3D {
   constructor(canvasContainer) {
     this.container = canvasContainer || document.getElementById('game-container') || document.body;
-    this.width = window.innerWidth;
-    this.height = window.innerHeight;
+    // When portrait is CSS-rotated to landscape, swap width/height
+    const isPortrait = window._forcedLandscape || (window.innerHeight > window.innerWidth);
+    this.width = isPortrait ? window.innerHeight : window.innerWidth;
+    this.height = isPortrait ? window.innerWidth : window.innerHeight;
 
     // 1. Scene
     this.scene = new THREE.Scene();
@@ -103,8 +105,10 @@ export class Engine3D {
   }
 
   onResize() {
-    this.width = window.innerWidth;
-    this.height = window.innerHeight;
+    // When portrait is CSS-rotated to landscape, swap width/height
+    const isPortrait = window._forcedLandscape || (window.innerHeight > window.innerWidth);
+    this.width = isPortrait ? window.innerHeight : window.innerWidth;
+    this.height = isPortrait ? window.innerWidth : window.innerHeight;
     this.camera.aspect = this.width / this.height;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(this.width, this.height);

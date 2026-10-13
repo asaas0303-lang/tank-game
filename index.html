@@ -19,21 +19,20 @@
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script>
       (function () {
+        /* ===== Telegram WebApp Setup ===== */
         function setupTelegram() {
           if (window.Telegram && window.Telegram.WebApp) {
-            const tg = window.Telegram.WebApp;
+            var tg = window.Telegram.WebApp;
             try {
               tg.ready();
               tg.expand();
-              if (typeof tg.requestFullscreen === 'function') {
-                tg.requestFullscreen();
+              if (typeof tg.requestFullscreen === 'function') tg.requestFullscreen();
+              if (window.innerWidth > window.innerHeight) {
+                if (typeof tg.lockOrientation === 'function') tg.lockOrientation();
+              } else {
+                if (typeof tg.unlockOrientation === 'function') tg.unlockOrientation();
               }
-              if (typeof tg.lockOrientation === 'function') {
-                tg.lockOrientation('landscape');
-              }
-              if (typeof tg.disableVerticalSwipes === 'function') {
-                tg.disableVerticalSwipes();
-              }
+              if (typeof tg.disableVerticalSwipes === 'function') tg.disableVerticalSwipes();
               if (tg.setHeaderColor) tg.setHeaderColor('#060913');
               if (tg.setBackgroundColor) tg.setBackgroundColor('#060913');
             } catch (e) {
@@ -41,12 +40,73 @@
             }
           }
           if (screen.orientation && typeof screen.orientation.lock === 'function') {
-            screen.orientation.lock('landscape').catch(() => {});
+            screen.orientation.lock('landscape').catch(function(){});
+          }
+          if (document.documentElement && document.documentElement.requestFullscreen && !document.fullscreenElement) {
+            document.documentElement.requestFullscreen().catch(function(){});
           }
         }
         setupTelegram();
         window.addEventListener('pointerdown', setupTelegram, { passive: true });
         window.addEventListener('touchstart', setupTelegram, { passive: true });
+
+        /* ===== FORCED LANDSCAPE via JS Transform ===== */
+        window._forcedLandscape = false; // global flag for canvas/resize code
+
+        function applyForcedLandscape() {
+          var w = window.innerWidth;
+          var h = window.innerHeight;
+          var isPortrait = h > w;
+          var container = document.getElementById('game-container');
+          if (!container) return;
+
+          if (isPortrait) {
+            window._forcedLandscape = true;
+            container.style.width = h + 'px';
+            container.style.height = w + 'px';
+            container.style.transform = 'rotate(90deg)';
+            container.style.transformOrigin = '0 0';
+            container.style.position = 'absolute';
+            container.style.top = '0';
+            container.style.left = w + 'px';
+            container.style.overflow = 'hidden';
+          } else {
+            window._forcedLandscape = false;
+            container.style.width = '100vw';
+            container.style.height = '100vh';
+            container.style.transform = '';
+            container.style.transformOrigin = '';
+            container.style.position = 'relative';
+            container.style.top = '';
+            container.style.left = '';
+            container.style.overflow = 'hidden';
+          }
+        }
+
+        // Run on DOMContentLoaded + resize + orientationchange
+        function onLayoutChange() {
+          applyForcedLandscape();
+          setupTelegram();
+          // Trigger game resize if available
+          if (window.game && typeof window.game.resize === 'function') {
+            window.game.resize();
+          }
+          if (window.engine3D && typeof window.engine3D.onResize === 'function') {
+            window.engine3D.onResize();
+          }
+        }
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', function() {
+            applyForcedLandscape();
+            setTimeout(onLayoutChange, 300);
+          });
+        } else {
+          applyForcedLandscape();
+        }
+        window.addEventListener('resize', onLayoutChange);
+        window.addEventListener('orientationchange', function() {
+          setTimeout(onLayoutChange, 200);
+        });
       })();
     </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -132,7 +192,14 @@
       body {
         width: 100%;
         height: 100%;
-        overflow: hidden;
+        max-width: 100vw;
+        max-height: 100vh;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        overflow: hidden !important;
         overscroll-behavior: none;
         touch-action: none;
         background-color: var(--bg-dark);
@@ -148,6 +215,8 @@
         overscroll-behavior: none;
         touch-action: none;
       }
+
+      /* Forced landscape rotation is handled via JavaScript (see early JS script block) */
 
       canvas {
         display: block;
@@ -1542,14 +1611,9 @@
         max-width: 320px;
       }
 
-      /* Orientation query: rotate prompt overlay completely disabled for Telegram Web App */
+      /* Orientation: rotate prompt hidden — game auto-rotates via CSS transform */
       .rotate-prompt-overlay {
         display: none !important;
-      }
-      @media screen and (orientation: portrait) {
-        .rotate-prompt-overlay {
-          display: none !important;
-        }
       }
 
       /* Safe-Area Aware and Compact Mobile HUD */
@@ -7663,8 +7727,10 @@ yuklanmoqda…</pre>
               if (typeof tg.requestFullscreen === 'function') {
                 tg.requestFullscreen();
               }
-              if (typeof tg.lockOrientation === 'function') {
-                tg.lockOrientation('landscape');
+              if (window.innerWidth > window.innerHeight) {
+                if (typeof tg.lockOrientation === 'function') tg.lockOrientation();
+              } else {
+                if (typeof tg.unlockOrientation === 'function') tg.unlockOrientation();
               }
               if (typeof tg.disableVerticalSwipes === 'function') {
                 tg.disableVerticalSwipes();
@@ -7849,10 +7915,13 @@ yuklanmoqda…</pre>
               rightCenter.y = r.top + r.height / 2;
             }
           };
+          this.updateJoystickCenters = updateCenters;
 
           const handleLeftMove = (clientX, clientY) => {
-            let dx = clientX - leftCenter.x;
-            let dy = clientY - leftCenter.y;
+            const screenDx = clientX - leftCenter.x;
+            const screenDy = clientY - leftCenter.y;
+            let dx = window._forcedLandscape ? screenDy : screenDx;
+            let dy = window._forcedLandscape ? -screenDx : screenDy;
             const dist = Math.hypot(dx, dy);
 
             if (dist > maxRadius) {
@@ -7924,8 +7993,10 @@ yuklanmoqda…</pre>
           }
 
           const handleRightMove = (clientX, clientY) => {
-            let dx = clientX - rightCenter.x;
-            let dy = clientY - rightCenter.y;
+            const screenDx = clientX - rightCenter.x;
+            const screenDy = clientY - rightCenter.y;
+            let dx = window._forcedLandscape ? screenDy : screenDx;
+            let dy = window._forcedLandscape ? -screenDx : screenDy;
             const dist = Math.hypot(dx, dy);
 
             if (dist > maxRadius) {
@@ -8136,6 +8207,12 @@ yuklanmoqda…</pre>
           }
 
           window.addEventListener('resize', updateCenters);
+          window.addEventListener('orientationchange', () => {
+            setTimeout(() => {
+              updateCenters();
+              this.resize();
+            }, 150);
+          });
           setTimeout(updateCenters, 200);
         }
 
@@ -8174,19 +8251,27 @@ yuklanmoqda…</pre>
 
         resize() {
           const dpr = window.devicePixelRatio || 1;
-          this.canvas.width = window.innerWidth * dpr;
-          this.canvas.height = window.innerHeight * dpr;
+          // When JS has rotated the container for forced landscape, swap dimensions
+          const isPortrait = window._forcedLandscape === true;
+          const vw = isPortrait ? window.innerHeight : window.innerWidth;
+          const vh = isPortrait ? window.innerWidth : window.innerHeight;
+
+          this.canvas.width = vw * dpr;
+          this.canvas.height = vh * dpr;
           this.ctx.resetTransform();
           this.ctx.scale(dpr, dpr);
 
-          this.lightCanvas.width = window.innerWidth;
-          this.lightCanvas.height = window.innerHeight;
+          this.lightCanvas.width = vw;
+          this.lightCanvas.height = vh;
 
-          this.viewWidth = window.innerWidth;
-          this.viewHeight = window.innerHeight;
+          this.viewWidth = vw;
+          this.viewHeight = vh;
 
           if (window.engine3D && typeof window.engine3D.onResize === 'function') {
             window.engine3D.onResize();
+          }
+          if (typeof this.updateJoystickCenters === 'function') {
+            this.updateJoystickCenters();
           }
         }
 
@@ -8280,13 +8365,25 @@ yuklanmoqda…</pre>
             this.keys[e.code] = false;
           });
           window.addEventListener('mousemove', (e) => {
-            this.mouse.x = e.clientX;
-            this.mouse.y = e.clientY;
+            if (window._forcedLandscape) {
+              this.mouse.x = e.clientY;
+              this.mouse.y = window.innerWidth - e.clientX;
+            } else {
+              this.mouse.x = e.clientX;
+              this.mouse.y = e.clientY;
+            }
             audio.init();
           });
 
           window.addEventListener('mousedown', (e) => {
             if (e.button === 0) {
+              if (window._forcedLandscape) {
+                this.mouse.x = e.clientY;
+                this.mouse.y = window.innerWidth - e.clientX;
+              } else {
+                this.mouse.x = e.clientX;
+                this.mouse.y = e.clientY;
+              }
               const modal = document.getElementById('escModal');
               if (!modal || !modal.classList.contains('active')) {
                 this.mouse.isDown = true;

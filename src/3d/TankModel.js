@@ -56,22 +56,22 @@ export class TankModel3D {
 
   static createBadgeTexture(name = 'Player', hpPercent = 1.0, colorHex = '#00ff88') {
     const canvas = document.createElement('canvas');
-    canvas.width = 256;
-    canvas.height = 64;
+    canvas.width = 384;
+    canvas.height = 96;
     const ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, 256, 64);
+    ctx.clearRect(0, 0, 384, 96);
 
-    // Background capsule badge
-    ctx.fillStyle = 'rgba(10, 16, 28, 0.88)';
+    // Background sleek dark capsule badge
+    ctx.fillStyle = 'rgba(8, 14, 24, 0.88)';
     ctx.strokeStyle = colorHex;
-    ctx.lineWidth = 2.5;
+    ctx.lineWidth = 3;
 
     // Rounded rectangle
-    const r = 10,
-      w = 250,
-      h = 58,
-      x = 3,
-      y = 3;
+    const r = 16,
+      w = 376,
+      h = 88,
+      x = 4,
+      y = 4;
     ctx.beginPath();
     ctx.moveTo(x + r, y);
     ctx.lineTo(x + w - r, y);
@@ -86,20 +86,44 @@ export class TankModel3D {
     ctx.fill();
     ctx.stroke();
 
-    // Name text
+    // Icon & Player Name
+    const cleanName = (name || 'Tank').toUpperCase().slice(0, 14);
     ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 20px "Rajdhani", sans-serif';
+    ctx.font = 'bold 30px "Rajdhani", sans-serif, system-ui';
     ctx.textAlign = 'left';
-    ctx.fillText('👤 ' + name.toUpperCase().slice(0, 12), 16, 26);
+    ctx.textBaseline = 'middle';
+    ctx.fillText('👤 ' + cleanName, 22, 36);
 
-    // HP Bar background
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
-    ctx.fillRect(16, 36, 224, 14);
+    // HP Percentage text on right
+    const roundedHp = Math.max(0, Math.min(100, Math.round(hpPercent * 100)));
+    ctx.fillStyle = colorHex;
+    ctx.font = 'bold 24px monospace';
+    ctx.textAlign = 'right';
+    ctx.fillText(`${roundedHp}%`, 362, 36);
+
+    // HP Bar background track
+    const barX = 22,
+      barY = 62,
+      barW = 340,
+      barH = 14;
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.12)';
+    ctx.beginPath();
+    ctx.roundRect ? ctx.roundRect(barX, barY, barW, barH, 7) : ctx.rect(barX, barY, barW, barH);
+    ctx.fill();
+
+    // Dynamic HP Color (green -> amber -> crimson)
+    let hpColor = colorHex;
+    if (roundedHp <= 25) hpColor = '#ff2a5f';
+    else if (roundedHp <= 50) hpColor = '#ffaa00';
 
     // HP Bar fill
-    ctx.fillStyle = colorHex;
-    const fillW = Math.max(0, Math.min(224, 224 * hpPercent));
-    ctx.fillRect(16, 36, fillW, 14);
+    const fillW = Math.max(0, Math.min(barW, barW * hpPercent));
+    if (fillW > 0) {
+      ctx.fillStyle = hpColor;
+      ctx.beginPath();
+      ctx.roundRect ? ctx.roundRect(barX, barY, fillW, barH, 7) : ctx.rect(barX, barY, fillW, barH);
+      ctx.fill();
+    }
 
     const texture = new THREE.CanvasTexture(canvas);
     texture.colorSpace = THREE.SRGBColorSpace;
@@ -397,8 +421,8 @@ export class TankModel3D {
       depthTest: false,
     });
     const badgeSprite = new THREE.Sprite(badgeMat);
-    badgeSprite.scale.set(4.2, 1.05, 1);
-    badgeSprite.position.set(0, 3.6, 0);
+    badgeSprite.scale.set(1.7, 0.425, 1);
+    badgeSprite.position.set(0, 2.65, 0);
     root.add(badgeSprite);
 
     return {

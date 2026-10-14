@@ -130,31 +130,46 @@ function updateRoomHost(room) {
 function assignBotSpawns(room) {
   if (!room.sectors || room.sectors.length === 0) return false;
   let assigned = false;
+
+  const garageSpawns = {
+    A1: { x: 99, y: 99 },
+    A2: { x: 1201, y: 99 },
+    B1: { x: 99, y: 1201 },
+    B2: { x: 1201, y: 1201 },
+  };
+
+  // Inson o'yinchilarning shaxsiy garajlari -- botlar bu yerga MUTLAQO tushmasligi shart
+  const humanSectorIds = new Set();
+  for (const pid of room.players) {
+    const sec = room.sectors.find((s) => s.ownerPlayerId === pid);
+    if (sec) humanSectorIds.add(sec.id);
+  }
+  // Boshlang'ich yoki asosiy o'yinchi har doim A1 ga ega bo'ladi
+  humanSectorIds.add('A1');
+
   for (const bot of room.bots) {
     if (typeof bot.x === 'number' && typeof bot.y === 'number') continue;
     assigned = true;
-    const used = new Set(room.bots.map((b) => b.sectorId).filter(Boolean));
-    // O'yinchi egallagan sektorlarni ham chetlab o'tamiz -- hozir bu tekshiruv yo'q,
-    // shuning uchun bot to'g'ridan-to'g'ri o'yinchining tug'ilish nuqtasiga tushardi.
-    let pool = room.sectors.filter(
-      (s) => !used.has(s.id) && !(s.ownerPlayerId && players.has(s.ownerPlayerId))
+
+    // Boshqa botlar band qilgan sektorlar
+    const usedSectorIds = new Set(room.bots.map((b) => b.sectorId).filter(Boolean));
+
+    // Inson o'yinchisiz va bo'sh bo'lgan garajlar (A2, B1, B2)
+    const availableGarages = ['A2', 'B1', 'B2'].filter(
+      (sid) => !humanSectorIds.has(sid) && !usedSectorIds.has(sid)
     );
-    if (pool.length === 0) pool = room.sectors.filter((s) => !used.has(s.id));
-    if (pool.length === 0) pool = room.sectors;
-    const sec = pool[Math.floor(Math.random() * pool.length)];
-    const garageSpawns = {
-      A1: { x: 99, y: 99 },
-      A2: { x: 1201, y: 99 },
-      B1: { x: 99, y: 1201 },
-      B2: { x: 1201, y: 1201 },
-    };
-    bot.sectorId = sec.id;
-    if (garageSpawns[sec.id]) {
-      bot.x = garageSpawns[sec.id].x;
-      bot.y = garageSpawns[sec.id].y;
+
+    if (availableGarages.length > 0) {
+      const chosenGarage = availableGarages[0];
+      bot.sectorId = chosenGarage;
+      bot.x = garageSpawns[chosenGarage].x;
+      bot.y = garageSpawns[chosenGarage].y;
     } else {
-      bot.x = sec.x + sec.w / 2 + (Math.random() - 0.5) * 60;
-      bot.y = sec.y + sec.h / 2 + (Math.random() - 0.5) * 60;
+      // Barcha garajlar band bo'lsa -- jang maydonining ochiq taktik arenasida tug'ilsin
+      const neutralSec = room.sectors.find((s) => !humanSectorIds.has(s.id)) || room.sectors[0];
+      bot.sectorId = neutralSec.id;
+      bot.x = neutralSec.x + neutralSec.w / 2 + (Math.random() - 0.5) * 80;
+      bot.y = neutralSec.y + neutralSec.h / 2 + (Math.random() - 0.5) * 80;
     }
   }
   return assigned;

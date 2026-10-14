@@ -82,6 +82,17 @@ export class Engine3D {
     window.addEventListener('resize', () => this.onResize());
   }
 
+  onResize() {
+    if (!this.container || !this.renderer || !this.camera) return;
+    const w = this.container.clientWidth || window.innerWidth;
+    const h = this.container.clientHeight || window.innerHeight;
+    this.width = w;
+    this.height = h;
+    this.camera.aspect = w / h;
+    this.camera.updateProjectionMatrix();
+    this.renderer.setSize(w, h, false);
+  }
+
   setupLighting() {
     // Ambient light
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.85);
@@ -402,27 +413,80 @@ export class Engine3D {
       }
     }
 
-    // 5. Synchronize 3D Bullets
+    // 5. Synchronize 3D Bullets (Realistic AP Sabot Projectile with Radiant Tracer Streak)
     const activeBullets = game.bullets || [];
     while (this.bulletMeshes.length < activeBullets.length) {
-      const bGeo = new THREE.CylinderGeometry(0.1, 0.1, 0.8, 8);
-      bGeo.rotateX(Math.PI / 2);
-      const bMat = new THREE.MeshBasicMaterial({ color: 0xffe066 });
-      const bMesh = new THREE.Mesh(bGeo, bMat);
-      this.scene.add(bMesh);
-      this.bulletMeshes.push(bMesh);
+      const bGroup = new THREE.Group();
+
+      // Main Steel Penetrater Core
+      const bodyGeo = new THREE.CylinderGeometry(0.09, 0.09, 0.62, 10);
+      bodyGeo.rotateX(Math.PI / 2);
+      const bodyMat = new THREE.MeshStandardMaterial({
+        color: 0x3e4249,
+        metalness: 0.9,
+        roughness: 0.25,
+      });
+      const body = new THREE.Mesh(bodyGeo, bodyMat);
+      body.position.z = 0.05;
+      bGroup.add(body);
+
+      // Copper Driving Band
+      const bandGeo = new THREE.CylinderGeometry(0.105, 0.105, 0.12, 10);
+      bandGeo.rotateX(Math.PI / 2);
+      const bandMat = new THREE.MeshStandardMaterial({
+        color: 0xbf6c3b,
+        metalness: 0.85,
+        roughness: 0.3,
+      });
+      const band = new THREE.Mesh(bandGeo, bandMat);
+      band.position.z = -0.15;
+      bGroup.add(band);
+
+      // Aerodynamic Ballistic Nose Cone (Sharp Brass Tip)
+      const noseGeo = new THREE.ConeGeometry(0.09, 0.32, 10);
+      noseGeo.rotateX(Math.PI / 2);
+      const noseMat = new THREE.MeshStandardMaterial({
+        color: 0xd4a559,
+        metalness: 0.8,
+        roughness: 0.25,
+      });
+      const nose = new THREE.Mesh(noseGeo, noseMat);
+      nose.position.z = 0.48;
+      bGroup.add(nose);
+
+      // Incandescent Tracer Glow at Aft
+      const flareGeo = new THREE.SphereGeometry(0.11, 8, 8);
+      const flareMat = new THREE.MeshBasicMaterial({ color: 0xffdf55 });
+      const flare = new THREE.Mesh(flareGeo, flareMat);
+      flare.position.z = -0.28;
+      bGroup.add(flare);
+
+      // Radiant High-Velocity Tracer Streak Tail
+      const tailGeo = new THREE.ConeGeometry(0.08, 1.35, 8);
+      tailGeo.rotateX(-Math.PI / 2);
+      const tailMat = new THREE.MeshBasicMaterial({
+        color: 0xff5500,
+        transparent: true,
+        opacity: 0.8,
+      });
+      const tail = new THREE.Mesh(tailGeo, tailMat);
+      tail.position.z = -0.95;
+      bGroup.add(tail);
+
+      this.scene.add(bGroup);
+      this.bulletMeshes.push(bGroup);
     }
     for (let i = 0; i < this.bulletMeshes.length; i++) {
-      const mesh = this.bulletMeshes[i];
+      const bObj = this.bulletMeshes[i];
       if (i < activeBullets.length) {
         const b = activeBullets[i];
         const b3D = this.to3DCoords(b.x, b.y, worldW, worldH);
-        mesh.position.set(b3D.x, 0.95, b3D.z);
+        bObj.position.set(b3D.x, 0.95, b3D.z);
         const bRot = Math.atan2(b.vx || 1, b.vy || 0);
-        mesh.rotation.y = bRot;
-        mesh.visible = true;
+        bObj.rotation.y = bRot;
+        bObj.visible = true;
       } else {
-        mesh.visible = false;
+        bObj.visible = false;
       }
     }
 

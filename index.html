@@ -993,12 +993,76 @@
         animation: modalPop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
       }
 
-      /* Telefon yotiq holatda (masalan 740x360) sozlamalar modali ekrandan baland
-       bo'lib qoladi, `overflow: visible` bo'lgani uchun uni aylantirib bo'lmasdi --
-       pastdagi ovoz diagnostikasi paneli ko'rinmay qolardi. Faqat SHU modalga. */
+      /* Sleek & Compact Settings Modal */
       #escModal .modal-box {
-        max-height: 92vh;
+        max-width: 420px;
+        width: 88%;
+        max-height: 86vh;
+        padding: 14px 18px;
+        background: rgba(10, 16, 28, 0.95);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border: 1px solid rgba(0, 240, 255, 0.4);
+        border-radius: 14px;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.85);
         overflow-y: auto;
+      }
+      #escModal .modal-title {
+        font-size: 15px;
+        margin-bottom: 10px;
+        letter-spacing: 0.5px;
+      }
+      #escModal .setting-group {
+        gap: 6px;
+        margin-bottom: 12px;
+      }
+      #escModal .setting-item {
+        font-size: 11px;
+        font-weight: 600;
+        padding: 3px 6px;
+      }
+      #escModal .setting-item input[type='range'] {
+        width: 105px;
+        height: 5px;
+      }
+      #escModal .btn-toggle-switch {
+        font-size: 10px;
+        padding: 3px 8px;
+        border-radius: 5px;
+      }
+      #escModal .btn-modal-primary {
+        font-size: 12px;
+        padding: 8px 18px;
+        border-radius: 6px;
+      }
+
+      /* Respawn Killer Elimination Banner */
+      .respawn-killer-card {
+        background: rgba(160, 20, 50, 0.28);
+        border: 1px solid rgba(255, 42, 95, 0.65);
+        border-radius: 12px;
+        padding: 8px 22px;
+        margin-bottom: 16px;
+        text-align: center;
+        box-shadow: 0 0 25px rgba(255, 42, 95, 0.4);
+        animation: modalPop 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      }
+      .respawn-killer-badge {
+        font-family: 'Orbitron', monospace;
+        font-size: 10px;
+        font-weight: 800;
+        color: #ff2a5f;
+        letter-spacing: 2px;
+        margin-bottom: 2px;
+        text-shadow: 0 0 8px rgba(255, 42, 95, 0.8);
+      }
+      .respawn-killer-name {
+        font-family: 'Rajdhani', sans-serif;
+        font-size: 20px;
+        font-weight: 900;
+        color: #ffffff;
+        letter-spacing: 1px;
+        text-shadow: 0 0 10px rgba(255, 255, 255, 0.6);
       }
 
       @keyframes modalPop {
@@ -1981,32 +2045,32 @@
           <div class="modal-actions">
             <button class="btn-modal-primary" id="btnCloseEsc">JANGGA QAYTISH</button>
           </div>
-          <div
+          <details
             style="
-              margin-top: 12px;
-              padding: 8px;
-              border: 1px solid rgba(0, 240, 255, 0.35);
+              margin-top: 8px;
+              padding: 6px 10px;
+              border: 1px solid rgba(0, 240, 255, 0.25);
               border-radius: 6px;
-              background: rgba(0, 0, 0, 0.5);
+              background: rgba(0, 0, 0, 0.4);
             "
           >
-            <div style="font: bold 11px monospace; color: #00f0ff; margin-bottom: 6px">
-              🎙️ OVOZ DIAGNOSTIKASI
-            </div>
+            <summary style="font: bold 10px monospace; color: #00f0ff; cursor: pointer; outline: none;">
+              🎙️ OVOZ VA TIZIM DIAGNOSTIKASI (Ko'rish uchun bosing)
+            </summary>
             <pre
               id="voiceDiagBox"
               style="
-                margin: 0;
-                font: 10px/1.35 monospace;
+                margin: 6px 0 0 0;
+                font: 9px/1.35 monospace;
                 color: #cfe8ff;
                 white-space: pre-wrap;
                 word-break: break-all;
-                max-height: 45vh;
+                max-height: 25vh;
                 overflow-y: auto;
               "
             >
 yuklanmoqda…</pre>
-          </div>
+          </details>
           <div
             style="
               text-align: center;
@@ -2083,6 +2147,10 @@ yuklanmoqda…</pre>
 
       <!-- RESPAWN 3.. 2.. 1.. COUNTDOWN OVERLAY -->
       <div class="respawn-modal" id="respawnModal">
+        <div class="respawn-killer-card" id="respawnKillerCard" style="display: none;">
+          <div class="respawn-killer-badge">💀 SIZNI YO'Q QILDI:</div>
+          <div class="respawn-killer-name" id="respawnKillerName">DUSHMAN TANKI</div>
+        </div>
         <div class="respawn-title">★ QAYTA JANGGA TAYYORLANMOQDA... ★</div>
         <div class="respawn-timer-circle">
           <span class="respawn-count" id="respawnCount">3</span>
@@ -2376,21 +2444,21 @@ yuklanmoqda…</pre>
             this.engineMasterGain.gain.setValueAtTime(this.engineEnabled ? 1.0 : 0, now);
             this.engineMasterGain.connect(this.sfxGain);
 
-            // Layer 1: Low-Frequency Piston Rumble (Sawtooth + Triangle, 38Hz - 75Hz)
+            // Layer 1: Low-Frequency Heavy Diesel Rumble (Sawtooth + Triangle, 26Hz - 54Hz)
             this.enginePistonOsc = this.ctx.createOscillator();
             this.enginePistonOsc.type = 'sawtooth';
-            this.enginePistonOsc.frequency.setValueAtTime(38, now);
+            this.enginePistonOsc.frequency.setValueAtTime(28, now);
 
             this.engineSubOsc = this.ctx.createOscillator();
             this.engineSubOsc.type = 'triangle';
-            this.engineSubOsc.frequency.setValueAtTime(76, now);
+            this.engineSubOsc.frequency.setValueAtTime(56, now);
 
             this.enginePistonFilter = this.ctx.createBiquadFilter();
             this.enginePistonFilter.type = 'lowpass';
-            this.enginePistonFilter.frequency.setValueAtTime(170, now);
+            this.enginePistonFilter.frequency.setValueAtTime(220, now);
 
             this.enginePistonGain = this.ctx.createGain();
-            this.enginePistonGain.gain.setValueAtTime(0.06, now);
+            this.enginePistonGain.gain.setValueAtTime(0.12, now);
 
             this.enginePistonOsc.connect(this.enginePistonFilter);
             this.engineSubOsc.connect(this.enginePistonFilter);
@@ -2410,7 +2478,7 @@ yuklanmoqda…</pre>
               this.trackNoiseFilter = this.ctx.createBiquadFilter();
               this.trackNoiseFilter.type = 'bandpass';
               this.trackNoiseFilter.frequency.setValueAtTime(1100, now);
-              this.trackNoiseFilter.Q.setValueAtTime(3.5, now);
+              this.trackNoiseFilter.Q.setValueAtTime(2.8, now);
 
               this.trackNoiseGain = this.ctx.createGain();
               this.trackNoiseGain.gain.setValueAtTime(0, now); // Silent when stationary
@@ -2444,19 +2512,19 @@ yuklanmoqda…</pre>
           const now = this.ctx.currentTime;
           const clampedSpeed = Math.max(0, Math.min(1.2, speedRatio || 0));
 
-          // Layer 1: Piston Rumble (38Hz idle up to 75Hz at full speed)
-          const targetPistonFreq = 38 + clampedSpeed * 37;
-          const targetPistonGain = 0.05 + clampedSpeed * 0.08;
-          this.enginePistonOsc.frequency.setTargetAtTime(targetPistonFreq, now, 0.06);
-          this.engineSubOsc.frequency.setTargetAtTime(targetPistonFreq * 2, now, 0.06);
-          this.enginePistonGain.gain.setTargetAtTime(targetPistonGain, now, 0.06);
+          // Layer 1: Heavy Diesel Throttle & Compression (28Hz idle up to 56Hz at full speed)
+          const targetPistonFreq = 28 + clampedSpeed * 28;
+          const targetPistonGain = isMoving ? 0.18 + clampedSpeed * 0.16 : 0.11;
+          this.enginePistonOsc.frequency.setTargetAtTime(targetPistonFreq, now, 0.05);
+          this.engineSubOsc.frequency.setTargetAtTime(targetPistonFreq * 2, now, 0.05);
+          this.enginePistonGain.gain.setTargetAtTime(targetPistonGain, now, 0.05);
 
-          // Layer 2: Caterpillar Track Friction (scaled with movement speed & turning)
+          // Layer 2: Caterpillar Track Steel Link Friction & Clatter
           if (this.trackNoiseGain && this.trackNoiseFilter) {
-            const trackActivity = isMoving ? clampedSpeed * 0.14 : isTurning ? 0.08 : 0;
-            const targetFilterFreq = 950 + clampedSpeed * 450;
-            this.trackNoiseFilter.frequency.setTargetAtTime(targetFilterFreq, now, 0.08);
-            this.trackNoiseGain.gain.setTargetAtTime(trackActivity, now, 0.06);
+            const trackActivity = isMoving ? 0.08 + clampedSpeed * 0.16 : isTurning ? 0.14 : 0;
+            const targetFilterFreq = 900 + clampedSpeed * 550;
+            this.trackNoiseFilter.frequency.setTargetAtTime(targetFilterFreq, now, 0.06);
+            this.trackNoiseGain.gain.setTargetAtTime(trackActivity, now, 0.05);
           }
 
           // Layer 3: Nitro Turbine Whine (Sine sweep 300Hz -> 750Hz)
@@ -2845,45 +2913,84 @@ yuklanmoqda…</pre>
           };
         }
 
-        // SPATIALIZED SHOOT SOUND
+        // SPATIALIZED REAL TANK CANNON BLAST SOUND
         playShoot(weapon = 'standard', isPlayer = true, x = null, y = null) {
           if (!this.ctx) return;
-          const spatial = this.createSpatialPipeline(x, y, isPlayer ? 1.0 : 0.8);
+          const spatial = this.createSpatialPipeline(x, y, isPlayer ? 1.0 : 0.85);
           if (!spatial) return;
 
           const now = this.ctx.currentTime;
-          const osc = this.ctx.createOscillator();
-          const gain = this.ctx.createGain();
+          const duration = weapon === 'rocket' ? 0.55 : weapon === 'shotgun' ? 0.38 : 0.46;
 
-          if (weapon === 'shotgun') {
-            osc.type = 'sawtooth';
-            osc.frequency.setValueAtTime(380, now);
-            osc.frequency.exponentialRampToValueAtTime(60, now + 0.16);
-            gain.gain.setValueAtTime(0.5, now);
-            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.16);
-          } else if (weapon === 'rocket') {
-            osc.type = 'sawtooth';
-            osc.frequency.setValueAtTime(600, now);
-            osc.frequency.exponentialRampToValueAtTime(100, now + 0.28);
-            gain.gain.setValueAtTime(0.65, now);
-            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.28);
-          } else {
-            osc.type = isPlayer ? 'square' : 'sawtooth';
-            osc.frequency.setValueAtTime(isPlayer ? 520 : 380, now);
-            osc.frequency.exponentialRampToValueAtTime(80, now + 0.12);
-            gain.gain.setValueAtTime(0.35, now);
-            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.12);
+          // 1. Heavy Sub-Bass Concussive Thump (Tank Cannon Muzzle Blast Shockwave)
+          const subOsc = this.ctx.createOscillator();
+          const subGain = this.ctx.createGain();
+          subOsc.type = 'sine';
+          const startPitch = weapon === 'rocket' ? 95 : weapon === 'shotgun' ? 140 : 115;
+          subOsc.frequency.setValueAtTime(startPitch, now);
+          subOsc.frequency.exponentialRampToValueAtTime(26, now + duration);
+
+          subGain.gain.setValueAtTime(isPlayer ? 0.88 : 0.65, now);
+          subGain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+
+          subOsc.connect(subGain);
+          subGain.connect(spatial.input);
+          subOsc.start(now);
+          subOsc.stop(now + duration);
+
+          // 2. High-Pressure Gunpowder Crackle & Muzzle Gas Burst (Bandpass Filtered Noise)
+          const nBuffer = this.getNoiseBuffer();
+          let noiseSource = null;
+          let noiseFilter = null;
+          let noiseGain = null;
+          if (nBuffer) {
+            noiseSource = this.ctx.createBufferSource();
+            noiseSource.buffer = nBuffer;
+
+            noiseFilter = this.ctx.createBiquadFilter();
+            noiseFilter.type = 'bandpass';
+            noiseFilter.frequency.setValueAtTime(weapon === 'rocket' ? 420 : 620, now);
+            noiseFilter.frequency.exponentialRampToValueAtTime(140, now + 0.25);
+            noiseFilter.Q.setValueAtTime(1.8, now);
+
+            noiseGain = this.ctx.createGain();
+            noiseGain.gain.setValueAtTime(isPlayer ? 0.82 : 0.58, now);
+            noiseGain.gain.exponentialRampToValueAtTime(0.001, now + (weapon === 'rocket' ? 0.35 : 0.22));
+
+            noiseSource.connect(noiseFilter);
+            noiseFilter.connect(noiseGain);
+            noiseGain.connect(spatial.input);
+
+            noiseSource.start(now);
+            noiseSource.stop(now + 0.35);
           }
 
-          osc.connect(gain);
-          gain.connect(spatial.input);
-          osc.start(now);
-          osc.stop(now + 0.3);
+          // 3. Heavy Steel Breech Clank & Cannon Barrel Resonance
+          const mechOsc = this.ctx.createOscillator();
+          const mechGain = this.ctx.createGain();
+          mechOsc.type = 'triangle';
+          mechOsc.frequency.setValueAtTime(220, now);
+          mechOsc.frequency.exponentialRampToValueAtTime(65, now + 0.16);
 
-          osc.onended = () => {
+          mechGain.gain.setValueAtTime(0.42, now);
+          mechGain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+
+          mechOsc.connect(mechGain);
+          mechGain.connect(spatial.input);
+          mechOsc.start(now);
+          mechOsc.stop(now + 0.2);
+
+          subOsc.onended = () => {
             try {
-              osc.disconnect();
-              gain.disconnect();
+              subOsc.disconnect();
+              subGain.disconnect();
+              mechOsc.disconnect();
+              mechGain.disconnect();
+              if (noiseSource) {
+                noiseSource.disconnect();
+                noiseFilter.disconnect();
+                noiseGain.disconnect();
+              }
               spatial.cleanup();
             } catch (e) {}
           };
@@ -4266,7 +4373,7 @@ yuklanmoqda…</pre>
           this.size = size;
           this.weaponType = weaponType;
           this.bounces = 0;
-          this.maxBounces = weaponType === 'rocket' ? 0 : 2;
+          this.maxBounces = 0; // O'q devorga tekkanda qaytmaydi, to'g'ridan-to'g'ri portlaydi
           this.life = 4.5;
           this.trailTimer = 0;
           this.history = [];
@@ -4959,6 +5066,9 @@ yuklanmoqda…</pre>
           if (this.hp <= 0) {
             this.hp = 0;
             this.dead = true;
+            this.lastKillerName = attacker
+              ? attacker.name || (attacker.isPlayer ? 'Commander' : 'Raqib')
+              : "Noma'lum dushman";
             audio.playExplosion(true, this.x, this.y);
             if (
               this.isPlayer ||
@@ -5037,7 +5147,12 @@ yuklanmoqda…</pre>
           this.addXp(75, floatingTexts);
 
           if (this.isPlayer) {
-            if (window.game) window.game.saveProfile();
+            if (window.game) {
+              window.game.saveProfile();
+              if (typeof window.game.triggerKillPopup === 'function') {
+                window.game.triggerKillPopup('🎯 YO\'Q QILINDI!', victim ? victim.name || 'Dushman' : '+75 XP');
+              }
+            }
             const streakAnnounce = audio.registerKill();
             if (streakAnnounce) {
               const banner = document.getElementById('streakBanner');
@@ -5217,9 +5332,10 @@ yuklanmoqda…</pre>
 
           if (this.isAfk) return;
 
-          // Boost pads handling
-          if (this.boostCooldown > 0) this.boostCooldown -= dt;
-          for (const bp of boostPads) {
+          // Boost pads handling (Faqat 2D rejimda, 3D da butunlay o'chirilgan)
+          if (!window.engine3D && boostPads && boostPads.length > 0) {
+            if (this.boostCooldown > 0) this.boostCooldown -= dt;
+            for (const bp of boostPads) {
             if (Math.hypot(this.x - bp.x, this.y - bp.y) < bp.w * 0.65) {
               if (this.boostCooldown <= 0) {
                 this.boostTimer = 1.2;
@@ -5253,6 +5369,7 @@ yuklanmoqda…</pre>
               break;
             }
           }
+        }
 
           // 1 & 2. STEERING & RIGID-BODY VELOCITY
           const currentSpeed = Math.hypot(this.vx, this.vy);
@@ -6466,6 +6583,8 @@ yuklanmoqda…</pre>
         respawnPlayer() {
           const modal = document.getElementById('respawnModal');
           if (modal) modal.classList.remove('active');
+          const kCard = document.getElementById('respawnKillerCard');
+          if (kCard) kCard.style.display = 'none';
 
           const spawnsBySector = {
             A1: { x: 99, y: 99, angle: Math.PI / 4 },
@@ -6478,6 +6597,20 @@ yuklanmoqda…</pre>
           const spawnX = spawnCfg.x;
           const spawnY = spawnCfg.y;
           const spawnAngle = spawnCfg.angle;
+
+          // Begona tank o'yinchining garajida bo'lsa, eshikdan tashqariga surib qo'yamiz
+          const allEnemies = [...(this.bots || []), ...this.peers.values()];
+          for (const enemy of allEnemies) {
+            if (!enemy) continue;
+            if (Math.hypot(enemy.x - spawnX, enemy.y - spawnY) < 70) {
+              enemy.x = spawnX + Math.cos(spawnAngle) * 95;
+              enemy.y = spawnY + Math.sin(spawnAngle) * 95;
+              if (enemy.targetX !== undefined) {
+                enemy.targetX = enemy.x;
+                enemy.targetY = enemy.y;
+              }
+            }
+          }
 
           this.player.x = spawnX;
           this.player.y = spawnY;
@@ -6638,12 +6771,17 @@ yuklanmoqda…</pre>
               color: sec.themeColor,
             });
 
-            // Boost Pad in gateway channel propelling tank into adjacent sector
-            const padAngles = [0, Math.PI / 2, Math.PI, -Math.PI / 2];
-            const padAngle = padAngles[idx % padAngles.length];
-            this.boostPads.push(
-              new BoostPad(cx + Math.cos(padAngle) * 190, cy + Math.sin(padAngle) * 190, padAngle)
-            );
+            // Boost Pad in gateway channel (Faqat 2D rejimda, 3D da butunlay olib tashlandi)
+            const is3DActive =
+              (window.BattlefieldMap3D && typeof window.BattlefieldMap3D.getColliders === 'function') ||
+              !!window.engine3D;
+            if (!is3DActive) {
+              const padAngles = [0, Math.PI / 2, Math.PI, -Math.PI / 2];
+              const padAngle = padAngles[idx % padAngles.length];
+              this.boostPads.push(
+                new BoostPad(cx + Math.cos(padAngle) * 190, cy + Math.sin(padAngle) * 190, padAngle)
+              );
+            }
 
             // Weapon Crate
             const crateTypes = ['shotgun', 'rocket', 'mine', 'shield'];
@@ -6687,6 +6825,20 @@ yuklanmoqda…</pre>
             spawnX = homeSec ? homeSec.x + SECTOR_SIZE / 2 + jx : 325;
             spawnY = homeSec ? homeSec.y + SECTOR_SIZE / 2 + jy : 325;
             spawnAngle = 0;
+          }
+
+          // Begona tank o'yinchining garajida bo'lsa, eshikdan tashqariga surib qo'yamiz
+          const allEnemies = [...(this.bots || []), ...this.peers.values()];
+          for (const enemy of allEnemies) {
+            if (!enemy) continue;
+            if (Math.hypot(enemy.x - spawnX, enemy.y - spawnY) < 70) {
+              enemy.x = spawnX + Math.cos(spawnAngle) * 95;
+              enemy.y = spawnY + Math.sin(spawnAngle) * 95;
+              if (enemy.targetX !== undefined) {
+                enemy.targetX = enemy.x;
+                enemy.targetY = enemy.y;
+              }
+            }
           }
 
           const currentName =
@@ -7392,15 +7544,32 @@ yuklanmoqda…</pre>
           botSpecs.forEach((spec, botIdx) => {
             let bot = this.bots.find((b) => b.id === spec.id);
             if (!bot) {
-              let spawnX, spawnY;
+              const garagePositions = {
+                A1: { x: 99, y: 99 },
+                A2: { x: 1201, y: 99 },
+                B1: { x: 99, y: 1201 },
+                B2: { x: 1201, y: 1201 },
+              };
+              const myGarage = garagePositions[this.mySectorId] || garagePositions['A1'];
+
               if (typeof spec.x === 'number' && typeof spec.y === 'number') {
                 spawnX = spec.x;
-                spawnY = spec.y; // server bergan joy (hamma klientda bir xil)
+                spawnY = spec.y;
+                // Agar bot o'yinchining garajiga tushib qolsa (masalan A1), boshqa bo'sh garajga ko'chiramiz
+                if (Math.hypot(spawnX - myGarage.x, spawnY - myGarage.y) < 65) {
+                  const altGarages = ['A2', 'B1', 'B2'].filter((s) => s !== this.mySectorId);
+                  const chosen = altGarages[botIdx % altGarages.length];
+                  if (garagePositions[chosen]) {
+                    spawnX = garagePositions[chosen].x;
+                    spawnY = garagePositions[chosen].y;
+                  }
+                }
               } else {
-                const targetSec =
-                  this.sectors[(botIdx + 1) % this.sectors.length] || this.sectors[0];
-                spawnX = targetSec.x + SECTOR_SIZE / 2 + (Math.random() - 0.5) * 25;
-                spawnY = targetSec.y + SECTOR_SIZE / 2 + (Math.random() - 0.5) * 25;
+                const altGarages = ['A2', 'B1', 'B2'].filter((s) => s !== this.mySectorId);
+                const chosen = altGarages[botIdx % altGarages.length];
+                const altSpawn = garagePositions[chosen] || { x: 650, y: 650 };
+                spawnX = altSpawn.x;
+                spawnY = altSpawn.y;
               }
               bot = new Tank(spawnX, spawnY, spec.name || 'Bot', false, spec.id);
               bot.id = spec.id;
@@ -9214,7 +9383,15 @@ yuklanmoqda…</pre>
             if (this.respawnCountdown <= 0) {
               this.respawnCountdown = 3.0;
               const respModal = document.getElementById('respawnModal');
-              if (respModal) respModal.classList.add('active');
+              if (respModal) {
+                respModal.classList.add('active');
+                const kCard = document.getElementById('respawnKillerCard');
+                const kName = document.getElementById('respawnKillerName');
+                if (kCard && kName) {
+                  kName.textContent = (this.player && this.player.lastKillerName) ? this.player.lastKillerName : "Noma'lum Dushman";
+                  kCard.style.display = 'block';
+                }
+              }
             }
 
             const prevSec = Math.ceil(this.respawnCountdown);

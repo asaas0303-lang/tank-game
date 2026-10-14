@@ -95,7 +95,6 @@ describe('Tank Game 3D & Security Verification', () => {
     const serverCode = fs.readFileSync(path.join(__dirname, '..', 'server.js'), 'utf8');
     expect(serverCode).toContain('const garageSpawns = {');
     expect(serverCode).toContain('A1: { x: 99, y: 99 }');
-    expect(serverCode).toContain('const sec = pool[Math.floor(Math.random() * pool.length)];');
   });
 
   test('index.html safely handles peer and bot lists without accessing undefined remotePlayers', () => {

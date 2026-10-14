@@ -114,4 +114,19 @@ describe('Tank Game 3D & Security Verification', () => {
     expect(code).toContain('_lastHp');
     expect(code).toContain('roundedHp');
   });
+
+  test('Engine3D and BattlefieldMap provide orbital camera controls and inside-garage roof fading', () => {
+    const engineCode = fs.readFileSync(path.join(__dirname, '..', 'src', '3d', 'Engine3D.js'), 'utf8');
+    expect(engineCode).toContain('rotateCamera(deltaX, deltaY = 0)');
+    expect(engineCode).toContain('this.cameraYaw');
+    expect(engineCode).toContain('this.cameraPitch');
+    expect(engineCode).toContain('inGarage');
+
+    const mapCode = fs.readFileSync(path.join(__dirname, '..', 'src', '3d', 'BattlefieldMap.js'), 'utf8');
+    expect(mapCode).toContain('roofMat.transparent = true');
+    expect(mapCode).toContain('garages.push(');
+
+    const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+    expect(html).toContain('window.engine3D.rotateCamera(dragX, dragY)');
+  });
 });

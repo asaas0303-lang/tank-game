@@ -363,6 +363,7 @@ export class BattlefieldMap3D {
     ];
 
     const garageSpawns = [];
+    const garages = [];
 
     garageConfigs.forEach((cfg) => {
       const gGroup = new THREE.Group();
@@ -417,11 +418,14 @@ export class BattlefieldMap3D {
       lanternLight.position.set(0, 7.5, -4);
       gGroup.add(lanternLight);
 
-      // Gabled Roof with overhang
+      // Gabled Roof with overhang (individual material clone so roof can dynamically fade when player is inside)
       const roofGeo = new THREE.ConeGeometry(15, 6, 4);
       roofGeo.rotateY(Math.PI / 4);
       roofGeo.scale(1.0, 1.0, 1.5);
-      const roof = new THREE.Mesh(roofGeo, garageRoofMat);
+      const roofMat = garageRoofMat.clone();
+      roofMat.transparent = true;
+      roofMat.opacity = 1.0;
+      const roof = new THREE.Mesh(roofGeo, roofMat);
       roof.position.set(0, 12, -5);
       roof.castShadow = true;
       gGroup.add(roof);
@@ -470,6 +474,18 @@ export class BattlefieldMap3D {
         x: cfg.x - spawnDirX * 4,
         z: cfg.z - spawnDirZ * 4,
         angle: Math.atan2(-spawnDirX, -spawnDirZ),
+      });
+
+      garages.push({
+        id: cfg.id,
+        name: cfg.name,
+        x: cfg.x,
+        z: cfg.z,
+        rot: cfg.rot,
+        color: cfg.color,
+        group: gGroup,
+        roofMesh: roof,
+        roofMat: roofMat,
       });
     });
 
@@ -614,6 +630,8 @@ export class BattlefieldMap3D {
       mapGroup,
       garageSpawns,
       ruinLocations,
+      garages,
+      garageConfigs,
     };
   }
 

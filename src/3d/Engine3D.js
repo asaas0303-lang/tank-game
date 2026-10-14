@@ -29,9 +29,11 @@ export class Engine3D {
 
     // 2. Camera (TPS Perspective)
     this.camera = new THREE.PerspectiveCamera(50, this.width / this.height, 0.5, 350);
-    this.cameraDistance = 22;
-    this.cameraHeight = 14.5;
-    this.cameraLookHeight = 2.2;
+    this.cameraDistance = 8.5; // Starts inside hangar with player tank
+    this.cameraHeight = 3.6;
+    this.cameraLookHeight = 2.0;
+    this.cameraYaw = null; // Horizontal orbital angle around player
+    this.cameraPitch = 0.35; // Vertical elevation angle
     this.cameraInitialized = false;
 
     // 3. Renderer (Ultra-HD Quality with soft shadows & tone mapping)
@@ -62,6 +64,7 @@ export class Engine3D {
 
     // 5. Build Battlefield (140x140 WW2 arena)
     this.battlefield = BattlefieldMap3D.build(this.scene, 140);
+    this.garages = (this.battlefield && this.battlefield.garages) || [];
 
     // 6. Tank instances: id -> { root, hull, turret, barrel, muzzlePoint, updateBadge, ... }
     this.tanks = new Map();
@@ -138,6 +141,31 @@ export class Engine3D {
   }
 
   /**
+   * World of Tanks Blitz touch-swipe look & orbit camera control
+   * deltaX rotates camera horizontally around player
+   * deltaY adjusts pitch elevation angle
+   */
+  rotateCamera(deltaX, deltaY = 0) {
+    const sensX = 0.0055;
+    const sensY = 0.0035;
+    if (this.cameraYaw === null) {
+      this.cameraYaw = 0;
+    }
+    this.cameraYaw += deltaX * sensX;
+    while (this.cameraYaw > Math.PI) this.cameraYaw -= Math.PI * 2;
+    while (this.cameraYaw < -Math.PI) this.cameraYaw += Math.PI * 2;
+
+    if (deltaY !== 0) {
+      this.cameraPitch = Math.max(0.15, Math.min(0.82, (this.cameraPitch || 0.42) + deltaY * sensY));
+    }
+
+    if (this.lastGame && this.lastGame.player && !this.lastGame.player.dead) {
+      this.lastGame.player.turretAngle = this.cameraYaw;
+      this.lastGame.player.targetTurretAngle = this.cameraYaw;
+    }
+  }
+
+  /**
    * Main synchronization called each animation frame from GameEngine
    */
   renderGameState(game, dt = 0.016) {
@@ -146,6 +174,8 @@ export class Engine3D {
       this.renderer.render(this.scene, this.camera);
       return;
     }
+
+    this.lastGame = game;
 
     const worldW =
       (typeof window !== 'undefined' && window.WORLD && window.WORLD.width) ||
@@ -175,11 +205,16 @@ export class Engine3D {
     const bodyRotY = Math.atan2(dirX, dirZ);
     player3D.root.rotation.y = bodyRotY;
 
-    // Turret orientation
-    const playerTurretAngle =
-      game.player.turretAngle !== undefined ? game.player.turretAngle : playerAngle;
-    const turretDirX = Math.cos(playerTurretAngle);
-    const turretDirZ = Math.sin(playerTurretAngle);
+    // Turret orientation: Synchronized with 3D camera yaw
+    if (this.cameraYaw === null) {
+      this.cameraYaw =
+        game.player.turretAngle !== undefined ? game.player.turretAngle : playerAngle;
+    }
+    game.player.turretAngle = this.cameraYaw;
+    game.player.targetTurretAngle = this.cameraYaw;
+
+    const turretDirX = Math.cos(this.cameraYaw);
+    const turretDirZ = Math.sin(this.cameraYaw);
     const turretTargetY = Math.atan2(turretDirX, turretDirZ);
     player3D.turret.rotation.y = turretTargetY - bodyRotY;
 
@@ -198,25 +233,61 @@ export class Engine3D {
       player3D.updateBadge(game.player.name || 'Commander', pHp / pMaxHp);
     }
 
-    // 2. TPS Chaser Camera positioning (Elevated rear follower)
-    const targetCamX = pPos3D.x - dirX * this.cameraDistance;
-    const targetCamZ = pPos3D.z - dirZ * this.cameraDistance;
+    // 2. Garage Interior Detection & Roof Dynamic Fading
+    let inGarage = false;
+    const garageList = this.garages || [];
+    for (const g of garageList) {
+      const dist = Math.hypot(pPos3D.x - g.x, pPos3D.z - g.z);
+      if (dist < 15.5) {
+        inGarage = true;
+      }
+      // If player is inside or right at doorway of garage:
+      // Fade roof so the tank inside the garage is 100% visible and unobstructed
+      if (g.roofMat) {
+        if (dist < 17.5) {
+          g.roofMat.opacity = Math.max(0.08, g.roofMat.opacity - dt * 6.0);
+          if (g.roofMesh) g.roofMesh.castShadow = false;
+        } else {
+          g.roofMat.opacity = Math.min(1.0, g.roofMat.opacity + dt * 4.0);
+          if (g.roofMat.opacity > 0.85 && g.roofMesh) g.roofMesh.castShadow = true;
+        }
+      }
+    }
+
+    // 3. TPS Orbital Camera (World of Tanks Blitz Dynamics)
+    // Inside garage: tighter, lower camera framed behind tank looking toward the exit doorway
+    // Outside on battlefield: elevated tactical camera for wide combat awareness
+    const targetDistance = inGarage ? 8.5 : 20.0;
+    const targetPitch = inGarage ? 0.35 : 0.42;
+    const targetLookH = inGarage ? 1.9 : 2.4;
+
+    const smoothFactor = Math.min(1.0, dt * 5.5);
+    this.cameraDistance += (targetDistance - this.cameraDistance) * smoothFactor;
+    this.cameraPitch += (targetPitch - this.cameraPitch) * smoothFactor;
+    this.cameraLookHeight += (targetLookH - this.cameraLookHeight) * smoothFactor;
+
+    const horizDist = this.cameraDistance * Math.cos(this.cameraPitch);
+    const vertDist = this.cameraDistance * Math.sin(this.cameraPitch);
+
+    const targetCamX = pPos3D.x - Math.cos(this.cameraYaw) * horizDist;
+    const targetCamZ = pPos3D.z - Math.sin(this.cameraYaw) * horizDist;
+    const targetCamY = Math.max(1.8, vertDist);
 
     const lookTarget = new THREE.Vector3(
-      pPos3D.x + dirX * 5,
+      pPos3D.x + Math.cos(this.cameraYaw) * 4.0,
       this.cameraLookHeight,
-      pPos3D.z + dirZ * 5
+      pPos3D.z + Math.sin(this.cameraYaw) * 4.0
     );
 
     if (!this.cameraInitialized) {
-      this.camera.position.set(targetCamX, this.cameraHeight, targetCamZ);
+      this.camera.position.set(targetCamX, targetCamY, targetCamZ);
       this.camera.lookAt(lookTarget);
       this.cameraInitialized = true;
     } else {
-      const smoothFactor = Math.min(1.0, dt * 6.0);
-      this.camera.position.x += (targetCamX - this.camera.position.x) * smoothFactor;
-      this.camera.position.y += (this.cameraHeight - this.camera.position.y) * smoothFactor;
-      this.camera.position.z += (targetCamZ - this.camera.position.z) * smoothFactor;
+      const camFollowSpeed = Math.min(1.0, dt * 8.0);
+      this.camera.position.x += (targetCamX - this.camera.position.x) * camFollowSpeed;
+      this.camera.position.y += (targetCamY - this.camera.position.y) * camFollowSpeed;
+      this.camera.position.z += (targetCamZ - this.camera.position.z) * camFollowSpeed;
       this.camera.lookAt(lookTarget);
     }
 

@@ -8023,12 +8023,18 @@ yuklanmoqda…</pre>
 
             // Rotate delta based on screen orientation
             let dragX = window._forcedLandscape ? rawDy : rawDx;
-            const sens = 0.0075; // Smooth, precise turret turning
-            if (this.player && !this.player.dead) {
-              this.player.turretAngle += dragX * sens;
-              while (this.player.turretAngle > Math.PI) this.player.turretAngle -= Math.PI * 2;
-              while (this.player.turretAngle < -Math.PI) this.player.turretAngle += Math.PI * 2;
-              this.player.targetTurretAngle = this.player.turretAngle;
+            let dragY = window._forcedLandscape ? -rawDx : rawDy;
+
+            if (window.engine3D && typeof window.engine3D.rotateCamera === 'function') {
+              window.engine3D.rotateCamera(dragX, dragY);
+            } else {
+              const sens = 0.0075; // Smooth, precise turret turning
+              if (this.player && !this.player.dead) {
+                this.player.turretAngle += dragX * sens;
+                while (this.player.turretAngle > Math.PI) this.player.turretAngle -= Math.PI * 2;
+                while (this.player.turretAngle < -Math.PI) this.player.turretAngle += Math.PI * 2;
+                this.player.targetTurretAngle = this.player.turretAngle;
+              }
             }
           };
 
@@ -8074,10 +8080,11 @@ yuklanmoqda…</pre>
             touchLookZone.addEventListener('touchcancel', endLook, { passive: true });
 
             touchLookZone.addEventListener('pointerdown', (e) => {
-              if (e.pointerType === 'mouse' && e.button === 0) {
+              if (e.pointerType === 'mouse' && (e.button === 0 || e.button === 2)) {
                 handleLookStart('mouse', e.clientX, e.clientY);
               }
             });
+            touchLookZone.addEventListener('contextmenu', (e) => e.preventDefault());
             window.addEventListener('pointermove', (e) => {
               if (touchLookId === 'mouse') {
                 handleLookMove(e.clientX, e.clientY);
@@ -8961,18 +8968,20 @@ yuklanmoqda…</pre>
               this.particles
             );
 
-            // Turret Aiming: Desktop Mouse or Mobile Touch
-            if (!this.mobileInput || !this.mobileInput.touchLookActive) {
-              this.mouse.worldX = this.mouse.x / this.cameraZoom + this.camera.x;
-              this.mouse.worldY = this.mouse.y / this.cameraZoom + this.camera.y;
-              this.player.targetTurretAngle = Math.atan2(
-                this.mouse.worldY - this.player.y,
-                this.mouse.worldX - this.player.x
-              );
+            // Turret Aiming: Desktop Mouse (in 2D mode) or Mobile Touch / Orbital 3D
+            const is3DGame = !!window.engine3D;
+            if (!is3DGame) {
+              if (!this.mobileInput || !this.mobileInput.touchLookActive) {
+                this.mouse.worldX = this.mouse.x / this.cameraZoom + this.camera.x;
+                this.mouse.worldY = this.mouse.y / this.cameraZoom + this.camera.y;
+                this.player.targetTurretAngle = Math.atan2(
+                  this.mouse.worldY - this.player.y,
+                  this.mouse.worldX - this.player.x
+                );
+              }
             }
 
             // World of Tanks Blitz Auto-Aim Assist (Soft magnetism lock on visible enemies):
-            const is3DGame = !!window.engine3D;
             if (is3DGame) {
               let bestTarget = null;
               let bestScore = -Infinity;
@@ -9004,6 +9013,9 @@ yuklanmoqda…</pre>
                 while (diff < -Math.PI) diff += Math.PI * 2;
                 this.player.turretAngle += diff * 0.12;
                 this.player.targetTurretAngle = this.player.turretAngle;
+                if (window.engine3D) {
+                  window.engine3D.cameraYaw = this.player.turretAngle;
+                }
               }
             }
             this.player.checkBushes(this.bushes);

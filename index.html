@@ -1649,10 +1649,18 @@
         background: #888;
         box-shadow: 0 0 6px currentColor;
       }
+      /* Ekran burilgan (landshaft) rejimda: o'yin bilan birga 90° buriladi va o'yindagi
+         ko'rinishda tishli g'ildirak tugmasining yonida, u bilan bir qatorda turadi.
+         Tugma markazi: o'ngdan 18+22 px. Yozuv 74 px kenglikda, burilgandan keyin tugma
+         ostiga tushadi (110 + 44 + 8 px). */
       body.forced-landscape #pingBadge {
-        top: 118px !important;
-        right: 72px !important;
+        width: 74px;
+        justify-content: center;
+        padding: 0;
+        top: 185px !important;
+        right: 3px !important;
         left: auto !important;
+        transform: rotate(90deg);
       }
       body.esc-open #pingBadge {
         display: none !important;
@@ -6705,7 +6713,14 @@
           switch (msg.type) {
             case 'pong':
               if (msg.time) {
-                this.ping = Math.round(performance.now() - msg.time);
+                // Ekranda oxirgi 5 o'lchovning o'rtachasi (mediana) -- bitta sakrash raqamni
+                // 170 dan 500 ga "uchirib" yubormaydi
+                this.pingSamples = this.pingSamples || [];
+                this.pingSamples.push(Math.round(performance.now() - msg.time));
+                if (this.pingSamples.length > 5) this.pingSamples.shift();
+                this.ping = [...this.pingSamples].sort((a, b) => a - b)[
+                  this.pingSamples.length >> 1
+                ];
                 this.updatePingBadge();
               }
               break;
@@ -8889,7 +8904,7 @@
           }
 
           // Send ping every 2 seconds
-          if (now - this.lastPingSent > 2000) {
+          if (now - this.lastPingSent > 1000) {
             this.lastPingSent = now;
             this.sendWs({ type: 'ping', time: performance.now() });
           }
@@ -9649,7 +9664,7 @@
       window.addEventListener('load', () => {
         new GameEngine();
 
-        const BUILD_ID = 'BUILD_2026-10-15-v20'; // har deploy oldidan shu qatorni yangilab turing (yoki build skript avtomatik yozsin)
+        const BUILD_ID = 'BUILD_2026-10-15-v21'; // har deploy oldidan shu qatorni yangilab turing (yoki build skript avtomatik yozsin)
         const buildText =
           'build ' + BUILD_ID + (typeof window.Capacitor !== 'undefined' ? ' (APK)' : ' (web)');
         const stamp = document.getElementById('buildStamp');

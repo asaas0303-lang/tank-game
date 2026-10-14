@@ -9066,7 +9066,8 @@ yuklanmoqda…</pre>
             if (is3DGame) {
               let bestTarget = null;
               let bestScore = -Infinity;
-              const allEnemies = [...this.bots, ...Array.from(this.remotePlayers.values())];
+              const peersList = this.peers ? Array.from(this.peers.values()) : [];
+              const allEnemies = [...(this.bots || []), ...peersList];
               for (const enemy of allEnemies) {
                 if (!enemy || enemy.dead || enemy.hp <= 0) continue;
                 const edx = enemy.x - this.player.x;
@@ -9655,19 +9656,23 @@ yuklanmoqda…</pre>
 
           // 3D Three.js WebGL Rendering Hook
           if (window.engine3D) {
-            this.ctx.clearRect(0, 0, this.viewWidth, this.viewHeight);
-            window.engine3D.renderGameState(this, this.lastDt);
+            try {
+              this.ctx.clearRect(0, 0, this.viewWidth, this.viewHeight);
+              window.engine3D.renderGameState(this, this.lastDt);
 
-            // Draw HUD floating damage texts and radar over 3D
-            const renderX = Math.round(this.camera.x + (this.shakeOffset ? this.shakeOffset.x : 0));
-            const renderY = Math.round(this.camera.y + (this.shakeOffset ? this.shakeOffset.y : 0));
-            this.ctx.save();
-            this.ctx.scale(this.cameraZoom, this.cameraZoom);
-            this.ctx.translate(-renderX, -renderY);
-            for (const ft of this.floatingTexts) ft.draw(this.ctx);
-            this.ctx.restore();
-            this.drawRadar();
-            return;
+              // Draw HUD floating damage texts and radar over 3D
+              const renderX = Math.round(this.camera.x + (this.shakeOffset ? this.shakeOffset.x : 0));
+              const renderY = Math.round(this.camera.y + (this.shakeOffset ? this.shakeOffset.y : 0));
+              this.ctx.save();
+              this.ctx.scale(this.cameraZoom, this.cameraZoom);
+              this.ctx.translate(-renderX, -renderY);
+              for (const ft of this.floatingTexts) ft.draw(this.ctx);
+              this.ctx.restore();
+              this.drawRadar();
+              return;
+            } catch (err3d) {
+              console.warn('[3D Engine Render Error - 2D ga qaytildi]:', err3d);
+            }
           }
 
           // 2D Fallback: KUNDUZGI VA TUNGI POL FONINI BO'YASH

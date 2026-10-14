@@ -41,12 +41,12 @@ export class Engine3D {
       stencil: false,
       depth: true,
     });
-    this.renderer.setSize(this.width, this.height);
+    this.renderer.setSize(this.width, this.height, false);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.2;
+    this.renderer.shadowMap.type = THREE.PCFShadowMap;
+    this.renderer.toneMapping = THREE.LinearToneMapping;
+    this.renderer.toneMappingExposure = 1.0;
 
     this.renderer.domElement.id = 'webgl3dCanvas';
     this.renderer.domElement.style.position = 'absolute';
@@ -93,8 +93,8 @@ export class Engine3D {
     this.sunLight = new THREE.DirectionalLight(0xfff5e4, 2.0);
     this.sunLight.position.set(40, 65, 30);
     this.sunLight.castShadow = true;
-    this.sunLight.shadow.mapSize.width = 2048;
-    this.sunLight.shadow.mapSize.height = 2048;
+    this.sunLight.shadow.mapSize.width = 1024;
+    this.sunLight.shadow.mapSize.height = 1024;
     this.sunLight.shadow.camera.near = 5;
     this.sunLight.shadow.camera.far = 180;
     this.sunLight.shadow.camera.left = -55;
@@ -115,7 +115,7 @@ export class Engine3D {
     this.height = isPortrait ? window.innerWidth : window.innerHeight;
     this.camera.aspect = this.width / this.height;
     this.camera.updateProjectionMatrix();
-    this.renderer.setSize(this.width, this.height);
+    this.renderer.setSize(this.width, this.height, false);
   }
 
   to3DCoords(x2d, y2d, worldW = 1300, worldH = 1300) {
@@ -141,7 +141,11 @@ export class Engine3D {
    * Main synchronization called each animation frame from GameEngine
    */
   renderGameState(game, dt = 0.016) {
-    if (!game || !game.player) return;
+    if (!game) return;
+    if (!game.player) {
+      this.renderer.render(this.scene, this.camera);
+      return;
+    }
 
     const worldW =
       (typeof window !== 'undefined' && window.WORLD && window.WORLD.width) ||
@@ -272,8 +276,8 @@ export class Engine3D {
     }
 
     // 4. Synchronize Remote Human Players
-    if (game.remotePlayers) {
-      game.remotePlayers.forEach((rp, id) => {
+    const activePeers = game.peers || game.remotePlayers || new Map();
+    activePeers.forEach((rp, id) => {
         const rpId = `rp_${id}`;
         activeTankIds.add(rpId);
 

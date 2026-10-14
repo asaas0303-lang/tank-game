@@ -97,4 +97,9 @@ describe('Tank Game 3D & Security Verification', () => {
     expect(serverCode).toContain('A1: { x: 99, y: 99 }');
     expect(serverCode).toContain('const sec = pool[Math.floor(Math.random() * pool.length)];');
   });
+
+  test('index.html safely handles peer and bot lists without accessing undefined remotePlayers', () => {
+    const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+    expect(html).not.toContain('this.remotePlayers.values()');
+  });
 });

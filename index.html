@@ -37,9 +37,13 @@
                 if (atLeast('6.2') && tg.enableClosingConfirmation) tg.enableClosingConfirmation();
                 if (atLeast('6.1') && tg.setHeaderColor) tg.setHeaderColor('#060913');
                 if (atLeast('6.1') && tg.setBackgroundColor) tg.setBackgroundColor('#060913');
-                // "Orqaga" tugmasi o'yinni yopadi (Telegram o'zi "Chiqasizmi?" deb so'raydi --
-                // yuqoridagi closing confirmation). Pauza/sozlamalar -- tishli g'ildirak orqali.
-                if (atLeast('6.1') && tg.BackButton) tg.BackButton.hide();
+                // Android "Orqaga" tugmasi o'yindan chiqarmaydi -- pauza menyusini ochadi
+                if (atLeast('6.1') && tg.BackButton) {
+                  tg.BackButton.show();
+                  tg.BackButton.onClick(function () {
+                    if (window.game && window.game.player) window.game.toggleEscMenu();
+                  });
+                }
               }
               if (atLeast('8.0') && !tg.isFullscreen && tg.requestFullscreen)
                 tg.requestFullscreen();
@@ -9577,7 +9581,7 @@
       window.addEventListener('load', () => {
         new GameEngine();
 
-        const BUILD_ID = 'BUILD_2026-10-14-v19'; // har deploy oldidan shu qatorni yangilab turing (yoki build skript avtomatik yozsin)
+        const BUILD_ID = 'BUILD_2026-10-14-v18'; // har deploy oldidan shu qatorni yangilab turing (yoki build skript avtomatik yozsin)
         const buildText =
           'build ' + BUILD_ID + (typeof window.Capacitor !== 'undefined' ? ' (APK)' : ' (web)');
         const stamp = document.getElementById('buildStamp');

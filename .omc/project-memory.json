@@ -1,0 +1,158 @@
+{
+  "version": "1.0.0",
+  "lastScanned": 1791985954747,
+  "projectRoot": "C:\\tank-game",
+  "techStack": {
+    "languages": [
+      {
+        "name": "JavaScript/TypeScript",
+        "version": ">=18.0.0",
+        "confidence": "high",
+        "markers": [
+          "package.json"
+        ]
+      }
+    ],
+    "frameworks": [
+      {
+        "name": "express",
+        "version": "4.19.2",
+        "category": "backend"
+      },
+      {
+        "name": "jest",
+        "version": "29.7.0",
+        "category": "testing"
+      }
+    ],
+    "packageManager": "npm",
+    "runtime": "Node.js 18.0.0"
+  },
+  "build": {
+    "buildCommand": null,
+    "testCommand": "npm test",
+    "lintCommand": "npm run lint",
+    "devCommand": "npm run start",
+    "scripts": {
+      "start": "node server.js",
+      "test": "jest",
+      "lint": "eslint .",
+      "format": "prettier --write .",
+      "prepare": "husky"
+    }
+  },
+  "conventions": {
+    "namingStyle": "camelCase/PascalCase",
+    "importStyle": "CommonJS",
+    "testPattern": null,
+    "fileOrganization": null
+  },
+  "structure": {
+    "isMonorepo": false,
+    "workspaces": [],
+    "mainDirectories": [
+      "lib",
+      "scripts",
+      "src",
+      "tests"
+    ],
+    "gitBranches": {
+      "defaultBranch": "main",
+      "branchingStrategy": null
+    }
+  },
+  "customNotes": [],
+  "directoryMap": {
+    "build_output": {
+      "path": "build_output",
+      "purpose": null,
+      "fileCount": 0,
+      "lastAccessed": 1791985954406,
+      "keyFiles": []
+    },
+    "lib": {
+      "path": "lib",
+      "purpose": "Library code",
+      "fileCount": 8,
+      "lastAccessed": 1791985954407,
+      "keyFiles": [
+        "sentry.js",
+        "telegramBot.js",
+        "three.cjs",
+        "three.core.js",
+        "three.module.js"
+      ]
+    },
+    "scratch": {
+      "path": "scratch",
+      "purpose": null,
+      "fileCount": 17,
+      "lastAccessed": 1791985954429,
+      "keyFiles": [
+        "check_artifacts.js",
+        "check_deploy.js",
+        "check_gh_log.js",
+        "check_imports.js",
+        "check_runs.js"
+      ]
+    },
+    "scripts": {
+      "path": "scripts",
+      "purpose": "Build/utility scripts",
+      "fileCount": 1,
+      "lastAccessed": 1791985954433,
+      "keyFiles": [
+        "configure_android.js"
+      ]
+    },
+    "src": {
+      "path": "src",
+      "purpose": "Source code",
+      "fileCount": 0,
+      "lastAccessed": 1791985954433,
+      "keyFiles": []
+    },
+    "tests": {
+      "path": "tests",
+      "purpose": "Test files",
+      "fileCount": 1,
+      "lastAccessed": 1791985954434,
+      "keyFiles": [
+        "game3d.test.js"
+      ]
+    }
+  },
+  "hotPaths": [
+    {
+      "path": "src/shared/mapLayout.js",
+      "accessCount": 4,
+      "lastAccessed": 1791988293763,
+      "type": "file"
+    },
+    {
+      "path": "src/3d/Engine3D.js",
+      "accessCount": 3,
+      "lastAccessed": 1791993162101,
+      "type": "file"
+    },
+    {
+      "path": "REJA_3D_TUZATISH.md",
+      "accessCount": 1,
+      "lastAccessed": 1791986511262,
+      "type": "file"
+    },
+    {
+      "path": "src/3d/Effects3D.js",
+      "accessCount": 1,
+      "lastAccessed": 1791988135458,
+      "type": "file"
+    },
+    {
+      "path": ".claude/launch.json",
+      "accessCount": 1,
+      "lastAccessed": 1791988576155,
+      "type": "file"
+    }
+  ],
+  "userDirectives": []
+}

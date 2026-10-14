@@ -1,0 +1,7 @@
+{
+  "tool_name": "mcp__Claude_Browser__preview_stop",
+  "tool_input_preview": "{\"serverId\":\"547bc567-9c05-4abc-9462-4def40421895\"}",
+  "error": "Server 547bc567-9c05-4abc-9462-4def40421895 not found",
+  "timestamp": "2026-10-14T16:21:48.825Z",
+  "retry_count": 1
+}

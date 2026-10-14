@@ -3648,6 +3648,14 @@
 
       function pushSnapshot(tank, t, x, y, body, turret) {
         if (!tank.snaps) tank.snaps = [];
+        // Paketlar orasidagi vaqt va uning "sakrashi" (jitter) o'lchanadi: mobil internetda
+        // paketlar notekis keladi -- shunda kutish buferi o'zi kattalashadi va tank qotmaydi
+        if (tank._lastArr) {
+          const gap = Math.min(1000, t - tank._lastArr);
+          tank._gapAvg = tank._gapAvg ? tank._gapAvg * 0.9 + gap * 0.1 : gap;
+          tank._jitter = (tank._jitter || 0) * 0.9 + Math.abs(gap - tank._gapAvg) * 0.1;
+        }
+        tank._lastArr = t;
         tank.snaps.push({ t, x, y, b: body || 0, tu: turret || 0 });
         if (tank.snaps.length > 16) tank.snaps.shift();
       }
@@ -3657,7 +3665,13 @@
       function interpolateRemote(tank, now, delay) {
         const s = tank.snaps;
         if (!s || s.length === 0) return;
-        const rt = now - delay;
+        // Kutish vaqti: kamida delay, internet notekis bo'lsa 450 ms gacha (asta o'zgaradi)
+        const want = Math.min(
+          450,
+          Math.max(delay, (tank._gapAvg || 0) * 1.2 + (tank._jitter || 0) * 3 + 30)
+        );
+        tank._delay = tank._delay ? tank._delay + (want - tank._delay) * 0.03 : want;
+        const rt = now - tank._delay;
         let a = -1;
         for (let i = s.length - 1; i >= 0; i--) {
           if (s[i].t <= rt) {
@@ -3671,7 +3685,7 @@
         } else if (a === s.length - 1) {
           const last = s[a];
           const prev = s[a - 1];
-          const ahead = Math.min(150, rt - last.t);
+          const ahead = Math.min(220, rt - last.t);
           if (prev && last.t > prev.t && ahead > 0) {
             const k = ahead / (last.t - prev.t);
             x = last.x + (last.x - prev.x) * k;
@@ -6290,10 +6304,15 @@
             peer = new Tank(p.x, p.y, p.n, false, p.id);
             peer.isRemote = true; // uning jon/o'limini faqat o'zi (va server) hal qiladi
             this.peers.set(p.id, peer);
-            try {
-              this.refreshVoicePeerConnections(p.id);
-            } catch (e) {
-              console.warn('Voice Connection Error:', e);
+            // Ovozli aloqa faqat mikrofon yoqilgan bo'lsa ochiladi. Avval ikkala mikrofon
+            // o'chiq bo'lsa ham har bir do'st uchun WebRTC ulanish ochilib turardi -- telefonni
+            // sekinlashtirardi. Qarshi tomon mikrofonini yoqsa, u o'zi ulanishni so'raydi.
+            if (this.micStream) {
+              try {
+                this.refreshVoicePeerConnections(p.id);
+              } catch (e) {
+                console.warn('Voice Connection Error:', e);
+              }
             }
           }
           const wasDead = peer.dead;
@@ -9581,7 +9600,7 @@
       window.addEventListener('load', () => {
         new GameEngine();
 
-        const BUILD_ID = 'BUILD_2026-10-14-v18'; // har deploy oldidan shu qatorni yangilab turing (yoki build skript avtomatik yozsin)
+        const BUILD_ID = 'BUILD_2026-10-14-v19'; // har deploy oldidan shu qatorni yangilab turing (yoki build skript avtomatik yozsin)
         const buildText =
           'build ' + BUILD_ID + (typeof window.Capacitor !== 'undefined' ? ' (APK)' : ' (web)');
         const stamp = document.getElementById('buildStamp');

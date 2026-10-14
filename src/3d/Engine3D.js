@@ -22,6 +22,15 @@ const QUALITY = [
   { name: 'yuqori', dpr: 2, shadows: true, shadowSize: 2048, antialias: true },
 ];
 
+// Foydalanuvchi sozlamalardan qo'lda tanlagan sifat (yo'q bo'lsa -- Avto)
+function manualQuality() {
+  try {
+    const m = localStorage.getItem('tankQualityManual');
+    if (m !== null && QUALITY[+m]) return +m;
+  } catch (e) {}
+  return null;
+}
+
 function detectQuality(ignoreSaved = false) {
   try {
     const saved = localStorage.getItem('tankQuality');
@@ -56,7 +65,9 @@ export class Engine3D {
     this.container = canvasContainer || document.getElementById('game-container') || document.body;
     this._measure();
 
-    this.qualityIndex = detectQuality();
+    const manual = manualQuality();
+    this.autoQuality = manual === null;
+    this.qualityIndex = manual !== null ? manual : detectQuality();
     this.quality = QUALITY[this.qualityIndex];
     // Avtomatik ko'tarish shu qurilma uchun boshlang'ich darajadan oshmaydi
     this.maxQualityIndex = Math.max(this.qualityIndex, detectQuality(true));
@@ -236,7 +247,7 @@ export class Engine3D {
     const fps = w.frames / w.t;
     w.t = 0;
     w.frames = 0;
-    if (w.age < 6 || fps < 12) return; // yuklanish paytini va fon holatini o'tkazib yuboramiz
+    if (!this.autoQuality || w.age < 6 || fps < 12) return; // yuklanish paytini va fon holatini o'tkazib yuboramiz
     w.slow = fps < 38 ? (w.slow || 0) + 1 : 0;
     w.fast = fps >= 57 ? (w.fast || 0) + 1 : 0;
     if (w.slow >= 3 && this.qualityIndex > 0) {
@@ -246,6 +257,17 @@ export class Engine3D {
       w.fast = 0;
       this.setQuality(this.qualityIndex + 1);
     }
+  }
+
+  /** Sozlamalardan: 'auto' yoki 0 (past) / 1 (o'rta) / 2 (yuqori) */
+  setQualityMode(mode) {
+    try {
+      if (mode === 'auto') localStorage.removeItem('tankQualityManual');
+      else localStorage.setItem('tankQualityManual', String(mode));
+    } catch (e) {}
+    this.autoQuality = mode === 'auto';
+    this._fpsWindow = { t: 0, frames: 0, slow: 0, age: 0 };
+    this.setQuality(mode === 'auto' ? detectQuality(true) : mode);
   }
 
   setQuality(index) {

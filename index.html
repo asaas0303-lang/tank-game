@@ -41,8 +41,7 @@
                 if (atLeast('6.1') && tg.BackButton) {
                   tg.BackButton.show();
                   tg.BackButton.onClick(function () {
-                    var m = document.getElementById('escModal');
-                    if (m) m.classList.toggle('active');
+                    if (window.game && window.game.player) window.game.toggleEscMenu();
                   });
                 }
               }
@@ -1017,47 +1016,89 @@
         animation: modalPop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
       }
 
-      /* Sleek & Compact Settings Modal */
+      /* Ixcham sozlamalar oynasi: ikki ustun, bir qatorli sozlamalar.
+         Balandlik % bilan -- ekran burilgan (landshaft) bo'lganda vh noto'g'ri chiqadi. */
       #escModal .modal-box {
-        max-width: 420px;
-        width: 88%;
-        max-height: 86vh;
-        padding: 14px 18px;
-        background: rgba(10, 16, 28, 0.95);
-        backdrop-filter: blur(16px);
-        -webkit-backdrop-filter: blur(16px);
+        max-width: 560px;
+        width: 92%;
+        max-height: 94%;
+        padding: 10px 14px;
+        background: rgba(10, 16, 28, 0.96);
         border: 1px solid rgba(0, 240, 255, 0.4);
-        border-radius: 14px;
+        border-radius: 12px;
         box-shadow: 0 10px 40px rgba(0, 0, 0, 0.85);
         overflow-y: auto;
       }
       #escModal .modal-title {
-        font-size: 15px;
-        margin-bottom: 10px;
+        font-size: 14px;
+        margin: 0 0 8px;
         letter-spacing: 0.5px;
       }
-      #escModal .setting-group {
-        gap: 6px;
-        margin-bottom: 12px;
+      #escModal .settings-cols {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 6px 14px;
+      }
+      #escModal .settings-head {
+        font:
+          800 10px 'Orbitron',
+          monospace;
+        color: var(--primary);
+        letter-spacing: 1px;
+        padding: 0 2px 3px;
+        border-bottom: 1px solid rgba(0, 240, 255, 0.2);
+        margin-bottom: 4px;
       }
       #escModal .setting-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
         font-size: 11px;
         font-weight: 600;
-        padding: 3px 6px;
+        padding: 3px 2px;
+        min-height: 30px;
+      }
+      #escModal .setting-item span {
+        line-height: 1.15;
       }
       #escModal .setting-item input[type='range'] {
-        width: 105px;
-        height: 5px;
+        width: 90px;
+        height: 22px;
+        flex: none;
       }
       #escModal .btn-toggle-switch {
         font-size: 10px;
-        padding: 3px 8px;
+        padding: 5px 9px;
         border-radius: 5px;
+        flex: none;
+        white-space: nowrap;
+      }
+      #escModal .settings-hint {
+        font-size: 9.5px;
+        line-height: 1.3;
+        color: rgba(255, 255, 255, 0.45);
+        padding: 4px 2px 0;
+      }
+      #escModal .modal-actions {
+        margin-top: 8px;
       }
       #escModal .btn-modal-primary {
         font-size: 12px;
         padding: 8px 18px;
         border-radius: 6px;
+        width: 100%;
+      }
+      #escModal .settings-build {
+        text-align: center;
+        margin-top: 5px;
+        font: 9px monospace;
+        color: rgba(255, 255, 255, 0.3);
+      }
+      /* Sozlamalar ochiq bo'lganda tishli g'ildirak tugmasi panel ustini to'smasin */
+      body.esc-open #btnOpenEsc,
+      body.esc-open #btnQuickSettings {
+        display: none !important;
       }
 
       /* Respawn Killer Elimination Banner */
@@ -1999,117 +2040,49 @@
       <!-- ESC SETTINGS MODAL -->
       <div class="modal-backdrop" id="escModal">
         <div class="modal-box">
-          <h2 class="modal-title">⚙️ SOZLAMALAR VA BOSHQARUV</h2>
+          <h2 class="modal-title">⚙️ SOZLAMALAR</h2>
 
-          <div class="setting-group">
-            <div
-              class="setting-item"
-              style="
-                background: rgba(0, 240, 255, 0.08);
-                border: 1px solid rgba(0, 240, 255, 0.25);
-                border-radius: 8px;
-                padding: 10px 12px;
-                margin-bottom: 6px;
-              "
-            >
-              <span style="font-weight: 700; color: #fff">🔊 Ovoz & Karnay:</span>
-              <button class="btn-toggle-switch active" id="btnEscToggleSpeaker">YOQILGAN</button>
+          <div class="settings-cols">
+            <div class="settings-col">
+              <div class="settings-head">🔊 OVOZ</div>
+              <div class="setting-item">
+                <span>Ovoz (karnay)</span>
+                <button class="btn-toggle-switch active" id="btnEscToggleSpeaker">YOQILGAN</button>
+              </div>
+              <div class="setting-item">
+                <span>Mikrofon (do'stlar bilan gaplashish)</span>
+                <button class="btn-toggle-switch" id="btnEscToggleMic">O'CHIRILGAN</button>
+              </div>
+              <div class="setting-item">
+                <span>Jang ovozi</span>
+                <input type="range" id="sliderSfx" min="0" max="100" value="80" />
+              </div>
+              <div class="setting-item">
+                <span>Shamol va muhit</span>
+                <input type="range" id="sliderMusic" min="0" max="100" value="30" />
+              </div>
             </div>
-            <div
-              class="setting-item"
-              style="
-                background: rgba(0, 240, 255, 0.08);
-                border: 1px solid rgba(0, 240, 255, 0.25);
-                border-radius: 8px;
-                padding: 10px 12px;
-                margin-bottom: 8px;
-              "
-            >
-              <span style="font-weight: 700; color: #fff">🎙️ Ovozli Chat (Mikrofon):</span>
-              <button class="btn-toggle-switch" id="btnEscToggleMic">O'CHIRILGAN</button>
-            </div>
-            <div class="setting-item">
-              <span>Musiqa Ovoz Balandligi:</span>
-              <input type="range" id="sliderMusic" min="0" max="100" value="30" />
-            </div>
-            <div class="setting-item">
-              <span>SFX Effektlar:</span>
-              <input type="range" id="sliderSfx" min="0" max="100" value="80" />
-            </div>
-            <div class="setting-item">
-              <span>Tank Dvigatel Tovushi (Audio API):</span>
-              <button class="btn-toggle-switch active" id="toggleEngine">ON</button>
-            </div>
-            <div class="setting-item">
-              <span>Boshqaruv Rejimi:</span>
-              <button class="btn-toggle-switch" id="toggleControls">WASD Rejimi</button>
-            </div>
-            <div class="setting-item">
-              <span>Toshkent Tun/Kun (90° Faralar):</span>
-              <button class="btn-toggle-switch active" id="toggleDayNight">Avto (UTC+5)</button>
-            </div>
-            <div class="setting-item">
-              <span>To'liq Ekran (Fullscreen):</span>
-              <button class="btn-toggle-switch" id="btnFullscreen">Kattalashtirish</button>
-            </div>
-            <div class="setting-item">
-              <span>Profil / Ism:</span>
-              <button
-                class="btn-toggle-switch"
-                id="btnChangeNameSetting"
-                style="
-                  background: rgba(0, 240, 255, 0.18);
-                  border-color: var(--primary);
-                  color: #00f0ff;
-                "
-              >
-                ✏️ Ismni O'zgartirish
-              </button>
+
+            <div class="settings-col">
+              <div class="settings-head">🎮 O'YIN</div>
+              <div class="setting-item">
+                <span>Grafika sifati</span>
+                <button class="btn-toggle-switch active" id="btnQuality">Avto</button>
+              </div>
+              <div class="setting-item">
+                <span>Ism</span>
+                <button class="btn-toggle-switch" id="btnChangeNameSetting">✏️ O'zgartirish</button>
+              </div>
+              <div class="settings-hint">
+                Telefon qotsa sifatni "Past" qiling. "Avto" telefon kuchiga qarab o'zi tanlaydi.
+              </div>
             </div>
           </div>
 
           <div class="modal-actions">
             <button class="btn-modal-primary" id="btnCloseEsc">JANGGA QAYTISH</button>
           </div>
-          <details
-            style="
-              margin-top: 8px;
-              padding: 6px 10px;
-              border: 1px solid rgba(0, 240, 255, 0.25);
-              border-radius: 6px;
-              background: rgba(0, 0, 0, 0.4);
-            "
-          >
-            <summary
-              style="font: bold 10px monospace; color: #00f0ff; cursor: pointer; outline: none"
-            >
-              🎙️ OVOZ VA TIZIM DIAGNOSTIKASI (Ko'rish uchun bosing)
-            </summary>
-            <pre
-              id="voiceDiagBox"
-              style="
-                margin: 6px 0 0 0;
-                font: 9px/1.35 monospace;
-                color: #cfe8ff;
-                white-space: pre-wrap;
-                word-break: break-all;
-                max-height: 25vh;
-                overflow-y: auto;
-              "
-            >
-yuklanmoqda…</pre>
-          </details>
-          <div
-            style="
-              text-align: center;
-              margin-top: 10px;
-              font: 10px monospace;
-              color: rgba(255, 255, 255, 0.35);
-            "
-            id="buildStampInModal"
-          >
-            build …
-          </div>
+          <div id="buildStampInModal" class="settings-build">build …</div>
         </div>
       </div>
 
@@ -7141,31 +7114,32 @@ yuklanmoqda…</pre>
             audio.setVolumes(parseFloat(e.target.value) / 100, audio.musicVolume);
           });
 
-          document.getElementById('toggleEngine').addEventListener('click', (e) => {
-            const active = e.target.classList.toggle('active');
-            e.target.textContent = active ? 'ON' : 'OFF';
-            audio.toggleEngine(active);
-          });
-
-          document.getElementById('toggleControls').addEventListener('click', (e) => {
-            this.controlsMode = this.controlsMode === 'WASD' ? 'ARROWS' : 'WASD';
-            e.target.textContent = `${this.controlsMode} Rejimi`;
-          });
+          // Grafika sifati: Avto -> Past -> O'rta -> Yuqori
+          const qBtn = document.getElementById('btnQuality');
+          const qNames = ['Past', "O'rta", 'Yuqori'];
+          const showQuality = () => {
+            const e3 = window.engine3D;
+            if (!qBtn || !e3) return;
+            qBtn.textContent = e3.autoQuality
+              ? `Avto (${qNames[e3.qualityIndex]})`
+              : qNames[e3.qualityIndex];
+            qBtn.classList.toggle('active', e3.autoQuality);
+          };
+          this.refreshQualityButton = showQuality;
+          if (qBtn) {
+            qBtn.addEventListener('click', () => {
+              const e3 = window.engine3D;
+              if (!e3) return;
+              const order = ['auto', 0, 1, 2];
+              const cur = e3.autoQuality ? 'auto' : e3.qualityIndex;
+              e3.setQualityMode(order[(order.indexOf(cur) + 1) % order.length]);
+              showQuality();
+            });
+          }
 
           document
             .getElementById('timeCycleBadge')
             .addEventListener('click', () => this.cycleDayNight());
-          document
-            .getElementById('toggleDayNight')
-            .addEventListener('click', () => this.cycleDayNight());
-
-          document.getElementById('btnFullscreen').addEventListener('click', () => {
-            if (!document.fullscreenElement) {
-              document.documentElement.requestFullscreen().catch(() => {});
-            } else {
-              document.exitFullscreen().catch(() => {});
-            }
-          });
 
           // Mic & Speaker: desktop HUD + ESC Settings modal share state
           const micBtn = document.getElementById('hudBtnMic');
@@ -7839,8 +7813,10 @@ yuklanmoqda…</pre>
           const modal = document.getElementById('escModal');
           const nextState = forceState !== null ? forceState : !modal.classList.contains('active');
 
+          document.body.classList.toggle('esc-open', !!nextState);
           if (nextState) {
             modal.classList.add('active');
+            if (this.refreshQualityButton) this.refreshQualityButton();
             const escSpk = document.getElementById('btnEscToggleSpeaker');
             if (escSpk) {
               escSpk.textContent = this.speakerEnabled ? 'YOQILGAN' : "O'CHIRILGAN";
@@ -9129,20 +9105,6 @@ yuklanmoqda…</pre>
           const textEl = document.getElementById('timeCycleText');
           if (iconEl) iconEl.textContent = state.isNight ? '🌙' : '☀️';
           if (textEl) textEl.textContent = state.label;
-
-          const btn = document.getElementById('toggleDayNight');
-          if (btn) {
-            if (dayNight.overrideMode === 'auto') {
-              btn.textContent = 'Avto (UTC+5)';
-              btn.className = 'btn-toggle-switch active';
-            } else if (dayNight.overrideMode === 'day') {
-              btn.textContent = 'Kunduzi (Majburiy)';
-              btn.className = 'btn-toggle-switch';
-            } else {
-              btn.textContent = 'Tungi (Majburiy)';
-              btn.className = 'btn-toggle-switch active';
-            }
-          }
         }
 
         /* ========================================================================
@@ -9619,7 +9581,7 @@ yuklanmoqda…</pre>
       window.addEventListener('load', () => {
         new GameEngine();
 
-        const BUILD_ID = 'BUILD_2026-10-14-v17'; // har deploy oldidan shu qatorni yangilab turing (yoki build skript avtomatik yozsin)
+        const BUILD_ID = 'BUILD_2026-10-14-v18'; // har deploy oldidan shu qatorni yangilab turing (yoki build skript avtomatik yozsin)
         const buildText =
           'build ' + BUILD_ID + (typeof window.Capacitor !== 'undefined' ? ' (APK)' : ' (web)');
         const stamp = document.getElementById('buildStamp');

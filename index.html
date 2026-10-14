@@ -1623,6 +1623,40 @@
         box-shadow: 0 0 22px var(--primary);
       }
       /* In forced landscape: single settings gear button sits exactly in the red circle position below Telegram header */
+      #pingBadge {
+        position: fixed;
+        top: 24px;
+        right: 68px;
+        height: 28px;
+        padding: 0 10px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        border-radius: 14px;
+        background: rgba(10, 18, 36, 0.85);
+        border: 1px solid rgba(0, 240, 255, 0.35);
+        font:
+          700 12px 'Rajdhani',
+          sans-serif;
+        color: #fff;
+        z-index: 100000;
+        pointer-events: none;
+      }
+      #pingDot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #888;
+        box-shadow: 0 0 6px currentColor;
+      }
+      body.forced-landscape #pingBadge {
+        top: 118px !important;
+        right: 72px !important;
+        left: auto !important;
+      }
+      body.esc-open #pingBadge {
+        display: none !important;
+      }
       body.forced-landscape .mobile-gear-btn {
         top: 110px !important;
         right: 18px !important;
@@ -1879,6 +1913,9 @@
     </style>
   </head>
   <body>
+    <!-- Ping: sozlamalar tugmasi yonida doim ko'rinadi -->
+    <div id="pingBadge" aria-label="Ping"><i id="pingDot"></i><span id="pingText">-- ms</span></div>
+
     <!-- Quick Settings Gear Button (Single Button located at the Red Circle position) -->
     <button
       class="mobile-gear-btn"
@@ -6248,6 +6285,17 @@
           };
         }
 
+        // Ping: yashil < 100 ms, sariq < 250 ms, qizil -- sekin
+        updatePingBadge() {
+          const t = document.getElementById('pingText');
+          const d = document.getElementById('pingDot');
+          if (!t || !d) return;
+          const c = this.ping < 100 ? '#00e676' : this.ping < 250 ? '#ffb800' : '#ff1744';
+          t.textContent = `${this.ping} ms`;
+          d.style.background = c;
+          d.style.color = c;
+        }
+
         sendWs(data) {
           if (this.ws && this.ws.readyState === WebSocket.OPEN) {
             this.ws.send(JSON.stringify(data));
@@ -6658,6 +6706,7 @@
             case 'pong':
               if (msg.time) {
                 this.ping = Math.round(performance.now() - msg.time);
+                this.updatePingBadge();
               }
               break;
 
@@ -9600,7 +9649,7 @@
       window.addEventListener('load', () => {
         new GameEngine();
 
-        const BUILD_ID = 'BUILD_2026-10-14-v19'; // har deploy oldidan shu qatorni yangilab turing (yoki build skript avtomatik yozsin)
+        const BUILD_ID = 'BUILD_2026-10-15-v20'; // har deploy oldidan shu qatorni yangilab turing (yoki build skript avtomatik yozsin)
         const buildText =
           'build ' + BUILD_ID + (typeof window.Capacitor !== 'undefined' ? ' (APK)' : ' (web)');
         const stamp = document.getElementById('buildStamp');

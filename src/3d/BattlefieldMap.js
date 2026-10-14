@@ -313,14 +313,14 @@ export class BattlefieldMap3D {
     const roadHGeo = new THREE.PlaneGeometry(worldSize * 0.9, roadWidth);
     roadHGeo.rotateX(-Math.PI / 2);
     const roadH = new THREE.Mesh(roadHGeo, dirtRoadMat);
-    roadH.position.y = 0.02;
+    roadH.position.y = 0.02; // qatlamlar orasida 1 sm dan kam bo'lmasin -- aks holda miltillaydi
     roadH.receiveShadow = true;
     mapGroup.add(roadH);
 
     const roadVGeo = new THREE.PlaneGeometry(roadWidth, worldSize * 0.9);
     roadVGeo.rotateX(-Math.PI / 2);
     const roadV = new THREE.Mesh(roadVGeo, dirtRoadMat);
-    roadV.position.y = 0.03;
+    roadV.position.y = 0.04;
     roadV.receiveShadow = true;
     mapGroup.add(roadV);
 
@@ -330,7 +330,7 @@ export class BattlefieldMap3D {
       diagGeo.rotateX(-Math.PI / 2);
       const diagRoad = new THREE.Mesh(diagGeo, dirtRoadMat);
       diagRoad.rotation.y = -ang + Math.PI / 2;
-      diagRoad.position.set(Math.cos(ang) * 26, 0.025, Math.sin(ang) * 26);
+      diagRoad.position.set(Math.cos(ang) * 26, 0.03, Math.sin(ang) * 26);
       diagRoad.receiveShadow = true;
       mapGroup.add(diagRoad);
     });
@@ -344,13 +344,13 @@ export class BattlefieldMap3D {
       bankGeo,
       new THREE.MeshStandardMaterial({ color: 0x9e8867, roughness: 0.95 })
     );
-    bank.position.y = 0.035;
+    bank.position.y = 0.05;
     bank.receiveShadow = true;
     waterGroup.add(bank);
     const waterGeo = new THREE.PlaneGeometry(ML.WATER.w, ML.WATER.d);
     waterGeo.rotateX(-Math.PI / 2);
     const water = new THREE.Mesh(waterGeo, waterMat);
-    water.position.y = 0.06;
+    water.position.y = 0.065;
     water.receiveShadow = true;
     waterGroup.add(water);
     mapGroup.add(waterGroup);

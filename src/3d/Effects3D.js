@@ -256,7 +256,7 @@ export class Effects3D {
       if (!m.visible) continue;
       const p = ML.to3D(d.x, d.y);
       const s = (d.radius || 60) * ML.SCALE * 1.4;
-      m.position.set(p.x, 0.05, p.z);
+      m.position.set(p.x, 0.085, p.z);
       m.scale.set(s, 1, s);
     }
   }
@@ -300,7 +300,7 @@ export class Effects3D {
       for (const side of [-1, 1]) {
         const p = ML.to3D(m.x + px * side * (m.width / 2), m.y + py * side * (m.width / 2));
         this._tm.compose(
-          this._tv.set(p.x, 0.045, p.z),
+          this._tv.set(p.x, 0.075, p.z),
           this._tq,
           this._ts.set(0.38 * fade + 0.05, 1, 1.25)
         );

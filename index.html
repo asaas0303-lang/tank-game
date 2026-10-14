@@ -7538,12 +7538,13 @@ yuklanmoqda…</pre>
 
             if (leftThumb) leftThumb.style.transform = `translate3d(${dx}px, ${dy}px, 0)`;
 
-            // Normalized coords: -1 to +1
-            const normX = dx / maxRadius;
-            const normY = dy / maxRadius;
-
-            this.mobileInput.throttle = -normY;
-            this.mobileInput.steer = normX;
+            // -1..+1, markazdagi 8% "o'lik zona": barmoq ozgina qimirlasa tank sudralib ketmaydi,
+            // zonadan keyin esa yumshoq boshlanadi (sakrab ketmaydi)
+            const len = Math.hypot(dx, dy) / maxRadius;
+            const DEAD = 0.08;
+            const k = len > DEAD ? (len - DEAD) / (1 - DEAD) / len : 0;
+            this.mobileInput.throttle = (-dy / maxRadius) * k;
+            this.mobileInput.steer = (dx / maxRadius) * k;
           };
 
           const resetLeftJoystick = () => {

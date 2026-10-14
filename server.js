@@ -3,6 +3,7 @@ const http = require('http');
 const path = require('path');
 const WebSocket = require('ws');
 const { Sentry } = require('./lib/sentry');
+const MapLayout = require('./src/shared/mapLayout.js');
 
 const app = express();
 const server = http.createServer(app);
@@ -66,7 +67,7 @@ const players = new Map();
 // Game Rooms: roomId -> { id, name, mode, players: Set<playerId>, bots: Array }
 const rooms = new Map();
 
-const SECTOR_SIZE = 650;
+const SECTOR_SIZE = MapLayout.SECTOR_SIZE;
 const SECTOR_THEMES = [
   '#00f0ff',
   '#ff2a5f',
@@ -90,8 +91,8 @@ function getOrCreateRoom(roomId = 'default-dm', mode = 'Deathmatch') {
       sectors: [],
       cols: 2,
       rows: 2,
-      worldWidth: 1300,
-      worldHeight: 1300,
+      worldWidth: MapLayout.WORLD_SIZE,
+      worldHeight: MapLayout.WORLD_SIZE,
     });
   }
   return rooms.get(roomId);
@@ -131,12 +132,8 @@ function assignBotSpawns(room) {
   if (!room.sectors || room.sectors.length === 0) return false;
   let assigned = false;
 
-  const garageSpawns = {
-    A1: { x: 99, y: 99 },
-    A2: { x: 1201, y: 99 },
-    B1: { x: 99, y: 1201 },
-    B2: { x: 1201, y: 1201 },
-  };
+  const garageSpawns = {};
+  for (const sid of ['A1', 'A2', 'B1', 'B2']) garageSpawns[sid] = MapLayout.spawnFor(sid);
 
   // Inson o'yinchilarning shaxsiy garajlari -- botlar bu yerga MUTLAQO tushmasligi shart
   const humanSectorIds = new Set();
@@ -176,23 +173,10 @@ function assignBotSpawns(room) {
 }
 
 function updateRoomSectors(room) {
-  const humanCount = room.players.size;
-  let cols = 2;
-  let rows = 2;
-
-  if (humanCount <= 1) {
-    cols = 2;
-    rows = 2; // 4 sectors (A1, A2, B1, B2)
-  } else if (humanCount === 2) {
-    cols = 3;
-    rows = 2; // 6 sectors (A1, A2, A3, B1, B2, B3)
-  } else if (humanCount === 3) {
-    cols = 3;
-    rows = 3; // 9 sectors (A1..A3, B1..B3, C1..C3)
-  } else {
-    cols = 4;
-    rows = Math.ceil(Math.max(4, humanCount * 3) / 4);
-  }
+  // Xarita DOIM 2x2 (4 garaj) -- 3D jang maydoni bilan bir xil. O'yinchi soniga qarab
+  // kengaymaydi (avval kengayardi va to'siqlar 3D rasmdan siljib ketardi).
+  const cols = 2;
+  const rows = 2;
 
   const sectors = [];
   const rowLetters = ['A', 'B', 'C', 'D', 'E', 'F'];
@@ -283,10 +267,11 @@ function updateRoomSectors(room) {
 }
 
 // Balance bots in room by human player count (easy to retune, see the map below)
-const BOT_COUNT_BY_HUMANS = { 1: 3, 2: 4, 3: 3, 4: 2, 5: 1, 6: 1 };
+// 4 ta garaj: odam + bot = 4 (har biriga bitta garaj)
+const BOT_COUNT_BY_HUMANS = { 1: 3, 2: 2, 3: 1, 4: 0 };
 function balanceRoomBots(room) {
   const humanCount = room.players.size;
-  const targetBotCount = humanCount > 6 ? 0 : BOT_COUNT_BY_HUMANS[humanCount] || 0;
+  const targetBotCount = BOT_COUNT_BY_HUMANS[humanCount] || 0;
 
   // Adjust bots array
   while (room.bots.length < targetBotCount) {
@@ -882,8 +867,7 @@ wss.on('connection', (ws, req) => {
 
                   if (rooms.has(room.id)) {
                     const humanCount = room.players.size;
-                    const targetBotCount =
-                      humanCount > 6 ? 0 : BOT_COUNT_BY_HUMANS[humanCount] || 0;
+                    const targetBotCount = BOT_COUNT_BY_HUMANS[humanCount] || 0;
 
                     if (room.bots.length < targetBotCount) {
                       balanceRoomBots(room);

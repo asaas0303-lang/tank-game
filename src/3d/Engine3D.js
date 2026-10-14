@@ -9,6 +9,9 @@
 import * as THREE from '../../lib/three.module.js';
 import { TankModel3D } from './TankModel.js';
 import { BattlefieldMap3D } from './BattlefieldMap.js';
+import { Effects3D } from './Effects3D.js';
+
+const ML = globalThis.MapLayout;
 
 if (typeof window !== 'undefined') {
   window.BattlefieldMap3D = BattlefieldMap3D;
@@ -18,7 +21,7 @@ export class Engine3D {
   constructor(canvasContainer) {
     this.container = canvasContainer || document.getElementById('game-container') || document.body;
     // When portrait is CSS-rotated to landscape, swap width/height
-    const isPortrait = window._forcedLandscape || (window.innerHeight > window.innerWidth);
+    const isPortrait = window._forcedLandscape || window.innerHeight > window.innerWidth;
     this.width = isPortrait ? window.innerHeight : window.innerWidth;
     this.height = isPortrait ? window.innerWidth : window.innerHeight;
 
@@ -63,8 +66,12 @@ export class Engine3D {
     this.setupLighting();
 
     // 5. Build Battlefield (140x140 WW2 arena)
-    this.battlefield = BattlefieldMap3D.build(this.scene, 140);
-    this.garages = (this.battlefield && this.battlefield.garages) || [];
+    this.battlefield = BattlefieldMap3D.build(this.scene);
+    this.garages = this.battlefield.garages;
+    this.meshesByKey = this.battlefield.meshesByKey;
+    this.effects = new Effects3D(this.scene);
+    this.effects.setViewportHeight(this.height);
+    this.time = 0;
 
     // 6. Tank instances: id -> { root, hull, turret, barrel, muzzlePoint, updateBadge, ... }
     this.tanks = new Map();
@@ -75,22 +82,11 @@ export class Engine3D {
     this.mineMeshes = [];
     this.particles = [];
 
-    // Scale conversion factor between 2D arena coordinates and 3D scene
-    this.worldScale = 0.085;
+    // 2D o'yin koordinatasi -> 3D (yagona manba: MapLayout)
+    this.worldScale = ML.SCALE;
 
     // Window Resize handling
     window.addEventListener('resize', () => this.onResize());
-  }
-
-  onResize() {
-    if (!this.container || !this.renderer || !this.camera) return;
-    const w = this.container.clientWidth || window.innerWidth;
-    const h = this.container.clientHeight || window.innerHeight;
-    this.width = w;
-    this.height = h;
-    this.camera.aspect = w / h;
-    this.camera.updateProjectionMatrix();
-    this.renderer.setSize(w, h, false);
   }
 
   setupLighting() {
@@ -124,21 +120,17 @@ export class Engine3D {
 
   onResize() {
     // When portrait is CSS-rotated to landscape, swap width/height
-    const isPortrait = window._forcedLandscape || (window.innerHeight > window.innerWidth);
+    const isPortrait = window._forcedLandscape || window.innerHeight > window.innerWidth;
     this.width = isPortrait ? window.innerHeight : window.innerWidth;
     this.height = isPortrait ? window.innerWidth : window.innerHeight;
     this.camera.aspect = this.width / this.height;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(this.width, this.height, false);
+    this.effects.setViewportHeight(this.height);
   }
 
-  to3DCoords(x2d, y2d, worldW = 1300, worldH = 1300) {
-    const cx = worldW * 0.5;
-    const cy = worldH * 0.5;
-    return {
-      x: (x2d - cx) * this.worldScale,
-      z: (y2d - cy) * this.worldScale,
-    };
+  to3DCoords(x2d, y2d) {
+    return ML.to3D(x2d, y2d);
   }
 
   getOrCreateTank(id, options = {}) {
@@ -167,7 +159,10 @@ export class Engine3D {
     while (this.cameraYaw < -Math.PI) this.cameraYaw += Math.PI * 2;
 
     if (deltaY !== 0) {
-      this.cameraPitch = Math.max(0.15, Math.min(0.82, (this.cameraPitch || 0.42) + deltaY * sensY));
+      this.cameraPitch = Math.max(
+        0.15,
+        Math.min(0.82, (this.cameraPitch || 0.42) + deltaY * sensY)
+      );
     }
 
     if (this.lastGame && this.lastGame.player && !this.lastGame.player.dead) {
@@ -188,15 +183,6 @@ export class Engine3D {
 
     this.lastGame = game;
 
-    const worldW =
-      (typeof window !== 'undefined' && window.WORLD && window.WORLD.width) ||
-      game.worldWidth ||
-      1300;
-    const worldH =
-      (typeof window !== 'undefined' && window.WORLD && window.WORLD.height) ||
-      game.worldHeight ||
-      1300;
-
     // 1. Synchronize Player Tank
     const player3D = this.getOrCreateTank(this.playerTankId, {
       name: game.player.name || 'Commander',
@@ -205,7 +191,7 @@ export class Engine3D {
       garageIndex: 1,
     });
 
-    const pPos3D = this.to3DCoords(game.player.x, game.player.y, worldW, worldH);
+    const pPos3D = this.to3DCoords(game.player.x, game.player.y);
     player3D.root.position.set(pPos3D.x, 0, pPos3D.z);
 
     // Exact mathematical orientation from 2D angle to 3D Y rotation:
@@ -336,7 +322,7 @@ export class Engine3D {
           bot3D.root.visible = false;
         } else {
           bot3D.root.visible = true;
-          const bPos = this.to3DCoords(bot.x, bot.y, worldW, worldH);
+          const bPos = this.to3DCoords(bot.x, bot.y);
           bot3D.root.position.set(bPos.x, 0, bPos.z);
 
           const bAngle = bot.bodyAngle !== undefined ? bot.bodyAngle : bot.angle || 0;
@@ -366,45 +352,45 @@ export class Engine3D {
     // 4. Synchronize Remote Human Players
     const activePeers = game.peers || game.remotePlayers || new Map();
     activePeers.forEach((rp, id) => {
-        const rpId = `rp_${id}`;
-        activeTankIds.add(rpId);
+      const rpId = `rp_${id}`;
+      activeTankIds.add(rpId);
 
-        const rp3D = this.getOrCreateTank(rpId, {
-          name: rp.name || 'Player',
-          primaryColor: 0x3d6ebd,
-          badgeColor: '#3b82f6',
-          garageIndex: 3,
-        });
+      const rp3D = this.getOrCreateTank(rpId, {
+        name: rp.name || 'Player',
+        primaryColor: 0x3d6ebd,
+        badgeColor: '#3b82f6',
+        garageIndex: 3,
+      });
 
-        if (rp.dead) {
-          rp3D.root.visible = false;
-        } else {
-          rp3D.root.visible = true;
-          const rPos = this.to3DCoords(rp.x, rp.y, worldW, worldH);
-          rp3D.root.position.set(rPos.x, 0, rPos.z);
+      if (rp.dead) {
+        rp3D.root.visible = false;
+      } else {
+        rp3D.root.visible = true;
+        const rPos = this.to3DCoords(rp.x, rp.y);
+        rp3D.root.position.set(rPos.x, 0, rPos.z);
 
-          const rAngle = rp.bodyAngle !== undefined ? rp.bodyAngle : rp.angle || 0;
-          const rDirX = Math.cos(rAngle);
-          const rDirZ = Math.sin(rAngle);
-          const rRotY = Math.atan2(rDirX, rDirZ);
-          rp3D.root.rotation.y = rRotY;
+        const rAngle = rp.bodyAngle !== undefined ? rp.bodyAngle : rp.angle || 0;
+        const rDirX = Math.cos(rAngle);
+        const rDirZ = Math.sin(rAngle);
+        const rRotY = Math.atan2(rDirX, rDirZ);
+        rp3D.root.rotation.y = rRotY;
 
-          const rTurretAngle = rp.turretAngle !== undefined ? rp.turretAngle : rAngle;
-          const rTurretDirX = Math.cos(rTurretAngle);
-          const rTurretDirZ = Math.sin(rTurretAngle);
-          const rTurretTargetY = Math.atan2(rTurretDirX, rTurretDirZ);
-          rp3D.turret.rotation.y = rTurretTargetY - rRotY;
+        const rTurretAngle = rp.turretAngle !== undefined ? rp.turretAngle : rAngle;
+        const rTurretDirX = Math.cos(rTurretAngle);
+        const rTurretDirZ = Math.sin(rTurretAngle);
+        const rTurretTargetY = Math.atan2(rTurretDirX, rTurretDirZ);
+        rp3D.turret.rotation.y = rTurretTargetY - rRotY;
 
-          if (rp3D.updateBadge) {
-            const rMaxHp = rp.maxHp || 100;
-            const rHp = Math.max(0, rp.hp || 0);
-            rp3D.updateBadge(rp.name || 'Player', rHp / rMaxHp);
-            if (rp3D.badgeSprite && rp3D.badgeSprite.material) {
-              rp3D.badgeSprite.material.rotation = 0;
-            }
+        if (rp3D.updateBadge) {
+          const rMaxHp = rp.maxHp || 100;
+          const rHp = Math.max(0, rp.hp || 0);
+          rp3D.updateBadge(rp.name || 'Player', rHp / rMaxHp);
+          if (rp3D.badgeSprite && rp3D.badgeSprite.material) {
+            rp3D.badgeSprite.material.rotation = 0;
           }
         }
-      });
+      }
+    });
 
     // Hide untracked tanks
     for (const [id, t] of this.tanks) {
@@ -480,7 +466,7 @@ export class Engine3D {
       const bObj = this.bulletMeshes[i];
       if (i < activeBullets.length) {
         const b = activeBullets[i];
-        const b3D = this.to3DCoords(b.x, b.y, worldW, worldH);
+        const b3D = this.to3DCoords(b.x, b.y);
         bObj.position.set(b3D.x, 0.95, b3D.z);
         const bRot = Math.atan2(b.vx || 1, b.vy || 0);
         bObj.rotation.y = bRot;
@@ -517,7 +503,7 @@ export class Engine3D {
       const mObj = this.mineMeshes[i];
       if (i < activeMines.length) {
         const m = activeMines[i];
-        const m3D = this.to3DCoords(m.x, m.y, worldW, worldH);
+        const m3D = this.to3DCoords(m.x, m.y);
         mObj.group.position.set(m3D.x, 0.07, m3D.z);
         mObj.group.visible = true;
         mObj.timer += dt * 5;
@@ -527,7 +513,24 @@ export class Engine3D {
       }
     }
 
-    // Render 3D Frame
+    // 7. Buzilgan g'isht devorlar 3D da ham yo'qoladi (2D to'siq bilan bir xil kalit)
+    if (game.walls) {
+      for (const w of game.walls) {
+        if (!w.key || !w.destructible) continue;
+        const mesh = this.meshesByKey[w.key];
+        if (mesh) mesh.visible = !w.destroyed;
+      }
+    }
+
+    // 8. Qoldiqlar, qutilar, tangalar, kuyik izlari va zarrachalar
+    this.time += dt;
+    this.effects.syncWreckages(game.wreckages || []);
+    this.effects.syncCrates(game.crates || [], this.time);
+    this.effects.syncCoins(game.coins || [], this.time);
+    this.effects.syncDecals(game.groundDecals || []);
+    this.effects.syncDebris(game.debrisChunks || []);
+    this.effects.syncParticles(game.particles || []);
+
     this.renderer.render(this.scene, this.camera);
   }
 }

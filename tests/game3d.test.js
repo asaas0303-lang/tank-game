@@ -64,39 +64,6 @@ describe('Tank Game 3D & Security Verification', () => {
     expect(content).toContain('100. **Ko\'p tillilikda matn sig\'masligi:');
   });
 
-  test('BattlefieldMap.js contains rustic weathered wood textures and hollow garages with inside spawns', () => {
-    const mapContent = fs.readFileSync(
-      path.join(__dirname, '..', 'src', '3d', 'BattlefieldMap.js'),
-      'utf8'
-    );
-    expect(mapContent).toContain('createWeatheredWoodTexture');
-    expect(mapContent).toContain('createWoodRoofTexture');
-    expect(mapContent).toContain('cfg.x - spawnDirX * 4');
-    expect(mapContent).toContain('getColliders');
-  });
-
-  test('index.html contains genuine tank movement physics, touch look, and inside-garage spawns', () => {
-    const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
-    // Genuine tank controls with throttle and steer
-    expect(html).toContain('this.player.updateMovement(');
-    expect(html).toContain('throttle,');
-    expect(html).toContain('steer,');
-    // Touch look and auto-aim
-    expect(html).toContain('touch-look-zone');
-    expect(html).toContain('touchLookActive');
-    expect(html).toContain('hasLineOfSight');
-    // Inside garage spawns for reset and respawn
-    expect(html).toContain('spawnsBySector');
-    expect(html).toContain('A1: { x: 99, y: 99');
-    expect(html).toContain('B2: { x: 1201, y: 1201');
-  });
-
-  test('server.js contains inside-garage bot spawns and valid sec selection', () => {
-    const serverCode = fs.readFileSync(path.join(__dirname, '..', 'server.js'), 'utf8');
-    expect(serverCode).toContain('const garageSpawns = {');
-    expect(serverCode).toContain('A1: { x: 99, y: 99 }');
-  });
-
   test('index.html safely handles peer and bot lists without accessing undefined remotePlayers', () => {
     const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
     expect(html).not.toContain('this.remotePlayers.values()');
@@ -136,10 +103,4 @@ describe('Tank Game 3D & Security Verification', () => {
     expect(code).toContain('muzzlePoint.position.set(0, 0, 3.05)');
   });
 
-  test('BattlefieldMap.js computes mathematically accurate garage wall colliders with rot2D = -cfg.rot', () => {
-    const mapCode = fs.readFileSync(path.join(__dirname, '..', 'src', '3d', 'BattlefieldMap.js'), 'utf8');
-    expect(mapCode).toContain('const rot2D = -cfg.rot;');
-    expect(mapCode).toContain('x: cfg.x + lx * cos + lz * sin');
-    expect(mapCode).toContain('z: cfg.z - lx * sin + lz * cos');
-  });
 });

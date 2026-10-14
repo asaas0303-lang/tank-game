@@ -8,6 +8,8 @@
  */
 import * as THREE from '../../lib/three.module.js';
 
+const ML = globalThis.MapLayout;
+
 export class BattlefieldMap3D {
   static createGarageLabel(text) {
     const canvas = document.createElement('canvas');
@@ -60,7 +62,7 @@ export class BattlefieldMap3D {
     const texture = new THREE.CanvasTexture(canvas);
     texture.wrapS = THREE.RepeatWrapping;
     texture.wrapT = THREE.RepeatWrapping;
-    texture.repeat.set(12, 12);
+    texture.repeat.set(30, 30);
     texture.colorSpace = THREE.SRGBColorSpace;
     return texture;
   }
@@ -224,7 +226,9 @@ export class BattlefieldMap3D {
     return texture;
   }
 
-  static build(scene, worldSize = 140) {
+  static build(scene) {
+    const worldSize = ML.WORLD_SIZE * ML.SCALE; // o'yin maydoni (chegara devorigacha)
+    const meshesByKey = {};
     const mapGroup = new THREE.Group();
     mapGroup.name = 'ww2_battlefield';
 
@@ -297,7 +301,8 @@ export class BattlefieldMap3D {
     });
 
     // 1. MAIN GROUND (Grass Plane)
-    const groundGeo = new THREE.PlaneGeometry(worldSize, worldSize, 32, 32);
+    // Yer chegaradan tashqariga ham cho'ziladi -- ufqda bo'shliq ko'rinmasin
+    const groundGeo = new THREE.PlaneGeometry(worldSize * 2.2, worldSize * 2.2, 1, 1);
     groundGeo.rotateX(-Math.PI / 2);
     const ground = new THREE.Mesh(groundGeo, groundGrassMat);
     ground.receiveShadow = true;
@@ -330,23 +335,19 @@ export class BattlefieldMap3D {
       mapGroup.add(diagRoad);
     });
 
-    // 3. RIVER / WATER POND (Right & bottom edge)
+    // 3. SAYOZ KO'LMAK (tank shu yerda sekinlashadi -- MapLayout.WATER)
     const waterGroup = new THREE.Group();
-    waterGroup.position.set(40, 0, 26);
-
-    // Sandy bank
-    const bankGeo = new THREE.PlaneGeometry(42, 52);
+    waterGroup.position.set(ML.WATER.x, 0, ML.WATER.z);
+    const bankGeo = new THREE.PlaneGeometry(ML.WATER.w + 4, ML.WATER.d + 4);
     bankGeo.rotateX(-Math.PI / 2);
     const bank = new THREE.Mesh(
       bankGeo,
       new THREE.MeshStandardMaterial({ color: 0x9e8867, roughness: 0.95 })
     );
-    bank.position.y = 0.03;
+    bank.position.y = 0.035;
     bank.receiveShadow = true;
     waterGroup.add(bank);
-
-    // Water surface
-    const waterGeo = new THREE.PlaneGeometry(38, 48);
+    const waterGeo = new THREE.PlaneGeometry(ML.WATER.w, ML.WATER.d);
     waterGeo.rotateX(-Math.PI / 2);
     const water = new THREE.Mesh(waterGeo, waterMat);
     water.position.y = 0.06;
@@ -354,71 +355,57 @@ export class BattlefieldMap3D {
     waterGroup.add(water);
     mapGroup.add(waterGroup);
 
-    // 4. 4 MILITARY GARAGES (Spawns at 4 corners matching Reference Image 2)
-    const garageConfigs = [
-      { id: 1, name: 'GARAJ 1', x: -44, z: -44, rot: Math.PI / 4, color: 0x00ff88 }, // Top-Left (Green)
-      { id: 2, name: 'GARAJ 2', x: -44, z: 44, rot: -Math.PI / 4, color: 0xff3b30 }, // Bottom-Left (Red)
-      { id: 3, name: 'GARAJ 3', x: 44, z: 44, rot: -(Math.PI * 3) / 4, color: 0x007aff }, // Bottom-Right (Blue)
-      { id: 4, name: 'GARAJ 4', x: 44, z: -44, rot: (Math.PI * 3) / 4, color: 0xff9500 }, // Top-Right (Orange)
-    ];
+    // 3b. CHEGARA DEVORI -- to'siq bor joyda devor ham ko'rinadi
+    const borderMat = new THREE.MeshStandardMaterial({
+      map: brickTex,
+      color: 0x9a948a,
+      roughness: 0.95,
+    });
+    ML.colliders()
+      .filter((c) => c.key.startsWith('border_'))
+      .forEach((c) => {
+        const p = ML.to3D(c.x + c.w / 2, c.y + c.h / 2);
+        const wall = new THREE.Mesh(
+          new THREE.BoxGeometry(c.w * ML.SCALE, 2.2, c.h * ML.SCALE),
+          borderMat
+        );
+        wall.position.set(p.x, 1.1, p.z);
+        wall.castShadow = true;
+        wall.receiveShadow = true;
+        mapGroup.add(wall);
+      });
 
-    const garageSpawns = [];
+    // 4. 4 TA HARBIY GARAJ (hammasining eshigi markazga qaragan)
     const garages = [];
+    const wallHeight = 10;
 
-    garageConfigs.forEach((cfg) => {
+    ML.GARAGES.forEach((cfg) => {
       const gGroup = new THREE.Group();
       gGroup.position.set(cfg.x, 0, cfg.z);
       gGroup.rotation.y = cfg.rot;
 
-      // Hollow Wooden Garage Walls (Left, Right, Back, Front Frame)
-      // Left Wall (Thickness: 1.6, Height: 10, Length: 28)
-      const leftWall = new THREE.Mesh(new THREE.BoxGeometry(1.6, 10, 28), garageWallMat);
-      leftWall.position.set(-9.2, 5, -5);
-      leftWall.castShadow = true;
-      leftWall.receiveShadow = true;
-      gGroup.add(leftWall);
+      // Devorlar to'siqlar bilan bir xil o'lcham va joyda (MapLayout.GARAGE_WALLS)
+      ML.GARAGE_WALLS.forEach((p) => {
+        const wall = new THREE.Mesh(new THREE.BoxGeometry(p.w, wallHeight, p.d), garageWallMat);
+        wall.position.set(p.lx, wallHeight / 2, p.lz);
+        wall.castShadow = true;
+        wall.receiveShadow = true;
+        gGroup.add(wall);
+      });
 
-      // Right Wall
-      const rightWall = new THREE.Mesh(new THREE.BoxGeometry(1.6, 10, 28), garageWallMat);
-      rightWall.position.set(9.2, 5, -5);
-      rightWall.castShadow = true;
-      rightWall.receiveShadow = true;
-      gGroup.add(rightWall);
-
-      // Back Wall (Width: 20, Height: 10, Thickness: 1.6)
-      const backWall = new THREE.Mesh(new THREE.BoxGeometry(20, 10, 1.6), garageWallMat);
-      backWall.position.set(0, 5, -18.2);
-      backWall.castShadow = true;
-      backWall.receiveShadow = true;
-      gGroup.add(backWall);
-
-      // Front Door Left Pillar
-      const frontPillarL = new THREE.Mesh(new THREE.BoxGeometry(3.5, 10, 1.6), garageWallMat);
-      frontPillarL.position.set(-8.25, 5, 8.2);
-      frontPillarL.castShadow = true;
-      frontPillarL.receiveShadow = true;
-      gGroup.add(frontPillarL);
-
-      // Front Door Right Pillar
-      const frontPillarR = new THREE.Mesh(new THREE.BoxGeometry(3.5, 10, 1.6), garageWallMat);
-      frontPillarR.position.set(8.25, 5, 8.2);
-      frontPillarR.castShadow = true;
-      frontPillarR.receiveShadow = true;
-      gGroup.add(frontPillarR);
-
-      // Front Door Top Lintel
+      // Eshik tepasidagi to'sin (tank ostidan o'tadi -- to'siq emas)
       const frontLintel = new THREE.Mesh(new THREE.BoxGeometry(13, 2.5, 1.6), garageWallMat);
       frontLintel.position.set(0, 8.75, 8.2);
       frontLintel.castShadow = true;
       frontLintel.receiveShadow = true;
       gGroup.add(frontLintel);
 
-      // Interior Hanging Lantern Light (warm glowing beacon inside hangar)
+      // Ichki chiroq
       const lanternLight = new THREE.PointLight(0xffdf99, 1.3, 28);
       lanternLight.position.set(0, 7.5, -4);
       gGroup.add(lanternLight);
 
-      // Gabled Roof with overhang (individual material clone so roof can dynamically fade when player is inside)
+      // Tom (o'yinchi ichkarida bo'lsa shaffoflashadi)
       const roofGeo = new THREE.ConeGeometry(15, 6, 4);
       roofGeo.rotateY(Math.PI / 4);
       roofGeo.scale(1.0, 1.0, 1.5);
@@ -430,31 +417,21 @@ export class BattlefieldMap3D {
       roof.castShadow = true;
       gGroup.add(roof);
 
-      // Glowing Doorway Aperture (Exit Beam)
-      const doorOpenMat = new THREE.MeshBasicMaterial({
-        color: cfg.color,
-        transparent: true,
-        opacity: 0.55,
-      });
-      const doorOpenGeo = new THREE.PlaneGeometry(13, 8.5);
-      const doorBeam = new THREE.Mesh(doorOpenGeo, doorOpenMat);
-      doorBeam.position.set(0, 4.3, 9.05);
-      gGroup.add(doorBeam);
-
-      // Projecting Light Beam on Ground in front of hangar
+      // Eshik nuri (pol ustida). Vertikal "parda" olib tashlandi -- kamera undan o'tganda
+      // butun ekran rangga bo'yalib qolardi.
       const floorBeamGeo = new THREE.PlaneGeometry(14, 20);
       floorBeamGeo.rotateX(-Math.PI / 2);
       const floorBeamMat = new THREE.MeshBasicMaterial({
         color: cfg.color,
         transparent: true,
-        opacity: 0.28,
+        opacity: 0.22,
         depthWrite: false,
       });
       const floorBeam = new THREE.Mesh(floorBeamGeo, floorBeamMat);
       floorBeam.position.set(0, 0.04, 19);
       gGroup.add(floorBeam);
 
-      // Signboard: "GARAJ 1", etc.
+      // Yozuv: "GARAJ 1" va h.k.
       const labelTex = this.createGarageLabel(cfg.name);
       const labelMat = new THREE.MeshBasicMaterial({ map: labelTex, transparent: true });
       const labelMesh = new THREE.Mesh(new THREE.PlaneGeometry(12, 3), labelMat);
@@ -462,20 +439,6 @@ export class BattlefieldMap3D {
       gGroup.add(labelMesh);
 
       mapGroup.add(gGroup);
-
-      // Spawn point INSIDE the garage facing towards the glowing doorway
-      const spawnDirX = -Math.sin(cfg.rot);
-      const spawnDirZ = -Math.cos(cfg.rot);
-      garageSpawns.push({
-        id: cfg.id,
-        name: cfg.name,
-        color: cfg.color,
-        // Centered inside the hangar (z = -4 in garage local coordinates)
-        x: cfg.x - spawnDirX * 4,
-        z: cfg.z - spawnDirZ * 4,
-        angle: Math.atan2(-spawnDirX, -spawnDirZ),
-      });
-
       garages.push({
         id: cfg.id,
         name: cfg.name,
@@ -489,287 +452,90 @@ export class BattlefieldMap3D {
       });
     });
 
-    // 5. WW2 RUINED BRICK FOUNDATIONS (Ruins in quadrant zones)
-    const ruinLocations = [
-      { x: -16, z: -16, w: 14, d: 9, h: 3.2 },
-      { x: 16, z: -18, w: 15, d: 11, h: 3.5 },
-      { x: -18, z: 18, w: 12, d: 13, h: 3.0 },
-      { x: 14, z: 18, w: 13, d: 10, h: 3.2 },
-    ];
-
-    ruinLocations.forEach((r) => {
-      const ruinGroup = new THREE.Group();
-      ruinGroup.position.set(r.x, 0, r.z);
-
-      // Perimeter crumbling brick walls
-      const wall1 = new THREE.Mesh(new THREE.BoxGeometry(r.w, r.h, 1.4), brickRuinsMat);
-      wall1.position.set(0, r.h / 2, -r.d / 2);
-      wall1.castShadow = true;
-      wall1.receiveShadow = true;
-      ruinGroup.add(wall1);
-
-      const wall2 = new THREE.Mesh(new THREE.BoxGeometry(1.4, r.h * 0.75, r.d), brickRuinsMat);
-      wall2.position.set(-r.w / 2, (r.h * 0.75) / 2, 0);
-      wall2.castShadow = true;
-      wall2.receiveShadow = true;
-      ruinGroup.add(wall2);
-
-      const wall3 = new THREE.Mesh(new THREE.BoxGeometry(r.w * 0.6, r.h * 0.5, 1.4), brickRuinsMat);
-      wall3.position.set(r.w * 0.2, (r.h * 0.5) / 2, r.d / 2);
-      wall3.castShadow = true;
-      wall3.receiveShadow = true;
-      ruinGroup.add(wall3);
-
-      mapGroup.add(ruinGroup);
+    // 5. G'ISHT XAROBALAR (buziladigan -- har devor kaliti bilan saqlanadi)
+    ML.RUINS.forEach((r, i) => {
+      ML.ruinWalls(r).forEach((p) => {
+        const wall = new THREE.Mesh(new THREE.BoxGeometry(p.w, p.h, p.d), brickRuinsMat);
+        wall.position.set(r.x + p.x, p.h / 2, r.z + p.z);
+        wall.castShadow = true;
+        wall.receiveShadow = true;
+        mapGroup.add(wall);
+        meshesByKey[`ruin${i}_${p.part}`] = wall;
+      });
     });
 
-    // 6. CZECH ANTI-TANK HEDGEHOGS (Crossed steel I-beams)
-    const hedgehogPositions = [
-      [-7, -5],
-      [7, -6],
-      [-6, 7],
-      [8, 6],
-      [-24, 0],
-      [24, 0],
-      [0, -24],
-      [0, 24],
-    ];
+    // Bir xil narsalar bitta chizish buyrug'i bilan (InstancedMesh) -- telefon yengillashadi
+    const m4 = new THREE.Matrix4();
+    const q = new THREE.Quaternion();
+    const e = new THREE.Euler();
+    const v = new THREE.Vector3();
+    const one = new THREE.Vector3(1, 1, 1);
+    const instanced = (geo, mat, matrices) => {
+      const im = new THREE.InstancedMesh(geo, mat, matrices.length);
+      matrices.forEach((m, k) => im.setMatrixAt(k, m));
+      im.castShadow = true;
+      im.receiveShadow = true;
+      mapGroup.add(im);
+      return im;
+    };
+    const place = (x, y, z, rx = 0, ry = 0, rz = 0) =>
+      new THREE.Matrix4().compose(v.set(x, y, z), q.setFromEuler(e.set(rx, ry, rz)), one);
 
-    hedgehogPositions.forEach(([hx, hz]) => {
-      const hhGroup = new THREE.Group();
-      hhGroup.position.set(hx, 0.75, hz);
-
-      const beamGeo = new THREE.BoxGeometry(0.3, 0.3, 2.5);
-      for (let i = 0; i < 3; i++) {
-        const b = new THREE.Mesh(beamGeo, hedgehogMat);
-        b.rotation.x = i === 0 ? Math.PI / 4 : 0;
-        b.rotation.y = i === 1 ? Math.PI / 4 : 0;
-        b.rotation.z = i === 2 ? Math.PI / 4 : 0;
-        b.castShadow = true;
-        b.receiveShadow = true;
-        hhGroup.add(b);
-      }
-      mapGroup.add(hhGroup);
+    // 6. CHEX "KIRPI"LARI (3 ta kesishgan po'lat to'sin)
+    const beamGeo = new THREE.BoxGeometry(0.3, 0.3, 2.5);
+    [
+      [Math.PI / 4, 0, 0],
+      [0, Math.PI / 2, Math.PI / 4],
+      [-Math.PI / 4, Math.PI / 2, 0],
+    ].forEach(([rx, ry, rz]) => {
+      instanced(
+        beamGeo,
+        hedgehogMat,
+        ML.HEDGEHOGS.map(([hx, hz]) => place(hx, 0.75, hz, rx, ry, rz))
+      );
     });
 
-    // 7. SANDBAG DEFENSE BARRICADES
-    const sandbagPositions = [
-      { x: -11, z: -11, rot: Math.PI / 4 },
-      { x: 11, z: -11, rot: -Math.PI / 4 },
-      { x: -11, z: 11, rot: -Math.PI / 4 },
-      { x: 11, z: 11, rot: Math.PI / 4 },
-    ];
-
-    sandbagPositions.forEach((sb) => {
-      const sbGroup = new THREE.Group();
-      sbGroup.position.set(sb.x, 0, sb.z);
-      sbGroup.rotation.y = sb.rot;
-
+    // 7. QUM QOPLARI (endi to'siq ham -- MapLayout.SANDBAGS)
+    const bagGeo = new THREE.BoxGeometry(1.3, 0.5, 0.7);
+    const bagMatrices = [];
+    ML.SANDBAGS.forEach((sb) => {
+      const base = place(sb.x, 0, sb.z, 0, sb.rot, 0);
       for (let row = 0; row < 2; row++) {
         for (let col = -1; col <= 1; col++) {
-          const bagGeo = new THREE.BoxGeometry(1.3, 0.5, 0.7);
-          const bag = new THREE.Mesh(bagGeo, sandbagMat);
-          bag.position.set(col * 1.25, 0.28 + row * 0.44, 0);
-          bag.castShadow = true;
-          bag.receiveShadow = true;
-          sbGroup.add(bag);
+          bagMatrices.push(
+            base.clone().multiply(m4.makeTranslation(col * 1.25, 0.28 + row * 0.44, 0))
+          );
         }
       }
-      mapGroup.add(sbGroup);
     });
+    instanced(bagGeo, sandbagMat, bagMatrices);
 
-    // 8. STYLIZED 3D TREES (Multi-tiered pine trees)
-    const treePositions = [
-      [-54, -18],
-      [-56, 18],
-      [54, -18],
-      [56, -36],
-      [-34, -52],
-      [34, -52],
-      [-22, 54],
-      [12, 56],
-      [-32, -14],
-      [32, -14],
-      [-34, 30],
-      [30, 34],
-    ];
-
-    treePositions.forEach(([tx, tz]) => {
-      const treeGroup = new THREE.Group();
-      treeGroup.position.set(tx, 0, tz);
-
-      // Trunk
-      const trunkGeo = new THREE.CylinderGeometry(0.4, 0.65, 3.4, 10);
-      const trunk = new THREE.Mesh(trunkGeo, trunkMat);
-      trunk.position.y = 1.7;
-      trunk.castShadow = true;
-      trunk.receiveShadow = true;
-      treeGroup.add(trunk);
-
-      // Foliage layers (3 stacked cones with shadows)
-      const coneSizes = [
-        { r: 2.6, h: 3.8, y: 4.4 },
-        { r: 2.1, h: 3.2, y: 6.4 },
-        { r: 1.5, h: 2.6, y: 8.2 },
-      ];
-      coneSizes.forEach((c) => {
-        const coneGeo = new THREE.ConeGeometry(c.r, c.h, 10);
-        const cone = new THREE.Mesh(coneGeo, foliageMat);
-        cone.position.y = c.y;
-        cone.castShadow = true;
-        cone.receiveShadow = true;
-        treeGroup.add(cone);
-      });
-
-      mapGroup.add(treeGroup);
+    // 8. ARCHALAR (to'siq faqat tanasi -- shoxlar ostidan o'q o'tadi)
+    const trunkGeo = new THREE.CylinderGeometry(0.4, 0.65, 3.4, 8);
+    instanced(
+      trunkGeo,
+      trunkMat,
+      ML.TREES.map(([tx, tz]) => place(tx, 1.7, tz))
+    );
+    [
+      { r: 2.6, h: 3.8, y: 4.4 },
+      { r: 2.1, h: 3.2, y: 6.4 },
+      { r: 1.5, h: 2.6, y: 8.2 },
+    ].forEach((c) => {
+      instanced(
+        new THREE.ConeGeometry(c.r, c.h, 9),
+        foliageMat,
+        ML.TREES.map(([tx, tz]) => place(tx, c.y, tz))
+      );
     });
 
     scene.add(mapGroup);
 
-    return {
-      mapGroup,
-      garageSpawns,
-      ruinLocations,
-      garages,
-      garageConfigs,
-    };
+    return { mapGroup, garages, meshesByKey };
   }
 
-  /**
-   * Generates exact 2D physics colliders (Hitbox/AABB/OBB) matching all 3D battlefield objects:
-   * 4 Garages (solid left/right/back walls + front pillars, open doorway),
-   * 4 Ruin brick foundations (destructible),
-   * 12 Pine tree trunks,
-   * 8 Anti-tank hedgehogs,
-   * Outer arena boundaries.
-   */
-  static getColliders(worldW = 1300, worldH = 1300, worldScale = 0.085) {
-    const cx = worldW * 0.5;
-    const cy = worldH * 0.5;
-    const colliders = [];
-
-    // 1. Outer boundary walls (impassable perimeter)
-    colliders.push({ x: 0, y: 0, w: worldW, h: 24, destructible: false });
-    colliders.push({ x: 0, y: worldH - 24, w: worldW, h: 24, destructible: false });
-    colliders.push({ x: 0, y: 0, w: 24, h: worldH, destructible: false });
-    colliders.push({ x: worldW - 24, y: 0, w: 24, h: worldH, destructible: false });
-
-    // Helper: convert 3D point + dimensions to 2D collider
-    const to2DBox = (x3D, z3D, w3D, d3D, rot = 0, destructible = false, hp = 80) => {
-      const w2D = w3D / worldScale;
-      const h2D = d3D / worldScale;
-      const x2D = cx + x3D / worldScale - w2D / 2;
-      const y2D = cy + z3D / worldScale - h2D / 2;
-      return {
-        x: x2D,
-        y: y2D,
-        w: w2D,
-        h: h2D,
-        rot: rot,
-        destructible: destructible,
-        hp: hp,
-        maxHp: hp,
-        destroyed: false,
-      };
-    };
-
-    // 2. 4 Military Wooden Garages
-    const garageConfigs = [
-      { x: -44, z: -44, rot: Math.PI / 4 }, // Top-Left
-      { x: -44, z: 44, rot: -Math.PI / 4 }, // Bottom-Left
-      { x: 44, z: 44, rot: -(Math.PI * 3) / 4 }, // Bottom-Right
-      { x: 44, z: -44, rot: (Math.PI * 3) / 4 }, // Top-Right
-    ];
-
-    garageConfigs.forEach((cfg) => {
-      const cos = Math.cos(cfg.rot);
-      const sin = Math.sin(cfg.rot);
-
-      // Exact mathematical transformation from garage local coordinates to 3D world space:
-      // (Three.js rotation.y = cfg.rot rotates x: lx*cos + lz*sin, z: -lx*sin + lz*cos)
-      const toWorld = (lx, lz) => ({
-        x: cfg.x + lx * cos + lz * sin,
-        z: cfg.z - lx * sin + lz * cos,
-      });
-
-      // In 2D screen coordinates (+Y down), the rotation angle for OBB collision is -cfg.rot
-      const rot2D = -cfg.rot;
-
-      // Left Wall (Thickness: 1.6, Length: 28)
-      const pL = toWorld(-9.2, -5);
-      colliders.push(to2DBox(pL.x, pL.z, 1.6, 28, rot2D, false));
-
-      // Right Wall
-      const pR = toWorld(9.2, -5);
-      colliders.push(to2DBox(pR.x, pR.z, 1.6, 28, rot2D, false));
-
-      // Back Wall (Width: 20, Thickness: 1.6)
-      const pB = toWorld(0, -18.2);
-      colliders.push(to2DBox(pB.x, pB.z, 20, 1.6, rot2D, false));
-
-      // Front Left Pillar
-      const pFL = toWorld(-8.25, 8.2);
-      colliders.push(to2DBox(pFL.x, pFL.z, 3.5, 1.6, rot2D, false));
-
-      // Front Right Pillar
-      const pFR = toWorld(8.25, 8.2);
-      colliders.push(to2DBox(pFR.x, pFR.z, 3.5, 1.6, rot2D, false));
-    });
-
-    // 3. 4 WW2 Ruined Brick Foundations (Destructible)
-    const ruinLocations = [
-      { x: -16, z: -16, w: 14, d: 9 },
-      { x: 16, z: -18, w: 15, d: 11 },
-      { x: -18, z: 18, w: 12, d: 13 },
-      { x: 14, z: 18, w: 13, d: 10 },
-    ];
-
-    ruinLocations.forEach((r) => {
-      // Wall 1: horizontal
-      colliders.push(to2DBox(r.x, r.z - r.d / 2, r.w, 1.4, 0, true, 80));
-      // Wall 2: vertical
-      colliders.push(to2DBox(r.x - r.w / 2, r.z, 1.4, r.d, 0, true, 80));
-      // Wall 3: horizontal partial
-      colliders.push(to2DBox(r.x + r.w * 0.2, r.z + r.d / 2, r.w * 0.6, 1.4, 0, true, 80));
-    });
-
-    // 4. 12 Pine Tree Trunks (Impassable solid circular obstacles)
-    const treePositions = [
-      [-54, -18],
-      [-56, 18],
-      [54, -18],
-      [56, -36],
-      [-34, -52],
-      [34, -52],
-      [-22, 54],
-      [12, 56],
-      [-32, -14],
-      [32, -14],
-      [-34, 30],
-      [30, 34],
-    ];
-
-    treePositions.forEach(([tx, tz]) => {
-      // Trunk collider: 1.4 x 1.4 in 3D units
-      colliders.push(to2DBox(tx, tz, 1.4, 1.4, 0, false));
-    });
-
-    // 5. Anti-Tank Hedgehogs
-    const hedgehogPositions = [
-      [-7, -5],
-      [7, -6],
-      [-6, 7],
-      [8, 6],
-      [-24, 0],
-      [24, 0],
-      [0, -24],
-      [0, 24],
-    ];
-
-    hedgehogPositions.forEach(([hx, hz]) => {
-      colliders.push(to2DBox(hx, hz, 1.8, 1.8, 0, false));
-    });
-
-    return colliders;
+  /** 2D to'siqlar -- yagona manbadan (MapLayout). */
+  static getColliders() {
+    return ML.colliders();
   }
 }

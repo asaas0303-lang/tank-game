@@ -49,6 +49,14 @@ module.exports = [
     },
   },
   {
+    // Brauzer (klassik <script>) va Node (require) uchun umumiy fayl
+    files: ['src/shared/**/*.js'],
+    languageOptions: {
+      sourceType: 'script',
+      globals: { self: 'readonly', module: 'readonly' },
+    },
+  },
+  {
     files: ['tests/**/*.js'],
     languageOptions: {
       globals: {

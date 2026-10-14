@@ -40,10 +40,14 @@
             }
           }
           if (screen.orientation && typeof screen.orientation.lock === 'function') {
-            screen.orientation.lock('landscape').catch(function(){});
+            screen.orientation.lock('landscape').catch(function () {});
           }
-          if (document.documentElement && document.documentElement.requestFullscreen && !document.fullscreenElement) {
-            document.documentElement.requestFullscreen().catch(function(){});
+          if (
+            document.documentElement &&
+            document.documentElement.requestFullscreen &&
+            !document.fullscreenElement
+          ) {
+            document.documentElement.requestFullscreen().catch(function () {});
           }
         }
         setupTelegram();
@@ -98,7 +102,7 @@
           }
         }
         if (document.readyState === 'loading') {
-          document.addEventListener('DOMContentLoaded', function() {
+          document.addEventListener('DOMContentLoaded', function () {
             applyForcedLandscape();
             setTimeout(onLayoutChange, 300);
           });
@@ -106,7 +110,7 @@
           applyForcedLandscape();
         }
         window.addEventListener('resize', onLayoutChange);
-        window.addEventListener('orientationchange', function() {
+        window.addEventListener('orientationchange', function () {
           setTimeout(onLayoutChange, 200);
         });
       })();
@@ -140,6 +144,8 @@
         };
       }
     </script>
+    <!-- Jang maydonining yagona manbasi (3D rasm + to'siqlar + server) -->
+    <script src="src/shared/mapLayout.js"></script>
     <script type="module">
       import { Engine3D } from './src/3d/Engine3D.js';
       import { BattlefieldMap3D } from './src/3d/BattlefieldMap.js';
@@ -1247,7 +1253,6 @@
         pointer-events: none;
       }
 
-
       /* Hide the giant desktop HUD on touch devices */
       body.touch-device .hud-top-left {
         display: none !important;
@@ -1394,8 +1399,13 @@
         animation: pulseIcon 1.8s infinite ease-in-out;
       }
       @keyframes pulseIcon {
-        0%, 100% { transform: scale(1); }
-        50% { transform: scale(1.15); }
+        0%,
+        100% {
+          transform: scale(1);
+        }
+        50% {
+          transform: scale(1.15);
+        }
       }
 
       /* Yordamchi Taktik Tugmalar (Mina va Nitro): Fire tugmasining chapida */
@@ -1911,8 +1921,6 @@
         </div>
       </div>
 
-
-
       <!-- Top Center Time & Killstreak Banner -->
       <div class="hud-top-center" style="top: 56px">
         <div class="time-cycle-badge" id="timeCycleBadge" title="Tun/Kun almashtirish uchun bosing">
@@ -2054,7 +2062,9 @@
               background: rgba(0, 0, 0, 0.4);
             "
           >
-            <summary style="font: bold 10px monospace; color: #00f0ff; cursor: pointer; outline: none;">
+            <summary
+              style="font: bold 10px monospace; color: #00f0ff; cursor: pointer; outline: none"
+            >
               🎙️ OVOZ VA TIZIM DIAGNOSTIKASI (Ko'rish uchun bosing)
             </summary>
             <pre
@@ -2147,7 +2157,7 @@ yuklanmoqda…</pre>
 
       <!-- RESPAWN 3.. 2.. 1.. COUNTDOWN OVERLAY -->
       <div class="respawn-modal" id="respawnModal">
-        <div class="respawn-killer-card" id="respawnKillerCard" style="display: none;">
+        <div class="respawn-killer-card" id="respawnKillerCard" style="display: none">
           <div class="respawn-killer-badge">💀 SIZNI YO'Q QILDI:</div>
           <div class="respawn-killer-name" id="respawnKillerName">DUSHMAN TANKI</div>
         </div>
@@ -2955,7 +2965,10 @@ yuklanmoqda…</pre>
 
             noiseGain = this.ctx.createGain();
             noiseGain.gain.setValueAtTime(isPlayer ? 0.82 : 0.58, now);
-            noiseGain.gain.exponentialRampToValueAtTime(0.001, now + (weapon === 'rocket' ? 0.35 : 0.22));
+            noiseGain.gain.exponentialRampToValueAtTime(
+              0.001,
+              now + (weapon === 'rocket' ? 0.35 : 0.22)
+            );
 
             noiseSource.connect(noiseFilter);
             noiseFilter.connect(noiseGain);
@@ -3379,10 +3392,10 @@ yuklanmoqda…</pre>
       /* ==========================================================================
        3. MODULAR SECTORS / ZONES CONFIGURATION (650x650px per Sector)
        ========================================================================== */
-      const SECTOR_SIZE = 650;
+      const SECTOR_SIZE = MapLayout.SECTOR_SIZE;
       const WORLD = {
-        width: 1300,
-        height: 1300,
+        width: MapLayout.WORLD_SIZE,
+        height: MapLayout.WORLD_SIZE,
         gridSize: 50,
         sectorSize: SECTOR_SIZE,
       };
@@ -3412,52 +3425,9 @@ yuklanmoqda…</pre>
       // --------------------------------------------------------------------------
       // Raycasting & Line-of-Sight (LOS) Slab Intersection
       // --------------------------------------------------------------------------
-      function lineIntersectsRect(x1, y1, x2, y2, rx, ry, rw, rh) {
-        const minX = rx,
-          maxX = rx + rw;
-        const minY = ry,
-          maxY = ry + rh;
-        const dx = x2 - x1;
-        const dy = y2 - y1;
-
-        let t0 = 0.0;
-        let t1 = 1.0;
-
-        // X slab
-        if (Math.abs(dx) < 1e-8) {
-          if (x1 < minX || x1 > maxX) return false;
-        } else {
-          const invD = 1.0 / dx;
-          let tNear = (minX - x1) * invD;
-          let tFar = (maxX - x1) * invD;
-          if (tNear > tFar) {
-            const tmp = tNear;
-            tNear = tFar;
-            tFar = tmp;
-          }
-          t0 = Math.max(t0, tNear);
-          t1 = Math.min(t1, tFar);
-          if (t0 > t1) return false;
-        }
-
-        // Y slab
-        if (Math.abs(dy) < 1e-8) {
-          if (y1 < minY || y1 > maxY) return false;
-        } else {
-          const invD = 1.0 / dy;
-          let tNear = (minY - y1) * invD;
-          let tFar = (maxY - y1) * invD;
-          if (tNear > tFar) {
-            const tmp = tNear;
-            tNear = tFar;
-            tFar = tmp;
-          }
-          t0 = Math.max(t0, tNear);
-          t1 = Math.min(t1, tFar);
-          if (t0 > t1) return false;
-        }
-
-        return true;
+      // Kesma to'siqni kesadimi (burilgan garaj devorlari ham to'g'ri hisoblanadi)
+      function lineIntersectsWall(x1, y1, x2, y2, w) {
+        return MapLayout.segmentVsBox(x1, y1, x2, y2, w) >= 0;
       }
 
       function lineIntersectsCircle(x1, y1, x2, y2, cx, cy, r) {
@@ -3476,7 +3446,7 @@ yuklanmoqda…</pre>
           for (let i = 0; i < walls.length; i++) {
             const w = walls[i];
             if (w.destroyed) continue;
-            if (lineIntersectsRect(x1, y1, x2, y2, w.x, w.y, w.w, w.h)) {
+            if (lineIntersectsWall(x1, y1, x2, y2, w)) {
               return false;
             }
           }
@@ -3515,43 +3485,6 @@ yuklanmoqda…</pre>
         update(dt) {
           this.life -= dt;
         }
-
-        draw(ctx) {
-          if (this.life <= 0) return;
-          // Stays full alpha for 10s, smoothly fades out over the last 5s
-          const alpha = this.life < 5.0 ? this.life / 5.0 : 1.0;
-          ctx.save();
-          ctx.translate(this.x, this.y);
-          ctx.rotate(this.angle);
-          ctx.globalAlpha = alpha * 0.88;
-
-          const grad = ctx.createRadialGradient(0, 0, 3, 0, 0, this.radius);
-          grad.addColorStop(0, '#0a0808');
-          grad.addColorStop(0.35, '#150c0a');
-          grad.addColorStop(0.72, 'rgba(75, 24, 12, 0.45)');
-          grad.addColorStop(1, 'rgba(25, 8, 4, 0)');
-
-          ctx.fillStyle = grad;
-          ctx.beginPath();
-          for (let i = 0; i < 8; i++) {
-            const theta = (i / 8) * Math.PI * 2;
-            const r = this.radius * (i % 2 === 0 ? this.jaggedSeeds[Math.floor(i / 2) % 4] : 0.82);
-            const px = Math.cos(theta) * r;
-            const py = Math.sin(theta) * r * 0.88;
-            if (i === 0) ctx.moveTo(px, py);
-            else ctx.lineTo(px, py);
-          }
-          ctx.closePath();
-          ctx.fill();
-
-          // Inner core scorched crater
-          ctx.fillStyle = 'rgba(6, 4, 4, 0.65)';
-          ctx.beginPath();
-          ctx.arc(0, 0, this.radius * 0.36, 0, Math.PI * 2);
-          ctx.fill();
-
-          ctx.restore();
-        }
       }
 
       // --------------------------------------------------------------------------
@@ -3579,21 +3512,6 @@ yuklanmoqda…</pre>
           this.rot += this.vRot * dt;
           this.vRot *= 0.92;
           this.life -= dt;
-        }
-
-        draw(ctx) {
-          if (this.life <= 0) return;
-          const alpha = this.life < 1.0 ? this.life : 1.0;
-          ctx.save();
-          ctx.translate(this.x, this.y);
-          ctx.rotate(this.rot);
-          ctx.globalAlpha = alpha;
-          ctx.fillStyle = this.color;
-          ctx.strokeStyle = '#2b1008';
-          ctx.lineWidth = 1;
-          ctx.fillRect(-this.size / 2, -this.size / 2, this.size, this.size * 0.75);
-          ctx.strokeRect(-this.size / 2, -this.size / 2, this.size, this.size * 0.75);
-          ctx.restore();
         }
       }
 
@@ -3649,74 +3567,6 @@ yuklanmoqda…</pre>
               }
             }
           }
-        }
-
-        draw(ctx) {
-          if (this.life <= 0) return;
-          const alpha = this.life < 1.5 ? this.life / 1.5 : 1.0;
-          ctx.save();
-          ctx.translate(this.x, this.y);
-          ctx.globalAlpha = alpha;
-
-          const s = this.radius;
-
-          // Charred Treads
-          ctx.save();
-          ctx.rotate(this.bodyAngle);
-          ctx.fillStyle = '#0e0f11';
-          ctx.strokeStyle = '#050607';
-          ctx.lineWidth = 1.5;
-          ctx.fillRect(-s * 0.9, -s * 0.85, s * 1.8, s * 0.42);
-          ctx.strokeRect(-s * 0.9, -s * 0.85, s * 1.8, s * 0.42);
-          ctx.fillRect(-s * 0.9, s * 0.43, s * 1.8, s * 0.42);
-          ctx.strokeRect(-s * 0.9, s * 0.43, s * 1.8, s * 0.42);
-
-          // Main charred hull (#1f1f24)
-          const hullGrad = ctx.createLinearGradient(-s * 0.8, -s * 0.6, s * 0.8, s * 0.6);
-          hullGrad.addColorStop(0, '#151518');
-          hullGrad.addColorStop(0.5, '#222328');
-          hullGrad.addColorStop(1, '#111214');
-          ctx.fillStyle = hullGrad;
-          ctx.strokeStyle = '#2d2d33';
-          ctx.lineWidth = 2;
-          ctx.beginPath();
-          ctx.roundRect(-s * 0.75, -s * 0.6, s * 1.5, s * 1.2, 6);
-          ctx.fill();
-          ctx.stroke();
-          ctx.restore();
-
-          // Displaced, tilted charred turret
-          ctx.save();
-          ctx.translate(this.turretOffset.x, this.turretOffset.y);
-          ctx.rotate(this.turretAngle);
-
-          // Broken, chipped barrel
-          ctx.fillStyle = '#18191c';
-          ctx.fillRect(0, -s * 0.16, s * 1.1, s * 0.32);
-          ctx.fillStyle = '#090a0c';
-          ctx.fillRect(s * 1.05, -s * 0.2, s * 0.25, s * 0.4);
-
-          // Turret dome
-          ctx.fillStyle = '#1c1d22';
-          ctx.strokeStyle = '#323238';
-          ctx.lineWidth = 2;
-          ctx.beginPath();
-          ctx.arc(0, 0, s * 0.48, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.stroke();
-
-          // Glowing smoldering ember inside breached armor
-          if (this.life > 1.2) {
-            ctx.fillStyle = 'rgba(255, 68, 0, 0.7)';
-            ctx.shadowColor = '#ff4400';
-            ctx.shadowBlur = 6;
-            ctx.beginPath();
-            ctx.arc(-2, -2, s * 0.18, 0, Math.PI * 2);
-            ctx.fill();
-          }
-          ctx.restore();
-
-          ctx.restore();
         }
       }
 
@@ -3794,26 +3644,6 @@ yuklanmoqda…</pre>
               this.y += this.vy * dt;
             }
           }
-        }
-
-        draw(ctx) {
-          if (this.collected) return;
-          const pulse = 1 + 0.22 * Math.sin(Date.now() * 0.015);
-          ctx.save();
-          ctx.translate(this.x, this.y);
-          ctx.shadowColor = this.color;
-          ctx.shadowBlur = 14;
-
-          const grad = ctx.createRadialGradient(0, 0, 1, 0, 0, this.radius * pulse);
-          grad.addColorStop(0, '#ffffff');
-          grad.addColorStop(0.35, this.goldColor);
-          grad.addColorStop(1, this.color);
-
-          ctx.fillStyle = grad;
-          ctx.beginPath();
-          ctx.arc(0, 0, this.radius * pulse, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.restore();
         }
       }
 
@@ -4005,104 +3835,6 @@ yuklanmoqda…</pre>
           }
           return false;
         }
-
-        draw(ctx) {
-          if (this.destroyed) return;
-
-          if (this.destructible) {
-            ctx.save();
-            ctx.fillStyle = '#8b2e1b';
-            ctx.fillRect(this.x, this.y, this.w, this.h);
-
-            ctx.strokeStyle = '#5a190b';
-            ctx.lineWidth = 1.5;
-            const brickH = 14;
-            const brickW = 28;
-
-            for (let y = this.y; y < this.y + this.h; y += brickH) {
-              ctx.beginPath();
-              ctx.moveTo(this.x, y);
-              ctx.lineTo(this.x + this.w, y);
-              ctx.stroke();
-
-              const rowIdx = Math.floor((y - this.y) / brickH);
-              const xOffset = rowIdx % 2 === 0 ? 0 : brickW / 2;
-              for (let x = this.x + xOffset; x < this.x + this.w; x += brickW) {
-                ctx.beginPath();
-                ctx.moveTo(x, y);
-                ctx.lineTo(x, Math.min(y + brickH, this.y + this.h));
-                ctx.stroke();
-              }
-            }
-
-            // 3-Stage Visual Damage Rendering:
-            if (this.hp < this.maxHp) {
-              // Stage 1: Fine white/charcoal fracture web (1-zarbada: yoriqlar to'ri)
-              ctx.save();
-              ctx.strokeStyle = 'rgba(15, 8, 8, 0.75)';
-              ctx.lineWidth = 2.4;
-              ctx.beginPath();
-              ctx.moveTo(this.x + 6, this.y + 4);
-              ctx.lineTo(this.x + this.w * 0.38, this.y + this.h * 0.45);
-              ctx.lineTo(this.x + this.w * 0.65, this.y + this.h * 0.3);
-              ctx.lineTo(this.x + this.w - 6, this.y + this.h * 0.55);
-              ctx.stroke();
-
-              ctx.strokeStyle = 'rgba(255, 235, 215, 0.85)';
-              ctx.lineWidth = 1.4;
-              ctx.beginPath();
-              ctx.moveTo(this.x + 5, this.y + 3);
-              ctx.lineTo(this.x + this.w * 0.38, this.y + this.h * 0.44);
-              ctx.lineTo(this.x + this.w * 0.65, this.y + this.h * 0.29);
-              ctx.lineTo(this.x + this.w - 6, this.y + this.h * 0.54);
-              ctx.stroke();
-
-              // Stage 2: Heavy jagged fissures, crumbled corners & chips (2-zarbada: uvalanish va qalinlashish)
-              if (this.hp <= 38) {
-                ctx.strokeStyle = 'rgba(10, 5, 5, 0.9)';
-                ctx.lineWidth = 3.6;
-                ctx.beginPath();
-                ctx.moveTo(this.x + this.w * 0.38, this.y + this.h * 0.45);
-                ctx.lineTo(this.x + this.w * 0.22, this.y + this.h - 4);
-                ctx.moveTo(this.x + this.w * 0.65, this.y + this.h * 0.3);
-                ctx.lineTo(this.x + this.w * 0.82, this.y + this.h - 6);
-                ctx.stroke();
-
-                ctx.strokeStyle = 'rgba(255, 215, 185, 0.9)';
-                ctx.lineWidth = 2.0;
-                ctx.beginPath();
-                ctx.moveTo(this.x + this.w * 0.38, this.y + this.h * 0.44);
-                ctx.lineTo(this.x + this.w * 0.22, this.y + this.h - 4);
-                ctx.moveTo(this.x + this.w * 0.65, this.y + this.h * 0.29);
-                ctx.lineTo(this.x + this.w * 0.82, this.y + this.h - 6);
-                ctx.stroke();
-
-                // Crumbled corner chips
-                ctx.fillStyle = '#2b0b04';
-                ctx.fillRect(this.x, this.y, 6, 6);
-                ctx.fillRect(this.x + this.w - 7, this.y + this.h - 7, 7, 7);
-              }
-              ctx.restore();
-            }
-
-            ctx.strokeStyle = '#e67e22';
-            ctx.lineWidth = 1.5;
-            ctx.strokeRect(this.x, this.y, this.w, this.h);
-            ctx.restore();
-          } else {
-            ctx.save();
-            ctx.fillStyle = '#111b2b';
-            ctx.fillRect(this.x, this.y, this.w, this.h);
-
-            ctx.strokeStyle = 'rgba(0, 240, 255, 0.4)';
-            ctx.lineWidth = 2;
-            ctx.strokeRect(this.x, this.y, this.w, this.h);
-
-            ctx.fillStyle = '#00f0ff';
-            ctx.fillRect(this.x + 2, this.y + 2, Math.max(2, this.w - 4), 2.5);
-            ctx.restore();
-          }
-        }
       }
 
       // Red Explosive Metal Barrels with TNT Hazard Logo
@@ -4125,42 +3857,6 @@ yuklanmoqda…</pre>
           }
           return false;
         }
-
-        draw(ctx) {
-          if (this.destroyed) return;
-          ctx.save();
-          ctx.translate(this.x, this.y);
-
-          const grad = ctx.createRadialGradient(-5, -5, 3, 0, 0, this.radius);
-          grad.addColorStop(0, '#ff3b3b');
-          grad.addColorStop(0.65, '#cc1111');
-          grad.addColorStop(1, '#660000');
-
-          ctx.fillStyle = grad;
-          ctx.beginPath();
-          ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
-          ctx.fill();
-
-          ctx.strokeStyle = '#181f2a';
-          ctx.lineWidth = 3;
-          ctx.stroke();
-
-          ctx.strokeStyle = '#facc15';
-          ctx.lineWidth = 2;
-          ctx.beginPath();
-          ctx.arc(0, 0, this.radius * 0.72, 0, Math.PI * 2);
-          ctx.stroke();
-
-          ctx.fillStyle = '#facc15';
-          ctx.shadowColor = '#000';
-          ctx.shadowBlur = 4;
-          ctx.font = '900 11px Orbitron, monospace';
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.fillText('TNT', 0, 1);
-
-          ctx.restore();
-        }
       }
 
       // Boost Speed Pads with Ejection Impulse
@@ -4171,34 +3867,6 @@ yuklanmoqda…</pre>
           this.angle = angle;
           this.w = 64;
           this.h = 46;
-        }
-
-        draw(ctx) {
-          ctx.save();
-          ctx.translate(this.x, this.y);
-          ctx.rotate(this.angle);
-
-          ctx.fillStyle = 'rgba(0, 255, 136, 0.2)';
-          ctx.strokeStyle = '#00ff88';
-          ctx.lineWidth = 2.5;
-          ctx.shadowColor = '#00ff88';
-          ctx.shadowBlur = 12;
-          ctx.beginPath();
-          ctx.roundRect(-this.w / 2, -this.h / 2, this.w, this.h, 8);
-          ctx.fill();
-          ctx.stroke();
-
-          ctx.strokeStyle = '#00ff88';
-          ctx.lineWidth = 3.5;
-          for (let i = -16; i <= 16; i += 16) {
-            ctx.beginPath();
-            ctx.moveTo(i - 7, -12);
-            ctx.lineTo(i + 6, 0);
-            ctx.lineTo(i - 7, 12);
-            ctx.stroke();
-          }
-
-          ctx.restore();
         }
       }
 
@@ -4212,50 +3880,6 @@ yuklanmoqda…</pre>
           this.size = 32;
           this.collected = false;
           this.bobble = Math.random() * Math.PI * 2;
-        }
-
-        draw(ctx) {
-          if (this.collected) return;
-          this.bobble += 0.04;
-          const offsetY = Math.sin(this.bobble) * 4;
-
-          ctx.save();
-          ctx.translate(this.x, this.y + offsetY);
-
-          let color = '#00f0ff';
-          let label = 'BOX';
-          if (this.type === 'shotgun') {
-            color = '#ff3366';
-            label = 'SG';
-          } else if (this.type === 'rocket') {
-            color = '#ffd700';
-            label = 'RPG';
-          } else if (this.type === 'mine') {
-            color = '#2ecc71';
-            label = 'MINA';
-          } else if (this.type === 'shield') {
-            color = '#3b82f6';
-            label = 'ARM';
-          }
-
-          ctx.shadowColor = color;
-          ctx.shadowBlur = 14;
-
-          ctx.fillStyle = 'rgba(12, 18, 32, 0.9)';
-          ctx.strokeStyle = color;
-          ctx.lineWidth = 2;
-          ctx.beginPath();
-          ctx.roundRect(-this.size / 2, -this.size / 2, this.size, this.size, 6);
-          ctx.fill();
-          ctx.stroke();
-
-          ctx.fillStyle = color;
-          ctx.font = 'bold 10px Orbitron';
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.fillText(label, 0, 0);
-
-          ctx.restore();
         }
       }
 
@@ -4272,29 +3896,6 @@ yuklanmoqda…</pre>
 
         update(dt) {
           if (this.armTimer > 0) this.armTimer -= dt;
-        }
-
-        draw(ctx) {
-          if (this.detonated) return;
-          ctx.save();
-          ctx.translate(this.x, this.y);
-
-          const armed = this.armTimer <= 0;
-          ctx.fillStyle = '#1e2430';
-          ctx.beginPath();
-          ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
-          ctx.fill();
-
-          ctx.strokeStyle = armed ? '#2ecc71' : '#ff3366';
-          ctx.lineWidth = 2;
-          ctx.stroke();
-
-          ctx.fillStyle = armed ? '#2ecc71' : '#ff3366';
-          ctx.beginPath();
-          ctx.arc(0, 0, 4.5, 0, Math.PI * 2);
-          ctx.fill();
-
-          ctx.restore();
         }
       }
 
@@ -4319,42 +3920,6 @@ yuklanmoqda…</pre>
           this.y += this.vy * dt;
           this.vx *= 0.9;
           this.vy *= 0.9;
-        }
-
-        draw(ctx) {
-          if (this.collected || this.life <= 0) return;
-          const flicker = this.life < 4 ? (Math.sin(this.life * 14) > 0 ? 0.35 : 1.0) : 1.0;
-          const spinScale = Math.cos(this.animTimer);
-
-          ctx.save();
-          ctx.globalAlpha = flicker;
-          ctx.translate(this.x, this.y);
-          ctx.scale(Math.abs(spinScale), 1);
-
-          // Radiant Golden Aura
-          ctx.shadowColor = '#ffd700';
-          ctx.shadowBlur = 14;
-
-          // Outer Gold Rim
-          ctx.fillStyle = '#ff9900';
-          ctx.beginPath();
-          ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
-          ctx.fill();
-
-          // Inner Coin Face
-          ctx.fillStyle = '#ffea33';
-          ctx.beginPath();
-          ctx.arc(0, 0, this.radius * 0.8, 0, Math.PI * 2);
-          ctx.fill();
-
-          // Star Engraving
-          ctx.fillStyle = '#b36b00';
-          ctx.font = '900 11px sans-serif';
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.fillText('★', 0, 0.5);
-
-          ctx.restore();
         }
       }
 
@@ -4419,49 +3984,6 @@ yuklanmoqda…</pre>
             }
           }
         }
-
-        draw(ctx) {
-          ctx.save();
-
-          // 1. Neon Laser Ribbon Trail
-          if (this.history.length > 1) {
-            ctx.lineCap = 'round';
-            for (let i = 0; i < this.history.length - 1; i++) {
-              const p1 = this.history[i];
-              const p2 = this.history[i + 1];
-              const ratio = 1 - i / this.history.length;
-
-              ctx.beginPath();
-              ctx.moveTo(p1.x, p1.y);
-              ctx.lineTo(p2.x, p2.y);
-              ctx.strokeStyle = this.color;
-              ctx.shadowColor = this.color;
-              ctx.shadowBlur = 12;
-              ctx.lineWidth = Math.max(1.5, this.size * ratio * 1.5);
-              ctx.globalAlpha = ratio * 0.85;
-              ctx.stroke();
-            }
-          }
-
-          // 2. High-intensity White/Neon Laser Head
-          ctx.globalAlpha = 1.0;
-          ctx.shadowColor = this.color;
-          ctx.shadowBlur = 18;
-
-          // Outer neon aura
-          ctx.fillStyle = this.color;
-          ctx.beginPath();
-          ctx.arc(this.x, this.y, this.size * 1.45, 0, Math.PI * 2);
-          ctx.fill();
-
-          // Inner white-hot core
-          ctx.fillStyle = '#ffffff';
-          ctx.beginPath();
-          ctx.arc(this.x, this.y, this.size * 0.75, 0, Math.PI * 2);
-          ctx.fill();
-
-          ctx.restore();
-        }
       }
 
       class Particle {
@@ -4503,39 +4025,6 @@ yuklanmoqda…</pre>
           } else if (this.type === 'shockwave') {
             this.size += dt * 260;
           }
-        }
-
-        draw(ctx) {
-          const progress = Math.max(0, this.life / this.maxLife);
-          ctx.save();
-          ctx.globalAlpha = progress;
-
-          if (this.type === 'shockwave') {
-            ctx.strokeStyle = this.color;
-            ctx.lineWidth = 4 * progress;
-            ctx.beginPath();
-            ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-            ctx.stroke();
-          } else if (this.type === 'dust') {
-            ctx.fillStyle = this.color;
-            ctx.beginPath();
-            ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-            ctx.fill();
-          } else if (this.type === 'shrapnel') {
-            ctx.fillStyle = this.color;
-            ctx.strokeStyle = '#ffee44';
-            ctx.lineWidth = 1.5;
-            ctx.beginPath();
-            ctx.arc(this.x, this.y, this.size * progress, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.stroke();
-          } else {
-            ctx.fillStyle = this.color;
-            ctx.beginPath();
-            ctx.arc(this.x, this.y, this.size * progress, 0, Math.PI * 2);
-            ctx.fill();
-          }
-          ctx.restore();
         }
       }
 
@@ -4593,19 +4082,6 @@ yuklanmoqda…</pre>
           this.life -= dt;
           this.alpha = Math.max(0, (this.life / 12.0) * this.initialAlpha);
         }
-
-        draw(ctx) {
-          if (this.alpha <= 0) return;
-          ctx.save();
-          ctx.globalAlpha = this.alpha;
-          ctx.translate(this.x, this.y);
-          ctx.rotate(this.angle);
-
-          ctx.fillStyle = '#04060b';
-          ctx.fillRect(-this.width / 2, -7, this.width, this.thickness);
-          ctx.fillRect(-this.width / 2, 7 - this.thickness, this.width, this.thickness);
-          ctx.restore();
-        }
       }
 
       /* ==========================================================================
@@ -4643,8 +4119,9 @@ yuklanmoqda…</pre>
 
           this.level = 1;
           this.kills = 0;
-          this.baseRadius = 22;
-          this.radius = 22;
+          // 3D modelning eni/bo'yi ~3.2 birlik -> radius 19px (1.6 birlik)
+          this.baseRadius = 19;
+          this.radius = 19;
 
           this.maxHp = 100;
           this.hp = 100;
@@ -5150,7 +4627,10 @@ yuklanmoqda…</pre>
             if (window.game) {
               window.game.saveProfile();
               if (typeof window.game.triggerKillPopup === 'function') {
-                window.game.triggerKillPopup('🎯 YO\'Q QILINDI!', victim ? victim.name || 'Dushman' : '+75 XP');
+                window.game.triggerKillPopup(
+                  "🎯 YO'Q QILINDI!",
+                  victim ? victim.name || 'Dushman' : '+75 XP'
+                );
               }
             }
             const streakAnnounce = audio.registerKill();
@@ -5336,40 +4816,40 @@ yuklanmoqda…</pre>
           if (!window.engine3D && boostPads && boostPads.length > 0) {
             if (this.boostCooldown > 0) this.boostCooldown -= dt;
             for (const bp of boostPads) {
-            if (Math.hypot(this.x - bp.x, this.y - bp.y) < bp.w * 0.65) {
-              if (this.boostCooldown <= 0) {
-                this.boostTimer = 1.2;
-                this.boostAngle = bp.angle;
-                this.bodyAngle = bp.angle;
-                this.boostCooldown = 2.0;
-                this.vx = Math.cos(bp.angle) * 4.0;
-                this.vy = Math.sin(bp.angle) * 4.0;
-                audio.playNitro();
+              if (Math.hypot(this.x - bp.x, this.y - bp.y) < bp.w * 0.65) {
+                if (this.boostCooldown <= 0) {
+                  this.boostTimer = 1.2;
+                  this.boostAngle = bp.angle;
+                  this.bodyAngle = bp.angle;
+                  this.boostCooldown = 2.0;
+                  this.vx = Math.cos(bp.angle) * 4.0;
+                  this.vy = Math.sin(bp.angle) * 4.0;
+                  audio.playNitro();
 
-                particles.push(
-                  new Particle(this.x, this.y, 0, 0, '#00ff88', 14, 0.45, 'shockwave')
-                );
-                for (let k = 0; k < 15; k++) {
-                  const pAngle = bp.angle + (Math.random() - 0.5) * 0.9;
-                  const pSpeed = 160 + Math.random() * 180;
                   particles.push(
-                    new Particle(
-                      this.x,
-                      this.y,
-                      Math.cos(pAngle) * pSpeed,
-                      Math.sin(pAngle) * pSpeed,
-                      '#00ff88',
-                      4.5,
-                      0.35,
-                      'spark'
-                    )
+                    new Particle(this.x, this.y, 0, 0, '#00ff88', 14, 0.45, 'shockwave')
                   );
+                  for (let k = 0; k < 15; k++) {
+                    const pAngle = bp.angle + (Math.random() - 0.5) * 0.9;
+                    const pSpeed = 160 + Math.random() * 180;
+                    particles.push(
+                      new Particle(
+                        this.x,
+                        this.y,
+                        Math.cos(pAngle) * pSpeed,
+                        Math.sin(pAngle) * pSpeed,
+                        '#00ff88',
+                        4.5,
+                        0.35,
+                        'spark'
+                      )
+                    );
+                  }
                 }
+                break;
               }
-              break;
             }
           }
-        }
 
           // 1 & 2. STEERING & RIGID-BODY VELOCITY
           const currentSpeed = Math.hypot(this.vx, this.vy);
@@ -5448,98 +4928,56 @@ yuklanmoqda…</pre>
             );
           }
 
-          // 4. WALL COLLISION & ELASTIC BOUNCE (0.35 bounce coefficient)
-          let nextX = this.x + this.vx * f;
-          let nextY = this.y + this.vy * f;
+          // 4. DEVOR TO'QNASHUVI: orqaga sakramaydi -- devor bo'ylab sirpanadi.
+          // Suvda tezlik yarmiga tushadi. 2 marta tekshiriladi -> burchakda tiqilib qolmaydi.
+          const waterK = MapLayout.inWater(this.x, this.y) ? MapLayout.WATER_SPEED : 1;
+          let nextX = this.x + this.vx * f * waterK;
+          let nextY = this.y + this.vy * f * waterK;
+          let hardestImpact = 0;
+          let impactNx = 0;
+          let impactNy = 0;
 
-          for (const w of walls) {
-            if (w.destroyed) continue;
-            let nx = 0,
-              ny = 0,
-              overlap = 0;
-
-            if (w.rot && Math.abs(w.rot) > 0.001) {
-              // Oriented Bounding Box (OBB) circle collision
-              const cenX = w.x + w.w / 2;
-              const cenY = w.y + w.h / 2;
-              const dpx = nextX - cenX;
-              const dpy = nextY - cenY;
-              const cos = Math.cos(-w.rot);
-              const sin = Math.sin(-w.rot);
-              const lx = dpx * cos - dpy * sin;
-              const ly = dpx * sin + dpy * cos;
-              const hw = w.w / 2;
-              const hh = w.h / 2;
-              const clx = Math.max(-hw, Math.min(lx, hw));
-              const cly = Math.max(-hh, Math.min(ly, hh));
-              const edx = lx - clx;
-              const edy = ly - cly;
-              const distSq = edx * edx + edy * edy;
-
-              if (distSq >= this.radius * this.radius) continue;
-
-              const dist = Math.sqrt(distSq);
-              let lnx = dist > 0.001 ? edx / dist : (lx > 0 ? 1 : -1);
-              let lny = dist > 0.001 ? edy / dist : 0;
-              const cosP = Math.cos(w.rot);
-              const sinP = Math.sin(w.rot);
-              nx = lnx * cosP - lny * sinP;
-              ny = lnx * sinP + lny * cosP;
-              overlap = this.radius - dist;
-            } else {
-              // Standard Axis-Aligned Box (AABB) collision
-              const cX = Math.max(w.x, Math.min(nextX, w.x + w.w));
-              const cY = Math.max(w.y, Math.min(nextY, w.y + w.h));
-              const dx = nextX - cX;
-              const dy = nextY - cY;
-              const distSq = dx * dx + dy * dy;
-
-              if (distSq >= this.radius * this.radius) continue;
-
-              const dist = Math.sqrt(distSq);
-              if (dist > 0.001) {
-                nx = dx / dist;
-                ny = dy / dist;
-              } else {
-                nx = nextX > w.x + w.w / 2 ? 1 : -1;
-                ny = 0;
+          for (let pass = 0; pass < 2; pass++) {
+            for (const w of walls) {
+              if (w.destroyed) continue;
+              const hit = MapLayout.circleVsBox(nextX, nextY, this.radius, w);
+              if (!hit) continue;
+              nextX += hit.nx * hit.overlap;
+              nextY += hit.ny * hit.overlap;
+              // Devorga qaragan tezlikni olib tashlaymiz (qaytish koeffitsiyenti = 0)
+              const vn = this.vx * hit.nx + this.vy * hit.ny;
+              if (vn < 0) {
+                this.vx -= vn * hit.nx;
+                this.vy -= vn * hit.ny;
+                if (-vn > hardestImpact) {
+                  hardestImpact = -vn;
+                  impactNx = hit.nx;
+                  impactNy = hit.ny;
+                }
               }
-              overlap = this.radius - dist;
             }
+          }
 
-            nextX += nx * overlap;
-            nextY += ny * overlap;
-
-            // Velocity component along normal
-            const vn = this.vx * nx + this.vy * ny;
-            if (vn < 0) {
-              // Elastic bounce with 0.35 restitution
-              this.vx = this.vx - (1 + 0.35) * vn * nx;
-              this.vy = this.vy - (1 + 0.35) * vn * ny;
-
-              const impactSpeed = Math.abs(vn);
-              if (impactSpeed > 0.8) {
-                // Micro camera shake & metal sparks
-                if (this.isPlayer && window.game) {
-                  window.game.triggerScreenShake(0.08, 1.8);
-                }
-                const sparkX = nextX - nx * this.radius;
-                const sparkY = nextY - ny * this.radius;
-                for (let k = 0; k < 4; k++) {
-                  particles.push(
-                    new Particle(
-                      sparkX,
-                      sparkY,
-                      (Math.random() - 0.5) * 120,
-                      (Math.random() - 0.5) * 120,
-                      '#ffd700',
-                      3.0,
-                      0.2,
-                      'spark'
-                    )
-                  );
-                }
-              }
+          if (hardestImpact > 0.8) {
+            // Kuchli urilish: yengil kamera silkinishi va uchqun
+            if (this.isPlayer && window.game) {
+              window.game.triggerScreenShake(0.08, 1.8);
+            }
+            const sparkX = nextX - impactNx * this.radius;
+            const sparkY = nextY - impactNy * this.radius;
+            for (let k = 0; k < 4; k++) {
+              particles.push(
+                new Particle(
+                  sparkX,
+                  sparkY,
+                  (Math.random() - 0.5) * 120,
+                  (Math.random() - 0.5) * 120,
+                  '#ffd700',
+                  3.0,
+                  0.2,
+                  'spark'
+                )
+              );
             }
           }
 
@@ -5581,341 +5019,6 @@ yuklanmoqda…</pre>
             // Human-like smooth turret rotation: max ~4.5 rad/s (no instant snapping)
             const maxTurn = 4.5 * dt;
             this.turretAngle += Math.sign(tDiff) * Math.min(Math.abs(tDiff), maxTurn);
-          }
-        }
-
-        draw(ctx) {
-          if (this.dead) return;
-
-          ctx.save();
-          ctx.globalAlpha = this.alpha;
-          const s = this.radius;
-
-          // 1. CHASSIS & DUAL TREADS
-          ctx.save();
-          ctx.translate(this.x, this.y);
-          ctx.rotate(this.bodyAngle);
-
-          ctx.fillStyle = '#0f131a';
-          ctx.fillRect(-s * 1.15, -s * 0.95, s * 2.3, s * 0.45);
-          ctx.strokeStyle = '#232a38';
-          ctx.lineWidth = 1.5;
-          ctx.strokeRect(-s * 1.15, -s * 0.95, s * 2.3, s * 0.45);
-
-          ctx.fillStyle = '#2a3445';
-          for (let i = -s * 1.0; i <= s * 0.9; i += 7) {
-            ctx.fillRect(i, -s * 0.95, 3, s * 0.45);
-          }
-
-          ctx.fillStyle = '#0f131a';
-          ctx.fillRect(-s * 1.15, s * 0.5, s * 2.3, s * 0.45);
-          ctx.strokeStyle = '#232a38';
-          ctx.lineWidth = 1.5;
-          ctx.strokeRect(-s * 1.15, s * 0.5, s * 2.3, s * 0.45);
-
-          ctx.fillStyle = '#2a3445';
-          for (let i = -s * 1.0; i <= s * 0.9; i += 7) {
-            ctx.fillRect(i, s * 0.5, 3, s * 0.45);
-          }
-
-          ctx.fillStyle = this.accentColor;
-          ctx.beginPath();
-          ctx.roundRect(-s * 0.9, -s * 0.72, s * 1.8, s * 1.44, 6);
-          ctx.fill();
-
-          const hullGrad = ctx.createLinearGradient(-s * 0.7, 0, s * 0.7, 0);
-          hullGrad.addColorStop(0, this.accentColor);
-          hullGrad.addColorStop(0.7, this.baseColor);
-          hullGrad.addColorStop(1, '#ffffff');
-
-          ctx.fillStyle = hullGrad;
-          ctx.beginPath();
-          ctx.roundRect(-s * 0.75, -s * 0.58, s * 1.5, s * 1.16, 5);
-          ctx.fill();
-
-          ctx.strokeStyle = this.baseColor;
-          ctx.lineWidth = 1.5;
-          ctx.stroke();
-
-          ctx.fillStyle = '#0a0e17';
-          ctx.fillRect(-s * 0.85, -s * 0.4, s * 0.35, s * 0.8);
-          ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
-          ctx.strokeRect(-s * 0.85, -s * 0.4, s * 0.35, s * 0.8);
-
-          ctx.restore();
-
-          // 2. ROTATING TURRET & RECOIL BARREL
-          ctx.save();
-          ctx.translate(this.x, this.y);
-          ctx.rotate(this.turretAngle);
-
-          const recoilKick =
-            this.barrelRecoilTimer > 0
-              ? this.barrelRecoilOffset * (this.barrelRecoilTimer / 0.15)
-              : 0;
-          const recoilOffset = -(this.recoil || 0) - recoilKick;
-          const barrelLen = s * 1.5;
-          const barrelWidth = s * 0.32;
-
-          // Turret-mounted dual headlights (illuminated strictly at NIGHT only)
-          const isNight =
-            window.game && window.game.isNight !== undefined
-              ? window.game.isNight
-              : dayNight.getTashkentState().isNight;
-
-          if (isNight) {
-            ctx.fillStyle = '#fffae0';
-            ctx.shadowColor = '#ffe066';
-            ctx.shadowBlur = 8;
-            ctx.fillRect(s * 0.18, -s * 0.46, 4.5, 3.2);
-            ctx.fillRect(s * 0.18, s * 0.34, 4.5, 3.2);
-            ctx.shadowBlur = 0;
-          } else {
-            // Daytime: off lenses (unlit dark metallic glass casing, zero glow)
-            ctx.fillStyle = '#1c2433';
-            ctx.fillRect(s * 0.18, -s * 0.46, 4.5, 3.2);
-            ctx.fillRect(s * 0.18, s * 0.34, 4.5, 3.2);
-          }
-
-          ctx.fillStyle = '#101726';
-          ctx.fillRect(recoilOffset, -barrelWidth / 2, barrelLen, barrelWidth);
-
-          ctx.strokeStyle = this.baseColor;
-          ctx.lineWidth = 1.5;
-          ctx.strokeRect(recoilOffset, -barrelWidth / 2, barrelLen, barrelWidth);
-
-          ctx.fillStyle = this.baseColor;
-          ctx.fillRect(recoilOffset + barrelLen - 4, -barrelWidth / 2 - 2, 6, barrelWidth + 4);
-
-          // Barrel Overheat Incandescent Glow (Glowing cherry-red / molten orange muzzle)
-          if (this.barrelOverheat > 0) {
-            ctx.save();
-            const heatAlpha = Math.min(1.0, this.barrelOverheat);
-            ctx.fillStyle = `rgba(255, 60, 0, ${heatAlpha * 0.9})`;
-            ctx.shadowColor = '#ff4400';
-            ctx.shadowBlur = 12 * heatAlpha;
-            ctx.fillRect(recoilOffset + barrelLen - 7, -barrelWidth / 2 - 2.5, 9, barrelWidth + 5);
-
-            ctx.fillStyle = `rgba(255, 230, 110, ${heatAlpha * 0.85})`;
-            ctx.fillRect(recoilOffset + barrelLen - 4, -barrelWidth / 2 - 1, 5, barrelWidth + 2);
-            ctx.restore();
-          }
-
-          ctx.fillStyle = '#0a101d';
-          ctx.beginPath();
-          ctx.arc(0, 0, s * 0.6, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.strokeStyle = this.baseColor;
-          ctx.lineWidth = 2;
-          ctx.stroke();
-
-          ctx.fillStyle = this.baseColor;
-          ctx.beginPath();
-          ctx.arc(0, 0, s * 0.38, 0, Math.PI * 2);
-          ctx.fill();
-
-          ctx.fillStyle = '#ffffff';
-          ctx.beginPath();
-          ctx.arc(-2, -2, s * 0.15, 0, Math.PI * 2);
-          ctx.fill();
-
-          // Muzzle Flash Starburst Flare (0.1s intense burst at barrel tip)
-          if (this.muzzleFlashTimer > 0) {
-            const flashAlpha = Math.min(1.0, this.muzzleFlashTimer / 0.1);
-            ctx.save();
-            ctx.translate(recoilOffset + barrelLen + 2, 0);
-
-            // Outer fiery aura
-            ctx.fillStyle = `rgba(255, 180, 50, ${flashAlpha * 0.9})`;
-            ctx.shadowColor = '#ffaa00';
-            ctx.shadowBlur = 25;
-            ctx.beginPath();
-            ctx.arc(0, 0, s * 0.85, 0, Math.PI * 2);
-            ctx.fill();
-
-            // High-heat white core
-            ctx.fillStyle = `rgba(255, 255, 255, ${flashAlpha})`;
-            ctx.beginPath();
-            ctx.arc(0, 0, s * 0.4, 0, Math.PI * 2);
-            ctx.fill();
-
-            // 4-point star burst spikes
-            ctx.strokeStyle = `rgba(255, 235, 150, ${flashAlpha})`;
-            ctx.lineWidth = 2.5;
-            for (let sp = 0; sp < 4; sp++) {
-              const spA = (sp * Math.PI) / 2;
-              ctx.beginPath();
-              ctx.moveTo(0, 0);
-              ctx.lineTo(Math.cos(spA) * s * 1.4, Math.sin(spA) * s * 1.4);
-              ctx.stroke();
-            }
-            ctx.restore();
-          }
-
-          ctx.restore();
-
-          // 3. Hit Flash Glow (0.12s white/red high-intensity flash on taking damage)
-          if (this.hitFlashTimer > 0) {
-            const flashAlpha = Math.min(1.0, this.hitFlashTimer / 0.12);
-            ctx.save();
-            ctx.globalAlpha = flashAlpha * 0.85;
-            ctx.fillStyle = this.isPlayer ? '#ffffff' : '#ff2a5f';
-            ctx.shadowColor = '#ffffff';
-            ctx.shadowBlur = 22;
-            ctx.beginPath();
-            ctx.arc(this.x, this.y, s * 1.18, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.restore();
-          }
-
-          // 4. Rotating Electric Spawn Shield (Immunity bubble for 3 seconds)
-          if (this.spawnShieldTimer > 0) {
-            const shieldR = s * 1.48;
-            const pulse = Math.sin(Date.now() * 0.009) * 2;
-            ctx.save();
-            ctx.strokeStyle = '#00f0ff';
-            ctx.lineWidth = 3;
-            ctx.shadowColor = '#00f0ff';
-            ctx.shadowBlur = 18;
-            ctx.beginPath();
-            ctx.arc(this.x, this.y, shieldR + pulse, 0, Math.PI * 2);
-            ctx.stroke();
-
-            // Rotating white-hot energy arcs
-            const rotA = (Date.now() * 0.005) % (Math.PI * 2);
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.95)';
-            ctx.lineWidth = 2.5;
-            ctx.beginPath();
-            ctx.arc(this.x, this.y, shieldR + pulse, rotA, rotA + 0.9);
-            ctx.stroke();
-            ctx.beginPath();
-            ctx.arc(this.x, this.y, shieldR + pulse, rotA + Math.PI, rotA + Math.PI + 0.9);
-            ctx.stroke();
-
-            // Overhead countdown tag
-            ctx.font = '900 11px Orbitron, monospace';
-            ctx.fillStyle = '#00f0ff';
-            ctx.textAlign = 'center';
-            ctx.shadowColor = '#00f0ff';
-            ctx.shadowBlur = 8;
-            ctx.fillText(
-              `🛡️ QALQON: ${this.spawnShieldTimer.toFixed(1)}s`,
-              this.x,
-              this.y - shieldR - 15
-            );
-            ctx.restore();
-          }
-
-          // 5. OVERHEAD HUD
-          this.drawOverheadHUD(ctx, s);
-
-          ctx.restore();
-        }
-
-        drawOverheadHUD(ctx, s) {
-          const hpPercent = Math.max(0, this.hp / this.maxHp);
-          const barWidth = s * 2.6;
-          const barHeight = 5;
-          const barY = this.y - s - 18;
-
-          if (this.isAfk) {
-            ctx.font = 'bold 12px Orbitron';
-            ctx.textAlign = 'center';
-            ctx.fillStyle = '#facc15';
-            ctx.shadowColor = '#facc15';
-            ctx.shadowBlur = 8;
-            ctx.fillText('[AFK]', this.x, barY - 22);
-          }
-
-          ctx.save();
-          const fontSize = this.isPlayer ? 13 : 12;
-          ctx.font = `900 ${fontSize}px 'Orbitron', monospace`;
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'bottom';
-
-          let stateBadge = '';
-          const isBot = this.playerId && this.playerId.toString().startsWith('bot-');
-          if (isBot) {
-            if (this.aiState === 'COMBAT') stateBadge = ' [⚔️ JANG]';
-            else if (this.aiState === 'RETREAT') stateBadge = ' [🏃 QOCHISH]';
-            else if (this.aiState === 'LOOTING') stateBadge = ' [📦 QUTI]';
-          }
-
-          const safeName = (this.name || '').slice(0, 14);
-          const prefix = !isBot ? `⭐ #${this.code || this.playerId} ` : `★ `;
-          const tagText = `${prefix}${safeName} [LVL ${this.level}]${stateBadge}`;
-
-          ctx.strokeStyle = '#000000';
-          ctx.lineWidth = 4;
-          ctx.lineJoin = 'round';
-          ctx.miterLimit = 2;
-          ctx.strokeText(tagText, this.x, barY - 5);
-
-          ctx.fillStyle = this.baseColor;
-          ctx.fillText(tagText, this.x, barY - 5);
-          ctx.restore();
-
-          if (this.shield > 0) {
-            const shieldPercent = Math.max(0, this.shield / this.maxShield);
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-            ctx.fillRect(this.x - barWidth / 2 - 1, barY - 5, barWidth + 2, 3.5);
-            ctx.fillStyle = '#3b82f6';
-            ctx.fillRect(this.x - barWidth / 2, barY - 5, barWidth * shieldPercent, 3.5);
-          }
-
-          ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
-          ctx.fillRect(this.x - barWidth / 2 - 1, barY - 1, barWidth + 2, barHeight + 2);
-
-          const hpGrad = ctx.createLinearGradient(
-            this.x - barWidth / 2,
-            0,
-            this.x + barWidth / 2,
-            0
-          );
-          hpGrad.addColorStop(0, this.baseColor);
-          hpGrad.addColorStop(1, this.accentColor);
-
-          ctx.fillStyle = hpGrad;
-          ctx.fillRect(this.x - barWidth / 2, barY, barWidth * hpPercent, barHeight);
-
-          // 4. Overhead 5-Magazine Ammo Pips & Reload Progress
-          const pipsY = barY + barHeight + 3;
-          const totalPips = this.maxMagazine || 5;
-          const pipSpacing = barWidth / totalPips;
-          const pipW = Math.max(2, pipSpacing - 2);
-
-          for (let i = 0; i < totalPips; i++) {
-            const px = this.x - barWidth / 2 + i * pipSpacing + 1;
-            if (i < this.magazine) {
-              ctx.fillStyle = this.baseColor;
-              ctx.fillRect(px, pipsY, pipW, 2.5);
-            } else {
-              ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
-              ctx.fillRect(px, pipsY, pipW, 2.5);
-            }
-          }
-
-          // Full Reload Indicator (4.0s)
-          if (this.fullReloadTimer > 0) {
-            const reloadP = Math.max(0, 1 - this.fullReloadTimer / this.fullReloadDuration);
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
-            ctx.fillRect(this.x - barWidth / 2 - 1, pipsY + 4, barWidth + 2, 4);
-            ctx.fillStyle = '#ff6600';
-            ctx.fillRect(this.x - barWidth / 2, pipsY + 4, barWidth * reloadP, 4);
-
-            ctx.save();
-            ctx.font = 'bold 9px Orbitron, monospace';
-            ctx.fillStyle = '#ffaa00';
-            ctx.textAlign = 'center';
-            ctx.fillText(`🔄 O'QLASH (${this.fullReloadTimer.toFixed(1)}s)`, this.x, pipsY + 16);
-            ctx.restore();
-          } else if (this.shootTimer > 0 && this.isPlayer) {
-            // Single shot cooldown progress (1.8s)
-            const coolP = Math.max(0, 1 - this.shootTimer / this.shootCooldown);
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-            ctx.fillRect(this.x - barWidth / 2 - 1, pipsY + 4, barWidth + 2, 3);
-            ctx.fillStyle = '#ffd700';
-            ctx.fillRect(this.x - barWidth / 2, pipsY + 4, barWidth * coolP, 3);
           }
         }
 
@@ -6251,14 +5354,14 @@ yuklanmoqda…</pre>
           if (engine.walls) {
             for (const w of engine.walls) {
               if (w.destroyed) continue;
-              if (lineIntersectsRect(this.x, this.y, fRayX, fRayY, w.x, w.y, w.w, w.h)) {
+              if (lineIntersectsWall(this.x, this.y, fRayX, fRayY, w)) {
                 centerHit = true;
                 blockingWall = w;
               }
-              if (lineIntersectsRect(this.x, this.y, lRayX, lRayY, w.x, w.y, w.w, w.h)) {
+              if (lineIntersectsWall(this.x, this.y, lRayX, lRayY, w)) {
                 leftHit = true;
               }
-              if (lineIntersectsRect(this.x, this.y, rRayX, rRayY, w.x, w.y, w.w, w.h)) {
+              if (lineIntersectsWall(this.x, this.y, rRayX, rRayY, w)) {
                 rightHit = true;
               }
             }
@@ -6586,14 +5689,7 @@ yuklanmoqda…</pre>
           const kCard = document.getElementById('respawnKillerCard');
           if (kCard) kCard.style.display = 'none';
 
-          const spawnsBySector = {
-            A1: { x: 99, y: 99, angle: Math.PI / 4 },
-            A2: { x: 1201, y: 99, angle: (Math.PI * 3) / 4 },
-            B1: { x: 99, y: 1201, angle: -Math.PI / 4 },
-            B2: { x: 1201, y: 1201, angle: -(Math.PI * 3) / 4 },
-          };
-
-          const spawnCfg = spawnsBySector[this.mySectorId] || spawnsBySector['A1'];
+          const spawnCfg = MapLayout.spawnFor(this.mySectorId);
           const spawnX = spawnCfg.x;
           const spawnY = spawnCfg.y;
           const spawnAngle = spawnCfg.angle;
@@ -6737,58 +5833,29 @@ yuklanmoqda…</pre>
           this.pylons = [];
           this.gateways = [];
 
-          const totalW = this.cols * SECTOR_SIZE;
-          const totalH = this.rows * SECTOR_SIZE;
-          WORLD.width = totalW;
-          WORLD.height = totalH;
+          // Xarita o'lchami DOIM bir xil -- o'yinchi soniga bog'liq emas (aks holda to'siqlar
+          // 3D rasmdan siljib, "ko'rinmas devor" paydo bo'lardi).
+          WORLD.width = MapLayout.WORLD_SIZE;
+          WORLD.height = MapLayout.WORLD_SIZE;
 
-          // 1. Synchronize EXACT 3D Battlefield colliders (4 Garages, 4 Ruins, 12 Pine Tree Trunks, Boundaries)
-          if (window.BattlefieldMap3D && typeof window.BattlefieldMap3D.getColliders === 'function') {
-            const mapColliders = window.BattlefieldMap3D.getColliders(totalW, totalH, 0.085);
-            mapColliders.forEach((c) => {
-              this.walls.push(new Wall(c.x, c.y, c.w, c.h, c.destructible, c.hp, c.rot));
-            });
-          } else {
-            // Boundary walls
-            this.walls.push(new Wall(0, 0, totalW, 24));
-            this.walls.push(new Wall(0, totalH - 24, totalW, 24));
-            this.walls.push(new Wall(0, 0, 24, totalH));
-            this.walls.push(new Wall(totalW - 24, 0, 24, totalH));
-          }
-
-          // 2. Corner beacon pylons with LEDs, Boost Pads, Crates
-          this.sectors.forEach((sec, idx) => {
-            const cx = sec.x + SECTOR_SIZE / 2;
-            const cy = sec.y + SECTOR_SIZE / 2;
-
-            // Corner beacon pylons with LEDs
-            this.pylons.push({ x: sec.x + 24, y: sec.y + 24, color: sec.themeColor });
-            this.pylons.push({ x: sec.x + SECTOR_SIZE - 24, y: sec.y + 24, color: sec.themeColor });
-            this.pylons.push({ x: sec.x + 24, y: sec.y + SECTOR_SIZE - 24, color: sec.themeColor });
-            this.pylons.push({
-              x: sec.x + SECTOR_SIZE - 24,
-              y: sec.y + SECTOR_SIZE - 24,
-              color: sec.themeColor,
-            });
-
-            // Boost Pad in gateway channel (Faqat 2D rejimda, 3D da butunlay olib tashlandi)
-            const is3DActive =
-              (window.BattlefieldMap3D && typeof window.BattlefieldMap3D.getColliders === 'function') ||
-              !!window.engine3D;
-            if (!is3DActive) {
-              const padAngles = [0, Math.PI / 2, Math.PI, -Math.PI / 2];
-              const padAngle = padAngles[idx % padAngles.length];
-              this.boostPads.push(
-                new BoostPad(cx + Math.cos(padAngle) * 190, cy + Math.sin(padAngle) * 190, padAngle)
-              );
-            }
-
-            // Weapon Crate
-            const crateTypes = ['shotgun', 'rocket', 'mine', 'shield'];
-            this.crates.push(
-              new Crate(`crate-${sec.id}`, cx - 50, cy + 45, crateTypes[idx % crateTypes.length])
-            );
+          // To'siqlar -- 3D xarita bilan bir xil manbadan (MapLayout)
+          MapLayout.colliders().forEach((c) => {
+            const w = new Wall(c.x, c.y, c.w, c.h, c.destructible, c.hp, c.rot);
+            w.key = c.key;
+            this.walls.push(w);
           });
+
+          // Qurol qutilari: har sektor markazi yonida (3D da ham ko'rinadi)
+          const crateTypes = ['shotgun', 'rocket', 'mine', 'shield'];
+          this.sectors
+            .filter((sec) => sec.x < WORLD.width && sec.y < WORLD.height)
+            .forEach((sec, idx) => {
+              const cx = sec.x + SECTOR_SIZE / 2;
+              const cy = sec.y + SECTOR_SIZE / 2;
+              this.crates.push(
+                new Crate(`crate-${sec.id}`, cx - 50, cy + 45, crateTypes[idx % crateTypes.length])
+              );
+            });
 
           if (!this.player) {
             this.resetPlayer();
@@ -6796,50 +5863,10 @@ yuklanmoqda…</pre>
         }
 
         resetPlayer() {
-          // Inside-Garage spawn coordinates (Tank spawns inside the wooden hangar facing the exit beam):
-          // Garage 1 (top-left, Sec A1): inside at (99, 99), angle: Math.PI / 4 (facing center)
-          // Garage 4 (top-right, Sec A2): inside at (1201, 99), angle: (Math.PI * 3) / 4 (facing center)
-          // Garage 2 (bottom-left, Sec B1): inside at (99, 1201), angle: -Math.PI / 4 (facing center)
-          // Garage 3 (bottom-right, Sec B2): inside at (1201, 1201), angle: -(Math.PI * 3) / 4 (facing center)
-          const spawnsBySector = {
-            A1: { x: 99, y: 99, angle: Math.PI / 4 },
-            A2: { x: 1201, y: 99, angle: (Math.PI * 3) / 4 },
-            B1: { x: 99, y: 1201, angle: -Math.PI / 4 },
-            B2: { x: 1201, y: 1201, angle: -(Math.PI * 3) / 4 },
-          };
-
-          const is3DActive =
-            (window.BattlefieldMap3D && typeof window.BattlefieldMap3D.getColliders === 'function') ||
-            !!window.engine3D;
-
-          let spawnX, spawnY, spawnAngle;
-          if (is3DActive) {
-            const spawnCfg = spawnsBySector[this.mySectorId] || spawnsBySector['A1'];
-            spawnX = spawnCfg.x;
-            spawnY = spawnCfg.y;
-            spawnAngle = spawnCfg.angle;
-          } else {
-            const homeSec = this.sectors.find((s) => s.id === this.mySectorId) || this.sectors[0];
-            const jx = (Math.random() - 0.5) * 70,
-              jy = (Math.random() - 0.5) * 70;
-            spawnX = homeSec ? homeSec.x + SECTOR_SIZE / 2 + jx : 325;
-            spawnY = homeSec ? homeSec.y + SECTOR_SIZE / 2 + jy : 325;
-            spawnAngle = 0;
-          }
-
-          // Begona tank o'yinchining garajida bo'lsa, eshikdan tashqariga surib qo'yamiz
-          const allEnemies = [...(this.bots || []), ...this.peers.values()];
-          for (const enemy of allEnemies) {
-            if (!enemy) continue;
-            if (Math.hypot(enemy.x - spawnX, enemy.y - spawnY) < 70) {
-              enemy.x = spawnX + Math.cos(spawnAngle) * 95;
-              enemy.y = spawnY + Math.sin(spawnAngle) * 95;
-              if (enemy.targetX !== undefined) {
-                enemy.targetX = enemy.x;
-                enemy.targetY = enemy.y;
-              }
-            }
-          }
+          const spawnCfg = MapLayout.spawnFor(this.mySectorId);
+          const spawnX = spawnCfg.x;
+          const spawnY = spawnCfg.y;
+          const spawnAngle = spawnCfg.angle;
 
           const currentName =
             this.playerProfile && this.playerProfile.name ? this.playerProfile.name : 'Commander';
@@ -7308,20 +6335,12 @@ yuklanmoqda…</pre>
               break;
 
             case 'sectors_update':
-              // Dynamic sector map update from server (e.g. new player connected -> map expands)
+              // Xona tarkibi o'zgardi: faqat uy-garaj (keyingi tug'ilish joyi) yangilanadi.
+              // Xarita va to'siqlar QAYTA QURILMAYDI -- aks holda buzilgan devorlar tiklanib,
+              // qutilar qaytib kelardi.
               if (msg.sectors && msg.sectors.length > 0) {
-                this.cols = msg.cols;
-                this.rows = msg.rows;
                 this.sectors = msg.sectors;
-                // Server xona tarkibi o'zgarganda uy-sektorlarni qayta taqsimlaydi.
-                // Buni yangilamasak klient eski sektorda tug'ilaveradi va ikki o'yinchi
-                // bitta nuqtaga tushadi. DIQQAT: tirik o'yinchini KO'CHIRMAYMIZ --
-                // bu faqat keyingi tug'ilishga (respawn) ta'sir qiladi.
                 if (msg.mySectorId) this.mySectorId = msg.mySectorId;
-                this.rebuildSectorEntities();
-                this.addFloatingNotice(
-                  `🗺️ Xarita kengaytirildi: ${this.sectors.length} ta Sektor!`
-                );
               }
               break;
 
@@ -7544,32 +6563,19 @@ yuklanmoqda…</pre>
           botSpecs.forEach((spec, botIdx) => {
             let bot = this.bots.find((b) => b.id === spec.id);
             if (!bot) {
-              const garagePositions = {
-                A1: { x: 99, y: 99 },
-                A2: { x: 1201, y: 99 },
-                B1: { x: 99, y: 1201 },
-                B2: { x: 1201, y: 1201 },
-              };
-              const myGarage = garagePositions[this.mySectorId] || garagePositions['A1'];
-
-              if (typeof spec.x === 'number' && typeof spec.y === 'number') {
+              // Joyni server beradi; berilmagan bo'lsa yoki o'yinchi garajiga tushsa -- bo'sh garaj
+              const myGarage = MapLayout.spawnFor(this.mySectorId);
+              const altGarages = ['A1', 'A2', 'B1', 'B2'].filter((s) => s !== this.mySectorId);
+              const alt = MapLayout.spawnFor(altGarages[botIdx % altGarages.length]);
+              let spawnX = alt.x;
+              let spawnY = alt.y;
+              if (
+                typeof spec.x === 'number' &&
+                typeof spec.y === 'number' &&
+                Math.hypot(spec.x - myGarage.x, spec.y - myGarage.y) >= 65
+              ) {
                 spawnX = spec.x;
                 spawnY = spec.y;
-                // Agar bot o'yinchining garajiga tushib qolsa (masalan A1), boshqa bo'sh garajga ko'chiramiz
-                if (Math.hypot(spawnX - myGarage.x, spawnY - myGarage.y) < 65) {
-                  const altGarages = ['A2', 'B1', 'B2'].filter((s) => s !== this.mySectorId);
-                  const chosen = altGarages[botIdx % altGarages.length];
-                  if (garagePositions[chosen]) {
-                    spawnX = garagePositions[chosen].x;
-                    spawnY = garagePositions[chosen].y;
-                  }
-                }
-              } else {
-                const altGarages = ['A2', 'B1', 'B2'].filter((s) => s !== this.mySectorId);
-                const chosen = altGarages[botIdx % altGarages.length];
-                const altSpawn = garagePositions[chosen] || { x: 650, y: 650 };
-                spawnX = altSpawn.x;
-                spawnY = altSpawn.y;
               }
               bot = new Tank(spawnX, spawnY, spec.name || 'Bot', false, spec.id);
               bot.id = spec.id;
@@ -8658,39 +7664,45 @@ yuklanmoqda…</pre>
               continue;
             }
 
+            // O'qning shu kadrdagi butun yo'li tekshiriladi (sekin telefonda ham devordan
+            // "sakrab o'tib" ketmaydi), burilgan garaj devorlari ham to'g'ri.
+            const prevPos = b.history[0] || b;
+            let hitWall = null;
+            let hitT = 2;
             for (const w of this.walls) {
               if (w.destroyed) continue;
-              if (
-                b.x + b.size > w.x &&
-                b.x - b.size < w.x + w.w &&
-                b.y + b.size > w.y &&
-                b.y - b.size < w.y + w.h
-              ) {
-                if (w.destructible) {
-                  // Bitta o'q AYNAN SHU devorga faqat bir marta zarar bersin. Sakragandan
-                  // keyin o'q ko'pincha devor ichida qolib, keyingi kadrlarda yana zarar
-                  // berardi (bitta o'q bilan 65 -> 25 -> 0).
-                  if (!b.damagedWalls) b.damagedWalls = new Set();
-                  const alreadyHitThisWall = b.damagedWalls.has(w);
-                  if (!alreadyHitThisWall) {
-                    b.damagedWalls.add(w);
-                    // Zararni faqat o'q EGASI hisoblaydi va tarqatadi. Bot o'qlari uchun
-                    // egasi -- host. Boshqalarning o'qi bizda faqat ko'rinadi, zarar esa
-                    // 'wall_damaged' orqali keladi (aks holda devor ikki marta zarar olardi).
-                    const iOwnThisBullet =
-                      b.owner === this.player || (this.isHost && b.owner && b.owner.isBot);
-                    if (iOwnThisBullet) {
-                      const broke = w.takeDamage(b.damage, this.particles, this.debrisChunks);
-                      this.sendWs({
-                        type: 'wall_damaged',
-                        wallIndex: this.walls.indexOf(w),
-                        damage: b.damage,
-                      });
-                      if (broke) {
-                        audio.playExplosion(false, b.x, b.y);
-                      } else {
-                        audio.playImpact('brick', b.x, b.y);
-                      }
+              const t = MapLayout.segmentVsBox(prevPos.x, prevPos.y, b.x, b.y, w, b.size);
+              if (t >= 0 && t < hitT) {
+                hitT = t;
+                hitWall = w;
+              }
+            }
+            if (hitWall) {
+              const w = hitWall;
+              b.x = prevPos.x + (b.x - prevPos.x) * hitT;
+              b.y = prevPos.y + (b.y - prevPos.y) * hitT;
+              if (w.destructible) {
+                // Bitta o'q AYNAN SHU devorga faqat bir marta zarar bersin. Sakragandan
+                // keyin o'q ko'pincha devor ichida qolib, keyingi kadrlarda yana zarar
+                // berardi (bitta o'q bilan 65 -> 25 -> 0).
+                if (!b.damagedWalls) b.damagedWalls = new Set();
+                const alreadyHitThisWall = b.damagedWalls.has(w);
+                if (!alreadyHitThisWall) {
+                  b.damagedWalls.add(w);
+                  // Zararni faqat o'q EGASI hisoblaydi va tarqatadi. Bot o'qlari uchun
+                  // egasi -- host. Boshqalarning o'qi bizda faqat ko'rinadi, zarar esa
+                  // 'wall_damaged' orqali keladi (aks holda devor ikki marta zarar olardi).
+                  const iOwnThisBullet =
+                    b.owner === this.player || (this.isHost && b.owner && b.owner.isBot);
+                  if (iOwnThisBullet) {
+                    const broke = w.takeDamage(b.damage, this.particles, this.debrisChunks);
+                    this.sendWs({
+                      type: 'wall_damaged',
+                      wallIndex: this.walls.indexOf(w),
+                      damage: b.damage,
+                    });
+                    if (broke) {
+                      audio.playExplosion(false, b.x, b.y);
                     } else {
                       audio.playImpact('brick', b.x, b.y);
                     }
@@ -8700,64 +7712,28 @@ yuklanmoqda…</pre>
                 } else {
                   audio.playImpact('brick', b.x, b.y);
                 }
+              } else {
+                audio.playImpact('brick', b.x, b.y);
+              }
 
-                if (b.bounces < b.maxBounces) {
-                  const overlapLeft = Math.abs(b.x + b.size - w.x);
-                  const overlapRight = Math.abs(w.x + w.w - (b.x - b.size));
-                  const overlapTop = Math.abs(b.y + b.size - w.y);
-                  const overlapBottom = Math.abs(w.y + w.h - (b.y - b.size));
-                  const minO = Math.min(overlapLeft, overlapRight, overlapTop, overlapBottom);
-
-                  // O'qni devordan TO'LIQ chiqaramiz. Avval `b.vx * dt * 2` ishlatilardi --
-                  // bu ~7 px, devor esa 20 px qalin, shuning uchun o'q devor ichida qolib
-                  // ketardi va qayta-qayta to'qnashardi. Endi kirib ketgan chuqurlik
-                  // (minO) qancha bo'lsa, shuncha + 1 px chiqaramiz.
-                  if (minO === overlapLeft || minO === overlapRight) {
-                    b.vx = -b.vx;
-                    b.x += (b.vx > 0 ? 1 : -1) * (minO + 1);
-                  } else {
-                    b.vy = -b.vy;
-                    b.y += (b.vy > 0 ? 1 : -1) * (minO + 1);
-                  }
-                  b.bounces++;
-                  audio.playRicochet(b.x, b.y);
-
-                  for (let k = 0; k < 6; k++) {
-                    this.particles.push(
-                      new Particle(
-                        b.x,
-                        b.y,
-                        (Math.random() - 0.5) * 120,
-                        (Math.random() - 0.5) * 120,
-                        '#ffd700',
-                        3,
-                        0.2,
-                        'spark'
-                      )
-                    );
-                  }
-                } else {
-                  bulletDestroyed = true;
-                  if (b.weaponType === 'rocket') {
-                    this.triggerExplosionAoE(b.x, b.y, 150, 80, b.owner);
-                  } else {
-                    for (let k = 0; k < 5; k++) {
-                      this.particles.push(
-                        new Particle(
-                          b.x,
-                          b.y,
-                          (Math.random() - 0.5) * 90,
-                          (Math.random() - 0.5) * 90,
-                          '#ffaa00',
-                          2.5,
-                          0.15,
-                          'spark'
-                        )
-                      );
-                    }
-                  }
+              bulletDestroyed = true;
+              if (b.weaponType === 'rocket') {
+                this.triggerExplosionAoE(b.x, b.y, 150, 80, b.owner);
+              } else {
+                for (let k = 0; k < 5; k++) {
+                  this.particles.push(
+                    new Particle(
+                      b.x,
+                      b.y,
+                      (Math.random() - 0.5) * 90,
+                      (Math.random() - 0.5) * 90,
+                      '#ffaa00',
+                      2.5,
+                      0.15,
+                      'spark'
+                    )
+                  );
                 }
-                break;
               }
             }
 
@@ -8804,7 +7780,18 @@ yuklanmoqda…</pre>
             for (const tank of allTanks) {
               if (tank.dead || tank === b.owner) continue;
 
-              if (Math.hypot(b.x - tank.x, b.y - tank.y) < tank.radius + b.size) {
+              // Yo'l bo'ylab tekshiruv: tez o'q tank yonidan "sakrab" o'tib ketmaydi
+              if (
+                lineIntersectsCircle(
+                  prevPos.x,
+                  prevPos.y,
+                  b.x,
+                  b.y,
+                  tank.x,
+                  tank.y,
+                  tank.radius + b.size
+                )
+              ) {
                 // "Shooter is the referee": the client that fired resolves the hit and tells the
                 // victim over the network. The victim's own client applies the damage, so hp/dead
                 // stays authoritative there and never desyncs.
@@ -9388,7 +8375,10 @@ yuklanmoqda…</pre>
                 const kCard = document.getElementById('respawnKillerCard');
                 const kName = document.getElementById('respawnKillerName');
                 if (kCard && kName) {
-                  kName.textContent = (this.player && this.player.lastKillerName) ? this.player.lastKillerName : "Noma'lum Dushman";
+                  kName.textContent =
+                    this.player && this.player.lastKillerName
+                      ? this.player.lastKillerName
+                      : "Noma'lum Dushman";
                   kCard.style.display = 'block';
                 }
               }
@@ -9771,7 +8761,11 @@ yuklanmoqda…</pre>
             this.ctx.fillStyle = '#00f0ff';
             this.ctx.font = 'bold 22px "Rajdhani", sans-serif';
             this.ctx.textAlign = 'center';
-            this.ctx.fillText('⚔️ 3D JANG MAYDONI YUKLANMOQDA...', this.viewWidth / 2, this.viewHeight / 2);
+            this.ctx.fillText(
+              '⚔️ 3D JANG MAYDONI YUKLANMOQDA...',
+              this.viewWidth / 2,
+              this.viewHeight / 2
+            );
             this.ctx.restore();
             return;
           }
@@ -9842,141 +8836,6 @@ yuklanmoqda…</pre>
           if (this.mouse && this.mouse.x > 0 && this.mouse.y > 0) {
             this.drawCursorReticle(this.mouse.x, this.mouse.y);
           }
-        }
-
-        // Renders real-time searchlight beams on floor for player and bots (85 deg width, 420px range, Volumetric Fog & Bloom)
-        drawFlashlightBeams() {
-          const allTanks = [this.player, ...this.bots, ...this.peers.values()];
-          const ctx = this.ctx;
-
-          ctx.save();
-          for (const tank of allTanks) {
-            if (!tank || tank.dead) continue;
-
-            const isPl = tank.isPlayer;
-            const beamLen = 420; // Exact 420px range
-            const halfAngle = (85 * Math.PI) / 180 / 2; // Exact 85 degrees width (~0.7418 rad)
-
-            const tipX = tank.x + Math.cos(tank.turretAngle) * (tank.radius * 0.95);
-            const tipY = tank.y + Math.sin(tank.turretAngle) * (tank.radius * 0.95);
-
-            const leftAngle = tank.turretAngle - halfAngle;
-            const rightAngle = tank.turretAngle + halfAngle;
-
-            // Compute exact visibility polygon for this headlight beam so it cannot shine through walls
-            const beamPoly = this.getVisibilityPolygon(
-              tipX,
-              tipY,
-              leftAngle,
-              rightAngle,
-              beamLen,
-              72
-            );
-
-            ctx.save();
-            ctx.beginPath();
-            ctx.moveTo(tipX, tipY);
-            for (let pi = 0; pi < beamPoly.length; pi++) {
-              ctx.lineTo(beamPoly[pi].x, beamPoly[pi].y);
-            }
-            ctx.closePath();
-            ctx.clip();
-
-            // 1. Soft Penumbra Outer Volumetric Beam (Radial + Angular Falloff)
-            const grad = ctx.createRadialGradient(
-              tipX,
-              tipY,
-              12,
-              tipX + Math.cos(tank.turretAngle) * beamLen * 0.65,
-              tipY + Math.sin(tank.turretAngle) * beamLen * 0.65,
-              beamLen
-            );
-
-            if (isPl) {
-              // Player: Soft luminous cyan with feathered falloff
-              grad.addColorStop(0, 'rgba(0, 240, 255, 0.32)');
-              grad.addColorStop(0.25, 'rgba(0, 240, 255, 0.20)');
-              grad.addColorStop(0.65, 'rgba(0, 240, 255, 0.08)');
-              grad.addColorStop(0.9, 'rgba(0, 240, 255, 0.02)');
-              grad.addColorStop(1, 'rgba(0, 240, 255, 0)');
-            } else {
-              // Bots: Warm tactical amber with smoky edges
-              grad.addColorStop(0, 'rgba(255, 185, 60, 0.30)');
-              grad.addColorStop(0.25, 'rgba(255, 185, 60, 0.18)');
-              grad.addColorStop(0.65, 'rgba(255, 185, 60, 0.07)');
-              grad.addColorStop(0.9, 'rgba(255, 185, 60, 0.02)');
-              grad.addColorStop(1, 'rgba(255, 185, 60, 0)');
-            }
-
-            ctx.fillStyle = grad;
-            ctx.beginPath();
-            ctx.moveTo(tipX, tipY);
-            for (let pi = 0; pi < beamPoly.length; pi++) {
-              ctx.lineTo(beamPoly[pi].x, beamPoly[pi].y);
-            }
-            ctx.closePath();
-            ctx.fill();
-
-            // 2. Focused Inner Core Beam (approx 45 degrees, higher luminance)
-            const innerHalf = halfAngle * 0.52;
-            const coreGrad = ctx.createRadialGradient(tipX, tipY, 8, tipX, tipY, beamLen * 0.75);
-            coreGrad.addColorStop(
-              0,
-              isPl ? 'rgba(215, 250, 255, 0.38)' : 'rgba(255, 235, 180, 0.35)'
-            );
-            coreGrad.addColorStop(
-              0.5,
-              isPl ? 'rgba(0, 240, 255, 0.16)' : 'rgba(255, 185, 60, 0.15)'
-            );
-            coreGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
-            ctx.fillStyle = coreGrad;
-            ctx.beginPath();
-            ctx.moveTo(tipX, tipY);
-            for (let pi = 0; pi < beamPoly.length; pi++) {
-              ctx.lineTo(beamPoly[pi].x, beamPoly[pi].y);
-            }
-            ctx.closePath();
-            ctx.fill();
-
-            // 3. Volumetric Atmospheric Dust Motes floating inside the beam
-            if (isPl && this.dustMotes) {
-              for (const mote of this.dustMotes) {
-                const mAngle = tank.turretAngle + mote.angleOffset;
-                const mx = tipX + Math.cos(mAngle) * mote.dist;
-                const my = tipY + Math.sin(mAngle) * mote.dist;
-                const distRatio = Math.max(0, 1 - mote.dist / beamLen);
-                const angleRatio = Math.max(0, 1 - Math.abs(mote.angleOffset) / halfAngle);
-                const twinkle = 0.55 + Math.sin(mote.phase) * 0.45;
-                const mAlpha = mote.baseAlpha * distRatio * angleRatio * twinkle;
-                if (mAlpha > 0.04) {
-                  ctx.fillStyle = `rgba(225, 250, 255, ${mAlpha.toFixed(3)})`;
-                  ctx.beginPath();
-                  ctx.arc(mx, my, mote.size, 0, Math.PI * 2);
-                  ctx.fill();
-                }
-              }
-            }
-
-            ctx.restore();
-
-            // Dual glowing headlight flares on turret
-            const hw = tank.radius * 0.42;
-            const hOffsetCos = Math.cos(tank.turretAngle + Math.PI / 2);
-            const hOffsetSin = Math.sin(tank.turretAngle + Math.PI / 2);
-
-            for (const side of [-1, 1]) {
-              const hx = tipX + hOffsetCos * hw * side;
-              const hy = tipY + hOffsetSin * hw * side;
-              ctx.fillStyle = isPl ? 'rgba(0, 240, 255, 0.95)' : 'rgba(255, 220, 100, 0.95)';
-              ctx.shadowColor = isPl ? '#00f0ff' : '#ffaa00';
-              ctx.shadowBlur = 8;
-              ctx.beginPath();
-              ctx.arc(hx, hy, 2.5, 0, Math.PI * 2);
-              ctx.fill();
-              ctx.shadowBlur = 0;
-            }
-          }
-          ctx.restore();
         }
 
         // Renders Circular Reload Ring & Aiming Crosshair at Cursor + Hitmarker
@@ -10102,351 +8961,6 @@ yuklanmoqda…</pre>
           ctx.restore();
         }
 
-        // Draw Sector Neon Borders, Corner Pylons & Center Watermark Texts
-        drawSectorsFloor(isNight = false) {
-          for (const sec of this.sectors) {
-            const cx = sec.x + sec.w / 2;
-            const cy = sec.y + sec.h / 2;
-
-            // 1. Sector Floor Watermark Text
-            this.ctx.save();
-            this.ctx.font = '900 32px Orbitron, monospace';
-            this.ctx.textAlign = 'center';
-            this.ctx.textBaseline = 'middle';
-            this.ctx.fillStyle = sec.themeColor;
-            this.ctx.globalAlpha = isNight ? 0.08 : 0.18;
-            // Drawn near the sector's TOP (not center) so the center wall/bricks don't cover it
-            this.ctx.fillText(sec.name, cx, sec.y + 46);
-
-            this.ctx.font = '700 14px Orbitron, monospace';
-            this.ctx.globalAlpha = isNight ? 0.12 : 0.24;
-            this.ctx.fillText(sec.subName, cx, sec.y + 70);
-            this.ctx.restore();
-
-            // 2. Sector Perimeter Neon Dashed Border
-            this.ctx.save();
-            this.ctx.strokeStyle = sec.themeColor;
-            this.ctx.lineWidth = 2.5;
-            this.ctx.globalAlpha = isNight ? 0.35 : 0.55;
-            this.ctx.setLineDash([20, 12]);
-            this.ctx.strokeRect(sec.x + 12, sec.y + 12, sec.w - 24, sec.h - 24);
-            this.ctx.restore();
-          }
-
-          // 3. Sector Corner Beacon Pylons with Glowing LEDs
-          for (const p of this.pylons) {
-            this.ctx.save();
-            this.ctx.fillStyle = '#162032';
-            this.ctx.strokeStyle = p.color;
-            this.ctx.lineWidth = 2;
-            this.ctx.fillRect(p.x - 8, p.y - 8, 16, 16);
-            this.ctx.strokeRect(p.x - 8, p.y - 8, 16, 16);
-
-            // LED Core
-            this.ctx.fillStyle = p.color;
-            this.ctx.shadowColor = p.color;
-            this.ctx.shadowBlur = 8;
-            this.ctx.beginPath();
-            this.ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
-            this.ctx.fill();
-            this.ctx.restore();
-          }
-        }
-
-        // Draw Gateways Chevrons between adjoining sectors
-        drawGateways() {
-          this.ctx.save();
-          this.ctx.fillStyle = 'rgba(0, 240, 255, 0.2)';
-          this.ctx.strokeStyle = '#00f0ff';
-          this.ctx.lineWidth = 2;
-
-          for (const g of this.gateways) {
-            if (g.isVertical) {
-              // Vertical gateway passage
-              this.ctx.beginPath();
-              this.ctx.rect(g.x - 24, g.y - g.size / 2, 48, g.size);
-              this.ctx.fillStyle = 'rgba(0, 240, 255, 0.05)';
-              this.ctx.fill();
-
-              // Hazard chevrons on passage
-              this.ctx.strokeStyle = 'rgba(0, 240, 255, 0.45)';
-              for (let i = -g.size / 2 + 25; i < g.size / 2; i += 38) {
-                this.ctx.beginPath();
-                this.ctx.moveTo(g.x - 14, g.y + i - 10);
-                this.ctx.lineTo(g.x, g.y + i);
-                this.ctx.lineTo(g.x - 14, g.y + i + 10);
-                this.ctx.moveTo(g.x + 14, g.y + i - 10);
-                this.ctx.lineTo(g.x, g.y + i);
-                this.ctx.lineTo(g.x + 14, g.y + i + 10);
-                this.ctx.stroke();
-              }
-            } else {
-              // Horizontal gateway passage
-              this.ctx.beginPath();
-              this.ctx.rect(g.x - g.size / 2, g.y - 24, g.size, 48);
-              this.ctx.fillStyle = 'rgba(0, 240, 255, 0.05)';
-              this.ctx.fill();
-
-              this.ctx.strokeStyle = 'rgba(0, 240, 255, 0.45)';
-              for (let i = -g.size / 2 + 25; i < g.size / 2; i += 38) {
-                this.ctx.beginPath();
-                this.ctx.moveTo(g.x + i - 10, g.y - 14);
-                this.ctx.lineTo(g.x + i, g.y);
-                this.ctx.lineTo(g.x + i + 10, g.y - 14);
-                this.ctx.moveTo(g.x + i - 10, g.y + 14);
-                this.ctx.lineTo(g.x + i, g.y);
-                this.ctx.lineTo(g.x + i + 10, g.y + 14);
-                this.ctx.stroke();
-              }
-            }
-          }
-          this.ctx.restore();
-        }
-
-        // 4. Tactical Laser Sight with Pulsing Impact Dot & Ricochet Trajectory
-        drawLaserTrajectory() {
-          const barrelLen = this.player.radius * 1.6;
-          let startX = this.player.x + Math.cos(this.player.turretAngle) * barrelLen;
-          let startY = this.player.y + Math.sin(this.player.turretAngle) * barrelLen;
-          let dirX = Math.cos(this.player.turretAngle);
-          let dirY = Math.sin(this.player.turretAngle);
-
-          this.ctx.save();
-
-          // 1. Primary Laser Aim Line
-          this.ctx.strokeStyle = 'rgba(0, 240, 255, 0.72)';
-          this.ctx.shadowColor = '#00f0ff';
-          this.ctx.shadowBlur = 8;
-          this.ctx.lineWidth = 1.8;
-          this.ctx.setLineDash([6, 4]);
-
-          this.ctx.beginPath();
-          this.ctx.moveTo(startX, startY);
-
-          let hit = this.raycastWalls(startX, startY, dirX, dirY, 520);
-          if (hit) {
-            this.ctx.lineTo(hit.x, hit.y);
-            this.ctx.stroke();
-
-            // 2. Pulsing Neon Laser Impact Dot at First Hit Point
-            const pulse = Math.sin(Date.now() * 0.012);
-            const outerR = 6.5 + pulse * 1.5;
-            this.ctx.save();
-            this.ctx.shadowColor = '#00f0ff';
-            this.ctx.shadowBlur = 15;
-            this.ctx.fillStyle = '#00f0ff';
-            this.ctx.beginPath();
-            this.ctx.arc(hit.x, hit.y, outerR, 0, Math.PI * 2);
-            this.ctx.fill();
-
-            // Inner white-hot laser core
-            this.ctx.fillStyle = '#ffffff';
-            this.ctx.shadowBlur = 4;
-            this.ctx.beginPath();
-            this.ctx.arc(hit.x, hit.y, 2.4, 0, Math.PI * 2);
-            this.ctx.fill();
-            this.ctx.restore();
-
-            // 3. Secondary Ricochet Trajectory to Second Bounce Point
-            let rDirX = dirX;
-            let rDirY = dirY;
-            if (hit.normal === 'X') rDirX = -rDirX;
-            else rDirY = -rDirY;
-
-            let hit2 = this.raycastWalls(hit.x + rDirX * 2, hit.y + rDirY * 2, rDirX, rDirY, 320);
-            const end2X = hit2 ? hit2.x : hit.x + rDirX * 320;
-            const end2Y = hit2 ? hit2.y : hit.y + rDirY * 320;
-
-            this.ctx.save();
-            this.ctx.strokeStyle = 'rgba(0, 240, 255, 0.32)';
-            this.ctx.shadowColor = 'rgba(0, 240, 255, 0.3)';
-            this.ctx.shadowBlur = 6;
-            this.ctx.lineWidth = 1.2;
-            this.ctx.setLineDash([4, 4]);
-            this.ctx.beginPath();
-            this.ctx.moveTo(hit.x, hit.y);
-            this.ctx.lineTo(end2X, end2Y);
-            this.ctx.stroke();
-
-            if (hit2) {
-              // Secondary small impact dot
-              this.ctx.fillStyle = 'rgba(0, 240, 255, 0.65)';
-              this.ctx.beginPath();
-              this.ctx.arc(hit2.x, hit2.y, 3.2, 0, Math.PI * 2);
-              this.ctx.fill();
-            }
-            this.ctx.restore();
-          } else {
-            this.ctx.lineTo(startX + dirX * 520, startY + dirY * 520);
-            this.ctx.stroke();
-          }
-
-          this.ctx.restore();
-        }
-
-        raycastWalls(x, y, dx, dy, maxDist) {
-          let step = 8;
-          let curDist = 0;
-          let curX = x;
-          let curY = y;
-
-          while (curDist < maxDist) {
-            curDist += step;
-            curX += dx * step;
-            curY += dy * step;
-
-            for (const w of this.walls) {
-              if (w.destroyed) continue;
-              if (curX >= w.x && curX <= w.x + w.w && curY >= w.y && curY <= w.y + w.h) {
-                const normal =
-                  Math.abs(curX - w.x) < 8 || Math.abs(curX - (w.x + w.w)) < 8 ? 'X' : 'Y';
-                return { x: curX, y: curY, normal };
-              }
-            }
-          }
-          return null;
-        }
-
-        // --- RAY INTERSECTION & 2D VISIBILITY HELPERS FOR OPTICS & REALISTIC SHADOWS ---
-        rayIntersectAABB(x1, y1, x2, y2, rx, ry, rw, rh) {
-          const minX = rx,
-            maxX = rx + rw;
-          const minY = ry,
-            maxY = ry + rh;
-          const dx = x2 - x1,
-            dy = y2 - y1;
-          let t0 = 0.0,
-            t1 = 1.0;
-
-          if (Math.abs(dx) < 1e-8) {
-            if (x1 < minX || x1 > maxX) return null;
-          } else {
-            const invD = 1.0 / dx;
-            let tNear = (minX - x1) * invD,
-              tFar = (maxX - x1) * invD;
-            if (tNear > tFar) {
-              const tmp = tNear;
-              tNear = tFar;
-              tFar = tmp;
-            }
-            t0 = Math.max(t0, tNear);
-            t1 = Math.min(t1, tFar);
-            if (t0 > t1) return null;
-          }
-
-          if (Math.abs(dy) < 1e-8) {
-            if (y1 < minY || y1 > maxY) return null;
-          } else {
-            const invD = 1.0 / dy;
-            let tNear = (minY - y1) * invD,
-              tFar = (maxY - y1) * invD;
-            if (tNear > tFar) {
-              const tmp = tNear;
-              tNear = tFar;
-              tFar = tmp;
-            }
-            t0 = Math.max(t0, tNear);
-            t1 = Math.min(t1, tFar);
-            if (t0 > t1) return null;
-          }
-
-          return t0 < 0 ? 0 : t0;
-        }
-
-        rayIntersectCircle(x1, y1, x2, y2, cx, cy, r) {
-          const dx = x2 - x1,
-            dy = y2 - y1;
-          const lenSq = dx * dx + dy * dy;
-          if (lenSq < 1e-6) return null;
-          const u = ((cx - x1) * dx + (cy - y1) * dy) / lenSq;
-          const clampedU = Math.max(0, Math.min(1, u));
-          const closeX = x1 + clampedU * dx;
-          const closeY = y1 + clampedU * dy;
-          const distSq = (cx - closeX) * (cx - closeX) + (cy - closeY) * (cy - closeY);
-          if (distSq > r * r) return null;
-          const dToStartSq = (cx - x1) * (cx - x1) + (cy - y1) * (cy - y1);
-          if (dToStartSq <= r * r) return 0;
-          const len = Math.sqrt(lenSq);
-          const back = Math.sqrt(Math.max(0, r * r - distSq));
-          const hitDist = clampedU * len - back;
-          if (hitDist <= 0) return null;
-          return hitDist / len;
-        }
-
-        // Computes visibility polygon using raycasting against walls and tank wreckages
-        getVisibilityPolygon(originX, originY, startAngle, endAngle, maxDist, numRays) {
-          const pts = [];
-          const span = endAngle - startAngle;
-          const nearbyWalls = [];
-          for (let i = 0; i < this.walls.length; i++) {
-            const w = this.walls[i];
-            if (w.destroyed || w.w >= 1000 || w.h >= 1000) continue;
-            const midX = w.x + w.w / 2;
-            const midY = w.y + w.h / 2;
-            const distSq =
-              (midX - originX) * (midX - originX) + (midY - originY) * (midY - originY);
-            const maxRadius = maxDist + Math.max(w.w, w.h);
-            if (distSq <= maxRadius * maxRadius) nearbyWalls.push(w);
-          }
-
-          const nearbyWreckages = [];
-          if (this.wreckages) {
-            for (let i = 0; i < this.wreckages.length; i++) {
-              const wr = this.wreckages[i];
-              if (wr.life <= 0) continue;
-              const distSq =
-                (wr.x - originX) * (wr.x - originX) + (wr.y - originY) * (wr.y - originY);
-              const maxRadius = maxDist + wr.radius;
-              if (distSq <= maxRadius * maxRadius) nearbyWreckages.push(wr);
-            }
-          }
-
-          for (let r = 0; r <= numRays; r++) {
-            const angle = startAngle + (r / numRays) * span;
-            const cosA = Math.cos(angle);
-            const sinA = Math.sin(angle);
-            const targetX = originX + cosA * maxDist;
-            const targetY = originY + sinA * maxDist;
-
-            let minT = 1.0;
-            for (let i = 0; i < nearbyWalls.length; i++) {
-              const w = nearbyWalls[i];
-              const t = this.rayIntersectAABB(
-                originX,
-                originY,
-                targetX,
-                targetY,
-                w.x,
-                w.y,
-                w.w,
-                w.h
-              );
-              if (t !== null && t < minT && t >= 0) minT = t;
-            }
-
-            for (let i = 0; i < nearbyWreckages.length; i++) {
-              const wr = nearbyWreckages[i];
-              const t = this.rayIntersectCircle(
-                originX,
-                originY,
-                targetX,
-                targetY,
-                wr.x,
-                wr.y,
-                wr.radius * 0.9
-              );
-              if (t !== null && t < minT && t >= 0) minT = t;
-            }
-
-            pts.push({
-              x: originX + cosA * (maxDist * minT),
-              y: originY + sinA * (maxDist * minT),
-              hit: minT < 0.999,
-            });
-          }
-          return pts;
-        }
-
         // 1. DYNAMIC 2D SHADOW CASTING (SHADOW PROJECTION POLYGONS FROM WALLS & WRECKAGES)
         cast2DShadows(lc, lx, ly, lightRadius, camX, camY) {
           const maxProj = 900; // Far projection distance
@@ -10551,312 +9065,6 @@ yuklanmoqda…</pre>
               lc.closePath();
               lc.fill();
             }
-          }
-        }
-
-        compositeNightVision(camX, camY) {
-          if (!Number.isFinite(camX) || !Number.isFinite(camY)) return;
-          const lc = this.lightCtx;
-          const w = this.lightCanvas.width;
-          const h = this.lightCanvas.height;
-
-          lc.clearRect(0, 0, w, h);
-          // Deep tactical night darkness mask (prevents pure pitch-black void while keeping darkness thick)
-          lc.fillStyle = 'rgba(4, 7, 15, 0.94)';
-          lc.fillRect(0, 0, w, h);
-
-          lc.save();
-          lc.globalCompositeOperation = 'destination-out';
-          // Every light source below is positioned/sized using raw (world - camera) deltas, i.e. the
-          // same unscaled space the main canvas draws in before its own zoom transform -- so scaling
-          // this context the same way keeps the darkness holes aligned with what's actually on screen.
-          lc.scale(this.cameraZoom, this.cameraZoom);
-
-          const visibleTanks = [this.player, ...this.bots, ...this.peers.values()].filter(
-            (t) => !t.dead
-          );
-          const onScreenLightCasters = [];
-
-          visibleTanks.forEach((tank) => {
-            const screenX = tank.x - camX;
-            const screenY = tank.y - camY;
-            if (!Number.isFinite(screenX) || !Number.isFinite(screenY)) return;
-
-            // Skip off-screen tanks
-            if (screenX < -500 || screenX > w + 500 || screenY < -500 || screenY > h + 500) return;
-
-            // 1. Soft personal ambient glow around tank chassis (raycast visibility so walls block it)
-            const haloPoly = this.getVisibilityPolygon(tank.x, tank.y, 0, Math.PI * 2, 105, 36);
-            if (haloPoly.length > 0) {
-              lc.beginPath();
-              lc.moveTo(haloPoly[0].x - camX, haloPoly[0].y - camY);
-              for (let pi = 1; pi < haloPoly.length; pi++) {
-                lc.lineTo(haloPoly[pi].x - camX, haloPoly[pi].y - camY);
-              }
-              lc.closePath();
-
-              const haloGrad = lc.createRadialGradient(screenX, screenY, 14, screenX, screenY, 105);
-              haloGrad.addColorStop(0, 'rgba(0, 0, 0, 1.0)');
-              haloGrad.addColorStop(0.4, 'rgba(0, 0, 0, 0.90)');
-              haloGrad.addColorStop(0.75, 'rgba(0, 0, 0, 0.40)');
-              haloGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
-              lc.fillStyle = haloGrad;
-              lc.fill();
-            }
-
-            // 2. Volumetric 85-degree, 420px soft feathered spotlight (raycast visibility polygon)
-            const tipX = tank.x + Math.cos(tank.turretAngle) * (tank.radius * 0.95);
-            const tipY = tank.y + Math.sin(tank.turretAngle) * (tank.radius * 0.95);
-            const tipSX = tipX - camX;
-            const tipSY = tipY - camY;
-
-            const halfAngle = (85 * Math.PI) / 180 / 2;
-            const leftAngle = tank.turretAngle - halfAngle;
-            const rightAngle = tank.turretAngle + halfAngle;
-            const beamPoly = this.getVisibilityPolygon(tipX, tipY, leftAngle, rightAngle, 420, 72);
-
-            if (beamPoly.length > 0) {
-              lc.beginPath();
-              lc.moveTo(tipSX, tipSY);
-              for (let pi = 0; pi < beamPoly.length; pi++) {
-                lc.lineTo(beamPoly[pi].x - camX, beamPoly[pi].y - camY);
-              }
-              lc.closePath();
-
-              const beamGrad = lc.createRadialGradient(
-                tipSX,
-                tipSY,
-                10,
-                tipSX + Math.cos(tank.turretAngle) * 280,
-                tipSY + Math.sin(tank.turretAngle) * 280,
-                420
-              );
-              beamGrad.addColorStop(0, 'rgba(0, 0, 0, 1.0)');
-              beamGrad.addColorStop(0.35, 'rgba(0, 0, 0, 0.92)');
-              beamGrad.addColorStop(0.7, 'rgba(0, 0, 0, 0.55)');
-              beamGrad.addColorStop(0.95, 'rgba(0, 0, 0, 0.15)');
-              beamGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
-              lc.fillStyle = beamGrad;
-              lc.fill();
-            }
-
-            // Save on-screen light caster
-            onScreenLightCasters.push({
-              x: tipSX,
-              y: tipSY,
-              radius: 430,
-            });
-
-            // 3. Muzzle Flash: Har safar o'q otilganda stvol uchida 0.06 soniyaga 140px radiusli yorqin chaqnash
-            if (tank.muzzleFlashTimer > 0) {
-              const mfAlpha = Math.min(1.0, tank.muzzleFlashTimer / 0.06);
-              const mfTipX = screenX + Math.cos(tank.turretAngle) * (tank.radius * 1.6);
-              const mfTipY = screenY + Math.sin(tank.turretAngle) * (tank.radius * 1.6);
-              const mfGrad = lc.createRadialGradient(mfTipX, mfTipY, 8, mfTipX, mfTipY, 140);
-              mfGrad.addColorStop(0, `rgba(0, 0, 0, ${1.0 * mfAlpha})`);
-              mfGrad.addColorStop(0.35, `rgba(0, 0, 0, ${0.85 * mfAlpha})`);
-              mfGrad.addColorStop(0.75, `rgba(0, 0, 0, ${0.35 * mfAlpha})`);
-              mfGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
-              lc.fillStyle = mfGrad;
-              lc.beginPath();
-              lc.arc(mfTipX, mfTipY, 140, 0, Math.PI * 2);
-              lc.fill();
-            }
-          });
-
-          // 4. Dynamic Point Lights: Flying bullets emit 45px, rockets emit 90px light
-          this.bullets.forEach((b) => {
-            const sx = b.x - camX;
-            const sy = b.y - camY;
-            if (!Number.isFinite(sx) || !Number.isFinite(sy)) return;
-            if (sx < -100 || sx > w + 100 || sy < -100 || sy > h + 100) return;
-            const isRocket = b.weaponType === 'rocket';
-            const bRadius = isRocket ? 90 : 45;
-            const fGrad = lc.createRadialGradient(sx, sy, 4, sx, sy, bRadius);
-            fGrad.addColorStop(0, 'rgba(0, 0, 0, 0.98)');
-            fGrad.addColorStop(0.45, isRocket ? 'rgba(0, 0, 0, 0.78)' : 'rgba(0, 0, 0, 0.60)');
-            fGrad.addColorStop(0.85, isRocket ? 'rgba(0, 0, 0, 0.30)' : 'rgba(0, 0, 0, 0.15)');
-            fGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
-            lc.fillStyle = fGrad;
-            lc.beginPath();
-            lc.arc(sx, sy, bRadius, 0, Math.PI * 2);
-            lc.fill();
-          });
-
-          // 5. Dynamic Point Lights: Barrel & Tank Explosions light shockwaves (0.25s, 280-320px flash)
-          this.lightFlashes.forEach((f) => {
-            const sx = f.x - camX;
-            const sy = f.y - camY;
-            if (!Number.isFinite(sx) || !Number.isFinite(sy)) return;
-            if (sx < -400 || sx > w + 400 || sy < -400 || sy > h + 400) return;
-            const progress = Math.max(0, f.timer / f.duration);
-            const currentR = f.radius * (0.4 + 0.6 * (1 - progress)); // 280-320px
-            const expGrad = lc.createRadialGradient(sx, sy, 10, sx, sy, currentR);
-            expGrad.addColorStop(0, `rgba(0, 0, 0, ${0.98 * progress})`);
-            expGrad.addColorStop(0.45, `rgba(0, 0, 0, ${0.85 * progress})`);
-            expGrad.addColorStop(0.85, `rgba(0, 0, 0, ${0.35 * progress})`);
-            expGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
-            lc.fillStyle = expGrad;
-            lc.beginPath();
-            lc.arc(sx, sy, currentR, 0, Math.PI * 2);
-            lc.fill();
-          });
-
-          // 6. Flame and shockwave particle lighting
-          this.particles.forEach((p) => {
-            if (p.type === 'shockwave' || p.type === 'flame') {
-              const sx = p.x - camX;
-              const sy = p.y - camY;
-              if (!Number.isFinite(sx) || !Number.isFinite(sy)) return;
-              if (sx < -200 || sx > w + 200 || sy < -200 || sy > h + 200) return;
-              const pGrad = lc.createRadialGradient(sx, sy, 5, sx, sy, 160);
-              pGrad.addColorStop(0, 'rgba(0, 0, 0, 0.85)');
-              pGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
-              lc.fillStyle = pGrad;
-              lc.beginPath();
-              lc.arc(sx, sy, 160, 0, Math.PI * 2);
-              lc.fill();
-            }
-          });
-
-          // 7. Dynamic Point Lights: Smoldering Wreckages 70px flickering warm amber glow
-          if (this.wreckages) {
-            this.wreckages.forEach((wr) => {
-              if (wr.life > 0.8) {
-                const sx = wr.x - camX;
-                const sy = wr.y - camY;
-                if (!Number.isFinite(sx) || !Number.isFinite(sy)) return;
-                if (sx < -100 || sx > w + 100 || sy < -100 || sy > h + 100) return;
-                const alpha = Math.min(1.0, wr.life / 3.0);
-                const flicker = 70 + Math.sin(performance.now() * 0.015 + wr.x) * 8;
-                const wrGrad = lc.createRadialGradient(sx, sy, 6, sx, sy, flicker);
-                wrGrad.addColorStop(0, `rgba(0, 0, 0, ${0.85 * alpha})`);
-                wrGrad.addColorStop(0.5, `rgba(0, 0, 0, ${0.45 * alpha})`);
-                wrGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
-                lc.fillStyle = wrGrad;
-                lc.beginPath();
-                lc.arc(sx, sy, flicker, 0, Math.PI * 2);
-                lc.fill();
-              }
-            });
-          }
-
-          lc.restore();
-
-          this.ctx.drawImage(this.lightCanvas, 0, 0);
-        }
-
-        drawGrid(camX, camY, isNight = false) {
-          const startX = Math.floor(camX / WORLD.gridSize) * WORLD.gridSize;
-          const startY = Math.floor(camY / WORLD.gridSize) * WORLD.gridSize;
-
-          // Minor grid lines (crisp in day, subtle at night)
-          this.ctx.strokeStyle = isNight
-            ? 'rgba(255, 255, 255, 0.04)'
-            : 'rgba(255, 255, 255, 0.08)';
-          this.ctx.lineWidth = 1;
-          this.ctx.beginPath();
-          for (let x = startX; x <= startX + this.viewWidth + WORLD.gridSize; x += WORLD.gridSize) {
-            this.ctx.moveTo(x, camY);
-            this.ctx.lineTo(x, camY + this.viewHeight);
-          }
-          for (
-            let y = startY;
-            y <= startY + this.viewHeight + WORLD.gridSize;
-            y += WORLD.gridSize
-          ) {
-            this.ctx.moveTo(camX, y);
-            this.ctx.lineTo(camX + this.viewWidth, y);
-          }
-          this.ctx.stroke();
-
-          const majorStep = WORLD.gridSize * 5;
-          const majorStartX = Math.floor(camX / majorStep) * majorStep;
-          const majorStartY = Math.floor(camY / majorStep) * majorStep;
-
-          // Major grid lines
-          this.ctx.strokeStyle = isNight ? 'rgba(0, 240, 255, 0.08)' : 'rgba(0, 240, 255, 0.18)';
-          this.ctx.lineWidth = isNight ? 1 : 1.2;
-          this.ctx.beginPath();
-          for (let x = majorStartX; x <= majorStartX + this.viewWidth + majorStep; x += majorStep) {
-            this.ctx.moveTo(x, camY);
-            this.ctx.lineTo(x, camY + this.viewHeight);
-          }
-          for (
-            let y = majorStartY;
-            y <= majorStartY + this.viewHeight + majorStep;
-            y += majorStep
-          ) {
-            this.ctx.moveTo(camX, y);
-            this.ctx.lineTo(camX + this.viewWidth, y);
-          }
-          this.ctx.stroke();
-
-          // Major grid intersection crosshairs
-          this.ctx.strokeStyle = isNight ? 'rgba(0, 240, 255, 0.16)' : 'rgba(0, 240, 255, 0.35)';
-          this.ctx.lineWidth = 1.5;
-          for (let x = majorStartX; x <= majorStartX + this.viewWidth + majorStep; x += majorStep) {
-            for (
-              let y = majorStartY;
-              y <= majorStartY + this.viewHeight + majorStep;
-              y += majorStep
-            ) {
-              this.ctx.beginPath();
-              this.ctx.moveTo(x - 5, y);
-              this.ctx.lineTo(x + 5, y);
-              this.ctx.moveTo(x, y - 5);
-              this.ctx.lineTo(x, y + 5);
-              this.ctx.stroke();
-            }
-          }
-
-          // World boundary border
-          this.ctx.strokeStyle = isNight ? 'rgba(0, 240, 255, 0.4)' : 'rgba(0, 240, 255, 0.75)';
-          this.ctx.lineWidth = 4;
-          this.ctx.strokeRect(0, 0, WORLD.width, WORLD.height);
-        }
-
-        drawBushes() {
-          for (const b of this.bushes) {
-            this.ctx.save();
-            this.ctx.translate(b.x, b.y);
-
-            const numClusters = 9;
-            for (let i = 0; i < numClusters; i++) {
-              const angle = (i / numClusters) * Math.PI * 2;
-              const dist = b.radius * 0.48;
-              const subRadius = b.radius * 0.58;
-
-              const grad = this.ctx.createRadialGradient(
-                Math.cos(angle) * dist,
-                Math.sin(angle) * dist,
-                subRadius * 0.2,
-                Math.cos(angle) * dist,
-                Math.sin(angle) * dist,
-                subRadius
-              );
-              grad.addColorStop(0, 'rgba(46, 204, 113, 0.92)');
-              grad.addColorStop(0.7, 'rgba(39, 174, 96, 0.88)');
-              grad.addColorStop(1, 'rgba(24, 107, 58, 0.75)');
-
-              this.ctx.fillStyle = grad;
-              this.ctx.beginPath();
-              this.ctx.arc(
-                Math.cos(angle) * dist,
-                Math.sin(angle) * dist,
-                subRadius,
-                0,
-                Math.PI * 2
-              );
-              this.ctx.fill();
-            }
-
-            this.ctx.fillStyle = 'rgba(46, 204, 113, 0.95)';
-            this.ctx.beginPath();
-            this.ctx.arc(0, 0, b.radius * 0.45, 0, Math.PI * 2);
-            this.ctx.fill();
-
-            this.ctx.restore();
           }
         }
 

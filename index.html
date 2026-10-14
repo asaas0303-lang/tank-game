@@ -6812,7 +6812,7 @@ yuklanmoqda…</pre>
               break;
             }
 
-            // Server har 50 ms da xonadagi hamma tanklarni bitta paketda yuboradi
+            // Server har 66 ms da xonadagi hamma tanklarni bitta paketda yuboradi
             case 'world': {
               const now = performance.now();
               for (const p of msg.players || []) {
@@ -8826,7 +8826,7 @@ yuklanmoqda…</pre>
           // Egasi o'zining holatini DOIM yuboradi (o'lganda ham) -> peer hech qachon
           // "javobsiz qolib" stale bo'lib o'chib ketmaydi, o'lim/tirilish darrov ko'rinadi.
           const now = Date.now();
-          if (!this.lastSyncTime || now - this.lastSyncTime >= 50) {
+          if (!this.lastSyncTime || now - this.lastSyncTime >= 66) {
             this.lastSyncTime = now;
             this.sendWs({
               type: 'sync_state',
@@ -8890,11 +8890,11 @@ yuklanmoqda…</pre>
             });
           }
 
-          // Boshqa o'yinchilar: 2 ta server paketi orasida silliq (110 ms orqada) ko'rsatiladi --
+          // Boshqa o'yinchilar: 2 ta server paketi orasida silliq (140 ms orqada) ko'rsatiladi --
           // sakrash va "orqaga tortilish" bo'lmaydi
           const nowPerf = performance.now();
           for (const peer of this.peers.values()) {
-            interpolateRemote(peer, nowPerf, 110);
+            interpolateRemote(peer, nowPerf, 140);
             // Uzoqdagi tankda harakat fizikasi ishlamaydi -- vizual taymerlarni shu yerda so'ndiramiz
             if (peer.hitFlashTimer > 0) peer.hitFlashTimer = Math.max(0, peer.hitFlashTimer - dt);
             if (peer.muzzleFlashTimer > 0)

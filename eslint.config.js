@@ -42,6 +42,9 @@ module.exports = [
         document: 'readonly',
         console: 'readonly',
         performance: 'readonly',
+        navigator: 'readonly',
+        localStorage: 'readonly',
+        globalThis: 'readonly',
       },
     },
     rules: {
@@ -65,6 +68,8 @@ module.exports = [
         expect: 'readonly',
         beforeEach: 'readonly',
         afterEach: 'readonly',
+        beforeAll: 'readonly',
+        afterAll: 'readonly',
       },
     },
   },

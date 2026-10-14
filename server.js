@@ -40,6 +40,30 @@ const PUBLIC_FILES = [
 ];
 app.get(PUBLIC_FILES, (req, res) => res.sendFile(path.join(__dirname, req.path), noCache));
 
+// Server sog'lig'i: nechta o'yinchi/jang va server qanchalik band (kechikish ms)
+let loopLagMs = 0;
+let cpuPct = 0;
+let lagLast = Date.now();
+let cpuLast = process.cpuUsage();
+setInterval(() => {
+  const now = Date.now();
+  const cpu = process.cpuUsage(cpuLast);
+  cpuPct = Math.round(((cpu.user + cpu.system) / 1000 / Math.max(1, now - lagLast)) * 100);
+  cpuLast = process.cpuUsage();
+  loopLagMs = Math.max(0, now - lagLast - 500);
+  lagLast = now;
+}, 500).unref();
+app.get('/health', (req, res) => {
+  res.json({
+    players: players.size,
+    rooms: rooms.size,
+    loopLagMs,
+    cpuPct,
+    memoryMb: Math.round(process.memoryUsage().rss / 1048576),
+    uptimeS: Math.round(process.uptime()),
+  });
+});
+
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'), noCache);
 });
@@ -125,11 +149,12 @@ function findOpenRoom() {
 function broadcastToRoom(roomId, message, senderId = null) {
   const room = rooms.get(roomId);
   if (!room) return;
-  const data = JSON.stringify(message);
+  // Bir marta kodlanadi (har qabul qiluvchi uchun qayta emas)
+  const data = Buffer.from(JSON.stringify(message));
   room.players.forEach((pId) => {
     if (pId === senderId) return;
     const p = players.get(pId);
-    if (p && p.ws.readyState === WebSocket.OPEN) p.ws.send(data);
+    if (p && p.ws.readyState === WebSocket.OPEN) p.ws.send(data, { binary: false });
   });
 }
 
@@ -407,7 +432,7 @@ setInterval(() => {
   }
 }, 5000).unref();
 
-// --- Dunyo holati: har 50 ms da xonadagi hamma tanklar BITTA paketda ---
+// --- Dunyo holati: har 66 ms da xonadagi hamma tanklar BITTA paketda ---
 // Avval har o'yinchi har 35 ms da xabar yuborardi va server uni har kimga alohida
 // tarqatardi (N^2 xabar). Endi server bitta paket yig'adi.
 const r1 = (n) => Math.round(n * 10) / 10;

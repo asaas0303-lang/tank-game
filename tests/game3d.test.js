@@ -89,7 +89,7 @@ describe('Tank Game 3D & Security Verification', () => {
     expect(engineCode).toContain('rotateCamera(deltaX, deltaY = 0)');
     expect(engineCode).toContain('this.cameraYaw');
     expect(engineCode).toContain('this.cameraPitch');
-    expect(engineCode).toContain('inGarage');
+    expect(engineCode).toContain('_isInsideGarage');
 
     const mapCode = fs.readFileSync(
       path.join(__dirname, '..', 'src', '3d', 'BattlefieldMap.js'),

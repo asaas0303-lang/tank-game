@@ -261,6 +261,56 @@ export class Effects3D {
     }
   }
 
+  // Gusenitsa izlari: har iz -- ikki qora chiziq (chap va o'ng gusenitsa), asta so'nadi
+  syncTreads(marks) {
+    const MAX = 200;
+    if (!this.treads) {
+      const geo = new THREE.PlaneGeometry(1, 1);
+      geo.rotateX(-Math.PI / 2);
+      this.treads = new THREE.InstancedMesh(
+        geo,
+        new THREE.MeshBasicMaterial({
+          color: 0x1f1810,
+          transparent: true,
+          opacity: 0.32,
+          depthWrite: false,
+          polygonOffset: true,
+          polygonOffsetFactor: -1,
+        }),
+        MAX
+      );
+      this.treads.frustumCulled = false;
+      this.treads.renderOrder = 1;
+      this.scene.add(this.treads);
+      this._tm = new THREE.Matrix4();
+      this._tq = new THREE.Quaternion();
+      this._tv = new THREE.Vector3();
+      this._ts = new THREE.Vector3();
+      this._up = new THREE.Vector3(0, 1, 0);
+    }
+    let k = 0;
+    for (let i = marks.length - 1; i >= 0 && k < MAX - 1; i--) {
+      const m = marks[i];
+      if (m.life <= 0) continue;
+      const fade = Math.min(1, m.life / 12) * (m.alpha / (m.initialAlpha || 1));
+      const rotY = Math.atan2(Math.cos(m.angle), Math.sin(m.angle));
+      this._tq.setFromAxisAngle(this._up, rotY);
+      const px = -Math.sin(m.angle);
+      const py = Math.cos(m.angle);
+      for (const side of [-1, 1]) {
+        const p = ML.to3D(m.x + px * side * (m.width / 2), m.y + py * side * (m.width / 2));
+        this._tm.compose(
+          this._tv.set(p.x, 0.045, p.z),
+          this._tq,
+          this._ts.set(0.38 * fade + 0.05, 1, 1.25)
+        );
+        this.treads.setMatrixAt(k++, this._tm);
+      }
+    }
+    this.treads.count = k;
+    this.treads.instanceMatrix.needsUpdate = true;
+  }
+
   // Buzilgan devor g'isht parchalari: uchib chiqadi, yerga tushib sirpanadi (to'siq emas)
   syncDebris(chunks) {
     const MAX = 60;

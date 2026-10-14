@@ -14,27 +14,43 @@
     <meta name="x5-orientation" content="landscape" />
     <meta name="format-detection" content="telephone=no" />
     <link rel="manifest" href="manifest.json" />
-    <title>AAA 2D Tank Battle Arena - Sektorlar & Hududlar Tizimi</title>
+    <title>3D Tank Jangi</title>
     <!-- Telegram Mini App SDK -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script>
       (function () {
         /* ===== Telegram WebApp Setup ===== */
+        var tgReadyDone = false;
         function setupTelegram() {
-          if (window.Telegram && window.Telegram.WebApp) {
-            var tg = window.Telegram.WebApp;
+          var tg = window.Telegram && window.Telegram.WebApp;
+          if (tg) {
+            var atLeast = function (v) {
+              return typeof tg.isVersionAtLeast === 'function' && tg.isVersionAtLeast(v);
+            };
             try {
-              tg.ready();
-              tg.expand();
-              if (typeof tg.requestFullscreen === 'function') tg.requestFullscreen();
-              if (window.innerWidth > window.innerHeight) {
-                if (typeof tg.lockOrientation === 'function') tg.lockOrientation();
-              } else {
-                if (typeof tg.unlockOrientation === 'function') tg.unlockOrientation();
+              if (!tgReadyDone) {
+                tgReadyDone = true;
+                tg.ready();
+                tg.expand();
+                // Surib yopib yuborishning oldini olish va yopishdan oldin so'rash
+                if (atLeast('7.7') && tg.disableVerticalSwipes) tg.disableVerticalSwipes();
+                if (atLeast('6.2') && tg.enableClosingConfirmation) tg.enableClosingConfirmation();
+                if (atLeast('6.1') && tg.setHeaderColor) tg.setHeaderColor('#060913');
+                if (atLeast('6.1') && tg.setBackgroundColor) tg.setBackgroundColor('#060913');
+                // Android "Orqaga" tugmasi o'yindan chiqarmaydi -- pauza menyusini ochadi
+                if (atLeast('6.1') && tg.BackButton) {
+                  tg.BackButton.show();
+                  tg.BackButton.onClick(function () {
+                    var m = document.getElementById('escModal');
+                    if (m) m.classList.toggle('active');
+                  });
+                }
               }
-              if (typeof tg.disableVerticalSwipes === 'function') tg.disableVerticalSwipes();
-              if (tg.setHeaderColor) tg.setHeaderColor('#060913');
-              if (tg.setBackgroundColor) tg.setBackgroundColor('#060913');
+              if (atLeast('8.0') && !tg.isFullscreen && tg.requestFullscreen)
+                tg.requestFullscreen();
+              if (atLeast('8.0') && window.innerWidth > window.innerHeight && tg.lockOrientation) {
+                tg.lockOrientation();
+              }
             } catch (e) {
               console.warn('Telegram setup error:', e);
             }
@@ -43,9 +59,11 @@
             screen.orientation.lock('landscape').catch(function () {});
           }
           if (
-            document.documentElement &&
+            !tg &&
             document.documentElement.requestFullscreen &&
-            !document.fullscreenElement
+            !document.fullscreenElement &&
+            navigator.userActivation &&
+            navigator.userActivation.isActive
           ) {
             document.documentElement.requestFullscreen().catch(function () {});
           }
@@ -2318,9 +2336,37 @@ yuklanmoqda…</pre>
             this.masterGain = this.ctx.createGain();
             this.masterGain.gain.setValueAtTime(1.0, this.ctx.currentTime);
 
-            // Connect Master Chain: tensionFilter -> masterGain -> destination
+            // Ovoz cheklagich: bir vaqtda 4 tank otsa ham "qirsillamaydi" (clipping yo'q)
+            this.compressor = this.ctx.createDynamicsCompressor();
+            this.compressor.threshold.setValueAtTime(-14, this.ctx.currentTime);
+            this.compressor.knee.setValueAtTime(10, this.ctx.currentTime);
+            this.compressor.ratio.setValueAtTime(6, this.ctx.currentTime);
+            this.compressor.attack.setValueAtTime(0.003, this.ctx.currentTime);
+            this.compressor.release.setValueAtTime(0.25, this.ctx.currentTime);
+
+            // tensionFilter -> masterGain -> compressor -> karnay
             this.tensionFilter.connect(this.masterGain);
-            this.masterGain.connect(this.ctx.destination);
+            this.masterGain.connect(this.compressor);
+            this.compressor.connect(this.ctx.destination);
+
+            // Ochiq dala aks-sadosi (reverb): uzoqdagi o'q "gumburlab" eshitiladi.
+            // Kuchsiz telefonda (past sifat) o'chiriladi -- protsessorni tejash uchun.
+            const lowEnd = window.engine3D && window.engine3D.qualityIndex === 0;
+            if (!lowEnd && this.ctx.createConvolver) {
+              this.reverb = this.ctx.createConvolver();
+              this.reverb.buffer = this.makeOutdoorImpulse(2.6);
+              this.reverbGain = this.ctx.createGain();
+              this.reverbGain.gain.setValueAtTime(0.55, this.ctx.currentTime);
+              this.reverb.connect(this.reverbGain);
+              this.reverbGain.connect(this.tensionFilter);
+            }
+
+            // Telegram/brauzer fonga o'tsa ovoz darhol o'chadi, qaytsa yoqiladi
+            document.addEventListener('visibilitychange', () => {
+              if (!this.ctx) return;
+              if (document.hidden) this.ctx.suspend().catch(() => {});
+              else this.ctx.resume().catch(() => {});
+            });
 
             // SFX Sub-mix (passes through combat tension filter)
             this.sfxGain = this.ctx.createGain();
@@ -2342,10 +2388,42 @@ yuklanmoqda…</pre>
           }
         }
 
-        setListenerPosition(x, y, halfViewportW = 600) {
+        // yaw -- kamera qarayotgan yo'nalish (2D burchak). Ovoz shu yo'nalishga nisbatan
+        // chap/o'ng quloqqa taqsimlanadi.
+        setListenerPosition(x, y, halfViewportW = 600, yaw = null) {
           this.listenerX = x || 0;
           this.listenerY = y || 0;
           this.listenerViewportHalfW = halfViewportW || 600;
+          if (yaw !== null && yaw !== undefined) this.listenerYaw = yaw;
+        }
+
+        // Ochiq maydon uchun sun'iy aks-sado: erta qaytishlar (binolar, o'rmon) + uzun so'nish
+        makeOutdoorImpulse(seconds) {
+          const rate = this.ctx.sampleRate;
+          const len = Math.floor(rate * seconds);
+          const buf = this.ctx.createBuffer(2, len, rate);
+          for (let ch = 0; ch < 2; ch++) {
+            const d = buf.getChannelData(ch);
+            for (let i = 0; i < len; i++) {
+              const t = i / rate;
+              // ikki kanalda biroz farqli shovqin -> keng, "atrofdan" kelayotgan ovoz
+              d[i] =
+                (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3.2) * Math.exp(-t * 1.6) * 0.5;
+            }
+            // Uzoq o'rmon/tepalikdan qaytgan aniq aks-sadolar
+            for (const [delay, amp] of [
+              [0.09, 0.5],
+              [0.23, 0.32],
+              [0.41, 0.22],
+              [0.78, 0.12],
+            ]) {
+              const at = Math.floor((delay + ch * 0.013) * rate);
+              for (let k = 0; k < 220 && at + k < len; k++) {
+                d[at + k] += (Math.random() * 2 - 1) * amp * (1 - k / 220);
+              }
+            }
+          }
+          return buf;
         }
 
         getNoiseBuffer() {
@@ -2386,48 +2464,59 @@ yuklanmoqda…</pre>
           const dy = y - this.listenerY;
           const dist = Math.hypot(dx, dy);
 
-          // Distance Attenuation: max distance 1200px (completely silent if >= 1200px)
+          // 1200 px (taxminan 100 m) dan uzoq -- eshitilmaydi
           if (dist >= 1200) {
             return null;
           }
-
-          // Exponential falloff curve
           const att = Math.max(0, 1 - dist / 1200);
           const distanceGain = baseGain * Math.pow(att, 1.8);
 
           const gainNode = this.ctx.createGain();
           gainNode.gain.setValueAtTime(distanceGain, now);
 
-          // Stereo Panning (hard left -1.0 to hard right +1.0)
+          // Kamera yo'nalishiga nisbatan: o'ngdagi -- o'ng quloqda, chapdagi -- chapda
+          const yaw = this.listenerYaw || 0;
+          const fwd = dist > 1 ? (dx * Math.cos(yaw) + dy * Math.sin(yaw)) / dist : 1;
+          const right = dist > 1 ? (-dx * Math.sin(yaw) + dy * Math.cos(yaw)) / dist : 0;
           let pannerNode = null;
           if (this.ctx.createStereoPanner) {
             pannerNode = this.ctx.createStereoPanner();
-            const pan = Math.max(-1, Math.min(1, dx / (this.listenerViewportHalfW || 600)));
-            pannerNode.pan.setValueAtTime(pan, now);
+            // Juda yaqin ovoz -- markazda; uzoqlashgan sari yo'nalish aniqroq
+            const spread = Math.min(1, dist / 160);
+            pannerNode.pan.setValueAtTime(Math.max(-0.95, Math.min(0.95, right * spread)), now);
           }
 
-          // Distance / Obstacle Low-Pass Filter (muffles sounds beyond 400px or through walls to 600-800Hz)
+          // Uzoqdagi, devor orqasidagi yoki ORQADAGI ovoz bo'g'iqroq (inson qulog'idek)
           let filterNode = null;
-          if (dist > 400 || hasObstacle) {
+          const behind = fwd < -0.2 ? (-fwd - 0.2) / 0.8 : 0;
+          if (dist > 300 || hasObstacle || behind > 0) {
             filterNode = this.ctx.createBiquadFilter();
             filterNode.type = 'lowpass';
-            const norm = Math.min(1, Math.max(0, (dist - 400) / 800));
-            const cutoff = hasObstacle ? Math.min(750, 20000 - norm * 19250) : 20000 - norm * 19250;
-            filterNode.frequency.setValueAtTime(Math.max(650, cutoff), now);
+            const norm = Math.min(1, Math.max(0, (dist - 300) / 900));
+            let cutoff = 18000 - norm * 16500 - behind * 9000;
+            if (hasObstacle) cutoff = Math.min(cutoff, 750);
+            filterNode.frequency.setValueAtTime(Math.max(500, cutoff), now);
           }
 
-          // Connect chain: input -> [filter] -> gain -> [panner] -> sfxGain
           let inputNode = gainNode;
           if (filterNode) {
             filterNode.connect(gainNode);
             inputNode = filterNode;
           }
-
           if (pannerNode) {
             gainNode.connect(pannerNode);
             pannerNode.connect(this.sfxGain);
           } else {
             gainNode.connect(this.sfxGain);
+          }
+
+          // Aks-sadoga yuborish: uzoqdagi ovozning aks-sadosi nisbatan kuchliroq
+          let sendNode = null;
+          if (this.reverb) {
+            sendNode = this.ctx.createGain();
+            sendNode.gain.setValueAtTime(baseGain * (0.12 + (1 - att) * 0.35) * att, now);
+            inputNode.connect(sendNode);
+            sendNode.connect(this.reverb);
           }
 
           return {
@@ -2440,6 +2529,7 @@ yuklanmoqda…</pre>
                 if (inputNode !== gainNode) inputNode.disconnect();
                 gainNode.disconnect();
                 if (pannerNode) pannerNode.disconnect();
+                if (sendNode) sendNode.disconnect();
               } catch (e) {}
             },
           };
@@ -2477,6 +2567,33 @@ yuklanmoqda…</pre>
 
             this.enginePistonOsc.start();
             this.engineSubOsc.start();
+
+            // Layer 1b: dizel "taqillashi" -- telefon karnayi eshitadigan diapazonda (200-400 Hz)
+            // shovqin har silindr urishida pulsatsiya qiladi
+            const chugNoise = this.getNoiseBuffer();
+            if (chugNoise) {
+              this.chugSource = this.ctx.createBufferSource();
+              this.chugSource.buffer = chugNoise;
+              this.chugSource.loop = true;
+              this.chugFilter = this.ctx.createBiquadFilter();
+              this.chugFilter.type = 'bandpass';
+              this.chugFilter.frequency.setValueAtTime(240, now);
+              this.chugFilter.Q.setValueAtTime(1.3, now);
+              this.chugGain = this.ctx.createGain();
+              this.chugGain.gain.setValueAtTime(0.05, now);
+              this.chugLfo = this.ctx.createOscillator();
+              this.chugLfo.type = 'square';
+              this.chugLfo.frequency.setValueAtTime(9, now);
+              this.chugDepth = this.ctx.createGain();
+              this.chugDepth.gain.setValueAtTime(0.045, now);
+              this.chugLfo.connect(this.chugDepth);
+              this.chugDepth.connect(this.chugGain.gain);
+              this.chugSource.connect(this.chugFilter);
+              this.chugFilter.connect(this.chugGain);
+              this.chugGain.connect(this.engineMasterGain);
+              this.chugSource.start();
+              this.chugLfo.start();
+            }
 
             // Layer 2: Caterpillar Track Friction (Looping Noise + Bandpass Filter ~1100Hz)
             const nBuffer = this.getNoiseBuffer();
@@ -2528,6 +2645,14 @@ yuklanmoqda…</pre>
           this.enginePistonOsc.frequency.setTargetAtTime(targetPistonFreq, now, 0.05);
           this.engineSubOsc.frequency.setTargetAtTime(targetPistonFreq * 2, now, 0.05);
           this.enginePistonGain.gain.setTargetAtTime(targetPistonGain, now, 0.05);
+          if (this.chugLfo) {
+            // salt ishlash ~9 urish/s, to'liq tezlikda ~24
+            this.chugLfo.frequency.setTargetAtTime(9 + clampedSpeed * 15, now, 0.08);
+            this.chugFilter.frequency.setTargetAtTime(220 + clampedSpeed * 160, now, 0.1);
+            const base = isMoving ? 0.07 + clampedSpeed * 0.07 : 0.045;
+            this.chugGain.gain.setTargetAtTime(base, now, 0.06);
+            this.chugDepth.gain.setTargetAtTime(base * 0.9, now, 0.06);
+          }
 
           // Layer 2: Caterpillar Track Steel Link Friction & Clatter
           if (this.trackNoiseGain && this.trackNoiseFilter) {
@@ -2547,6 +2672,64 @@ yuklanmoqda…</pre>
               this.turbineGain.gain.setTargetAtTime(0, now, 0.12);
             }
           }
+        }
+
+        updateRemoteEngines(tanks) {
+          if (!this.ctx || this.ctx.state !== 'running') return;
+          const now = this.ctx.currentTime;
+          if (!this.remoteVoices) {
+            this.remoteVoices = [];
+            for (let i = 0; i < 3; i++) {
+              const osc = this.ctx.createOscillator();
+              osc.type = 'sawtooth';
+              osc.frequency.setValueAtTime(40, now);
+              const bp = this.ctx.createBiquadFilter();
+              bp.type = 'bandpass';
+              bp.frequency.setValueAtTime(180, now);
+              bp.Q.setValueAtTime(1.1, now);
+              const g = this.ctx.createGain();
+              g.gain.setValueAtTime(0, now);
+              const pan = this.ctx.createStereoPanner ? this.ctx.createStereoPanner() : null;
+              osc.connect(bp);
+              bp.connect(g);
+              if (pan) {
+                g.connect(pan);
+                pan.connect(this.sfxGain);
+              } else {
+                g.connect(this.sfxGain);
+              }
+              osc.start();
+              this.remoteVoices.push({ osc, bp, g, pan });
+            }
+          }
+          const yaw = this.listenerYaw || 0;
+          const list = [];
+          for (const t of tanks) {
+            if (!t || t.dead) continue;
+            const speed = t._audioPrev ? Math.hypot(t.x - t._audioPrev.x, t.y - t._audioPrev.y) : 0;
+            t._audioPrev = { x: t.x, y: t.y };
+            const dx = t.x - this.listenerX;
+            const dy = t.y - this.listenerY;
+            const dist = Math.hypot(dx, dy);
+            if (dist < 700) list.push({ dist, dx, dy, speed });
+          }
+          list.sort((a, b) => a.dist - b.dist);
+          this.remoteVoices.forEach((v, i) => {
+            const t = list[i];
+            if (!t) {
+              v.g.gain.setTargetAtTime(0, now, 0.15);
+              return;
+            }
+            const moving = Math.min(1, t.speed / 2);
+            const att = Math.pow(1 - t.dist / 700, 2);
+            v.osc.frequency.setTargetAtTime(32 + moving * 26, now, 0.1);
+            v.bp.frequency.setTargetAtTime(150 + moving * 120, now, 0.1);
+            v.g.gain.setTargetAtTime((0.04 + moving * 0.09) * att, now, 0.12);
+            if (v.pan && t.dist > 1) {
+              const right = (-t.dx * Math.sin(yaw) + t.dy * Math.cos(yaw)) / t.dist;
+              v.pan.pan.setTargetAtTime(Math.max(-0.9, Math.min(0.9, right)), now, 0.1);
+            }
+          });
         }
 
         updateEnginePitch(isMoving, hasNitro) {
@@ -2931,12 +3114,38 @@ yuklanmoqda…</pre>
 
           const now = this.ctx.currentTime;
           const duration = weapon === 'rocket' ? 0.55 : weapon === 'shotgun' ? 0.38 : 0.46;
+          const detune = 0.94 + Math.random() * 0.12;
+
+          // 0. Otish lahzasidagi keskin "qars" (tovushdan tez portlash to'lqini, 15 ms)
+          const crackBuf = this.getNoiseBuffer();
+          if (crackBuf) {
+            const crack = this.ctx.createBufferSource();
+            crack.buffer = crackBuf;
+            const hp = this.ctx.createBiquadFilter();
+            hp.type = 'highpass';
+            hp.frequency.setValueAtTime(1800, now);
+            const cg = this.ctx.createGain();
+            cg.gain.setValueAtTime(isPlayer ? 0.95 : 0.7, now);
+            cg.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+            crack.connect(hp);
+            hp.connect(cg);
+            cg.connect(spatial.input);
+            crack.start(now, Math.random() * 1.5);
+            crack.stop(now + 0.06);
+            crack.onended = () => {
+              try {
+                crack.disconnect();
+                hp.disconnect();
+                cg.disconnect();
+              } catch (e) {}
+            };
+          }
 
           // 1. Heavy Sub-Bass Concussive Thump (Tank Cannon Muzzle Blast Shockwave)
           const subOsc = this.ctx.createOscillator();
           const subGain = this.ctx.createGain();
           subOsc.type = 'sine';
-          const startPitch = weapon === 'rocket' ? 95 : weapon === 'shotgun' ? 140 : 115;
+          const startPitch = (weapon === 'rocket' ? 95 : weapon === 'shotgun' ? 140 : 115) * detune;
           subOsc.frequency.setValueAtTime(startPitch, now);
           subOsc.frequency.exponentialRampToValueAtTime(26, now + duration);
 
@@ -3099,73 +3308,87 @@ yuklanmoqda…</pre>
         }
 
         // 8-Bit Chiptune Background Music (BGM)
+        // 8-bit musiqa o'rniga jang maydoni muhiti: shamol va uzoqdagi to'p gumburlashi
         startBgm() {
           if (!this.ctx || this.bgmTimer) return;
           this.bgmEnabled = true;
-
-          const melody = [
-            220.0, 261.63, 329.63, 440.0, 392.0, 329.63, 293.66, 261.63, 174.61, 220.0, 261.63,
-            349.23, 196.0, 246.94, 293.66, 329.63,
-          ];
-          const bass = [110.0, 87.31, 130.81, 98.0];
-
+          const now = this.ctx.currentTime;
+          const nb = this.getNoiseBuffer();
+          if (this.windGain) this.windGain.gain.setTargetAtTime(0.2, now, 1.0);
+          if (nb && !this.windSource) {
+            this.windSource = this.ctx.createBufferSource();
+            this.windSource.buffer = nb;
+            this.windSource.loop = true;
+            this.windFilter = this.ctx.createBiquadFilter();
+            this.windFilter.type = 'bandpass';
+            this.windFilter.frequency.setValueAtTime(420, now);
+            this.windFilter.Q.setValueAtTime(0.7, now);
+            this.windGain = this.ctx.createGain();
+            this.windGain.gain.setValueAtTime(0.0, now);
+            this.windGain.gain.linearRampToValueAtTime(0.22, now + 3);
+            this.windSource.connect(this.windFilter);
+            this.windFilter.connect(this.windGain);
+            this.windGain.connect(this.musicGain);
+            this.windSource.start();
+          }
           this.bgmTimer = setInterval(() => {
             if (!this.ctx || !this.bgmEnabled || this.ctx.state !== 'running') return;
-            const now = this.ctx.currentTime;
-            const noteFreq = melody[this.bgmStep % melody.length];
-
-            const osc = this.ctx.createOscillator();
-            const gain = this.ctx.createGain();
-            osc.type = 'triangle';
-            osc.frequency.setValueAtTime(noteFreq, now);
-
-            gain.gain.setValueAtTime(0.045, now);
-            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.13);
-
-            osc.connect(gain);
-            gain.connect(this.musicGain);
-            osc.start(now);
-            osc.stop(now + 0.14);
-
-            if (this.bgmStep % 4 === 0) {
-              const bassIdx = Math.floor(this.bgmStep / 4) % bass.length;
-              const bassFreq = bass[bassIdx];
-              const bOsc = this.ctx.createOscillator();
-              const bGain = this.ctx.createGain();
-              bOsc.type = 'sine';
-              bOsc.frequency.setValueAtTime(bassFreq, now);
-
-              bGain.gain.setValueAtTime(0.065, now);
-              bGain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
-
-              bOsc.connect(bGain);
-              bGain.connect(this.musicGain);
-              bOsc.start(now);
-              bOsc.stop(now + 0.46);
-
-              bOsc.onended = () => {
-                try {
-                  bOsc.disconnect();
-                  bGain.disconnect();
-                } catch (e) {}
-              };
+            const t = this.ctx.currentTime;
+            // shamol esishi: kuchi va tembri sekin o'zgaradi
+            if (this.windGain) {
+              this.windGain.gain.setTargetAtTime(0.12 + Math.random() * 0.22, t, 1.6);
+              this.windFilter.frequency.setTargetAtTime(280 + Math.random() * 380, t, 2.2);
             }
+            // vaqti-vaqti bilan uzoqdan artilleriya
+            if (Math.random() < 0.22) this.playDistantArtillery();
+          }, 2500);
+        }
 
-            osc.onended = () => {
-              try {
-                osc.disconnect();
-                gain.disconnect();
-              } catch (e) {}
-            };
-
-            this.bgmStep++;
-          }, 145);
+        playDistantArtillery() {
+          const nb = this.getNoiseBuffer();
+          if (!nb) return;
+          const now = this.ctx.currentTime;
+          const src = this.ctx.createBufferSource();
+          src.buffer = nb;
+          src.playbackRate.setValueAtTime(0.5 + Math.random() * 0.3, now);
+          const lp = this.ctx.createBiquadFilter();
+          lp.type = 'lowpass';
+          lp.frequency.setValueAtTime(220, now);
+          lp.frequency.exponentialRampToValueAtTime(60, now + 1.6);
+          const g = this.ctx.createGain();
+          g.gain.setValueAtTime(0.0001, now);
+          g.gain.exponentialRampToValueAtTime(0.3 + Math.random() * 0.25, now + 0.05);
+          g.gain.exponentialRampToValueAtTime(0.0001, now + 1.8);
+          const pan = this.ctx.createStereoPanner ? this.ctx.createStereoPanner() : null;
+          src.connect(lp);
+          lp.connect(g);
+          if (pan) {
+            pan.pan.setValueAtTime(Math.random() * 1.6 - 0.8, now);
+            g.connect(pan);
+            pan.connect(this.musicGain);
+            if (this.reverb) pan.connect(this.reverb);
+          } else {
+            g.connect(this.musicGain);
+          }
+          src.start(now);
+          src.stop(now + 1.9);
+          src.onended = () => {
+            try {
+              src.disconnect();
+              lp.disconnect();
+              g.disconnect();
+              if (pan) pan.disconnect();
+            } catch (e) {}
+          };
         }
 
         stopBgm() {
           if (this.bgmTimer) {
             clearInterval(this.bgmTimer);
             this.bgmTimer = null;
+          }
+          if (this.windGain && this.ctx) {
+            this.windGain.gain.setTargetAtTime(0, this.ctx.currentTime, 0.4);
           }
           this.bgmEnabled = false;
         }
@@ -3501,6 +3724,14 @@ yuklanmoqda…</pre>
         tank.bodyAngle = b;
         tank.turretAngle = tu;
         tank.targetTurretAngle = tu;
+      }
+
+      // Ism va boshqa foydalanuvchi matnini HTML ichiga xavfsiz qo'yish (XSS himoyasi)
+      function escapeHtml(v) {
+        return String(v == null ? '' : v).replace(
+          /[&<>"']/g,
+          (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]
+        );
       }
 
       function hasLineOfSight(x1, y1, x2, y2, walls, wreckages = null) {
@@ -4101,6 +4332,9 @@ yuklanmoqda…</pre>
           this.maxLife = 1.1;
           this.vy = -45;
           this.vx = (Math.random() - 0.5) * 16;
+          // 3D da matn shu nuqta ustida paydo bo'lib, ekranda yuqoriga suzadi
+          this.x0 = x;
+          this.y0 = y;
         }
 
         update(dt) {
@@ -4110,8 +4344,10 @@ yuklanmoqda…</pre>
           this.life -= dt;
         }
 
-        draw(ctx) {
+        // sx, sy -- ekrandagi nuqta (3D kameradan proyeksiya qilingan)
+        drawAt(ctx, sx, sy) {
           const alpha = Math.max(0, this.life / this.maxLife);
+          const rise = (1 - alpha) * 46;
           ctx.save();
           ctx.globalAlpha = alpha;
           ctx.font = `900 ${this.fontSize}px 'Orbitron', monospace`;
@@ -4119,11 +4355,9 @@ yuklanmoqda…</pre>
           ctx.textBaseline = 'middle';
           ctx.strokeStyle = '#000000';
           ctx.lineWidth = 3.5;
-          ctx.strokeText(this.text, this.x, this.y);
+          ctx.strokeText(this.text, sx, sy - rise);
           ctx.fillStyle = this.color;
-          ctx.shadowColor = this.color;
-          ctx.shadowBlur = 8;
-          ctx.fillText(this.text, this.x, this.y);
+          ctx.fillText(this.text, sx, sy - rise);
           ctx.restore();
         }
       }
@@ -5698,6 +5932,7 @@ yuklanmoqda…</pre>
           this.cameraShakeDuration = safeDuration;
           this.cameraShakeTimer = safeDuration;
           this.cameraShakeIntensity = safeIntensity;
+          if (window.engine3D) window.engine3D.addShake(safeIntensity * 0.05);
         }
 
         // 4. Dopamine Kill Popups ("DESTROYED! +100 XP" with elastic pop)
@@ -5990,15 +6225,23 @@ yuklanmoqda…</pre>
           }
           const sep = wsUrl.includes('?') ? '&' : '?';
           const GAME_VERSION = 6;
-          this.ws = new WebSocket(
+          if (this.ws) {
+            try {
+              this.ws.onclose = null;
+              this.ws.close();
+            } catch (e) {}
+          }
+          const ws = new WebSocket(
             wsUrl + sep + 'cid=' + encodeURIComponent(clientId) + '&v=' + GAME_VERSION
           );
+          this.ws = ws;
 
-          this.ws.onopen = () => {
-            console.log('Connected to Tank Arena WebSocket Server');
+          ws.onopen = () => {
+            this.reconnectDelay = 1000;
           };
 
-          this.ws.onmessage = (event) => {
+          ws.onmessage = (event) => {
+            if (this.ws !== ws) return; // eski ulanishdan kechikib kelgan xabar
             try {
               const data = JSON.parse(event.data);
               this.handleServerMessage(data);
@@ -6007,8 +6250,14 @@ yuklanmoqda…</pre>
             }
           };
 
-          this.ws.onclose = () => {
-            setTimeout(() => this.initWebSocket(), 3000);
+          // Internet uzilsa: 1 s, 2 s, 4 s ... (8 s gacha) oralig'ida qayta ulanadi
+          ws.onclose = () => {
+            if (this.ws !== ws || this.noReconnect) return;
+            const delay = this.reconnectDelay || 1000;
+            this.reconnectDelay = Math.min(8000, delay * 2);
+            setTimeout(() => {
+              if (this.ws === ws && !this.noReconnect) this.initWebSocket();
+            }, delay);
           };
         }
 
@@ -6420,6 +6669,15 @@ yuklanmoqda…</pre>
               }
               break;
 
+            // Shu o'yin boshqa oynada/qurilmada ochildi -- bu oyna qayta ulanmaydi
+            // (aks holda ikki oyna bir-birini cheksiz uzib turardi)
+            case 'replaced':
+              this.noReconnect = true;
+              this.addFloatingNotice(
+                "⚠️ O'yin boshqa oynada ochildi. Davom etish uchun sahifani yangilang."
+              );
+              break;
+
             case 'welcome':
             case 'room_joined':
               this.playerId = msg.playerId || this.playerId;
@@ -6437,12 +6695,16 @@ yuklanmoqda…</pre>
               }
 
               if (msg.sectors && msg.sectors.length > 0) {
-                this.cols = msg.cols || 2;
-                this.rows = msg.rows || 2;
                 this.sectors = msg.sectors;
                 this.mySectorId = msg.mySectorId || 'A1';
-                this.rebuildSectorEntities();
-                this.resetPlayer();
+                // Internet uzilib qayta ulanganda (o'sha jang) tank joyida qoladi.
+                // Faqat yangi jangga o'tganda xarita va tank qaytadan boshlanadi.
+                if (msg.roomId !== this.roomId) {
+                  this.roomId = msg.roomId;
+                  this.peers.clear();
+                  this.rebuildSectorEntities();
+                  this.resetPlayer();
+                }
               }
               if (msg.bots) this.syncBotsList(msg.bots);
               // CRITICAL: Send our real name to server immediately after welcome
@@ -6595,6 +6857,10 @@ yuklanmoqda…</pre>
               );
               nb.netId = msg.id;
               this.bullets.push(nb);
+              if (shooterPeer) {
+                shooterPeer.muzzleFlashTimer = 0.06;
+                shooterPeer.barrelRecoilOffset = 5;
+              }
               audio.playShoot(msg.weaponType || 'standard', false, msg.x, msg.y);
               const peerX = msg.x,
                 peerY = msg.y;
@@ -6779,9 +7045,9 @@ yuklanmoqda…</pre>
             row.innerHTML = `
             <div>
               <span class="friend-status-dot ${f.online ? 'status-online' : 'status-offline'}"></span>
-              <span>${f.name} #${f.code || f.id}</span>
+              <span>${escapeHtml(f.name)} #${escapeHtml(f.code || f.id)}</span>
             </div>
-            ${f.online ? `<button class="btn-invite-mini" onclick="window.game.inviteFriend('${f.id}')">Taklif</button>` : ''}
+            ${f.online ? `<button class="btn-invite-mini" onclick="window.game.inviteFriend('${escapeHtml(f.id)}')">Taklif</button>` : ''}
           `;
             container.appendChild(row);
           });
@@ -7076,23 +7342,9 @@ yuklanmoqda…</pre>
           let tgName = null;
           if (window.Telegram && window.Telegram.WebApp) {
             try {
+              // Ekran/tugma sozlamalari sahifa boshidagi setupTelegram() da (versiyaga qarab).
+              // Bu yerda faqat ism o'qiladi -- avval eski Telegram'da xato chiqib, ism o'qilmasdi.
               const tg = window.Telegram.WebApp;
-              tg.ready();
-              tg.expand();
-              if (typeof tg.requestFullscreen === 'function') {
-                tg.requestFullscreen();
-              }
-              if (window.innerWidth > window.innerHeight) {
-                if (typeof tg.lockOrientation === 'function') tg.lockOrientation();
-              } else {
-                if (typeof tg.unlockOrientation === 'function') tg.unlockOrientation();
-              }
-              if (typeof tg.disableVerticalSwipes === 'function') {
-                tg.disableVerticalSwipes();
-              }
-              if (tg.setHeaderColor) tg.setHeaderColor('#060913');
-              if (tg.setBackgroundColor) tg.setBackgroundColor('#060913');
-
               if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
                 const u = tg.initDataUnsafe.user;
                 tgName = (u.first_name || u.username || '').trim().slice(0, 14);
@@ -8174,7 +8426,7 @@ yuklanmoqda…</pre>
           while (feed.children.length >= 5) feed.lastChild.remove();
           const item = document.createElement('div');
           item.className = 'kill-item';
-          item.innerHTML = `<span style="color:#00f0ff">${killer}</span> 💥 <span style="color:#ff4466">${victim}</span>`;
+          item.innerHTML = `<span style="color:#00f0ff">${escapeHtml(killer)}</span> 💥 <span style="color:#ff4466">${escapeHtml(victim)}</span>`;
           feed.prepend(item); // newest first, so on a short mobile screen overflow:hidden clips the oldest, not the newest
           setTimeout(() => item.remove(), 5000);
         }
@@ -8255,6 +8507,15 @@ yuklanmoqda…</pre>
               }
               this.coins.splice(i, 1);
             }
+          }
+
+          // O'lganda motor ovozi o'chadi, qayta tug'ilganda yoqiladi
+          if (audio.engineMasterGain && audio.ctx) {
+            audio.engineMasterGain.gain.setTargetAtTime(
+              this.player.dead || !audio.engineEnabled ? 0 : 1,
+              audio.ctx.currentTime,
+              0.15
+            );
           }
 
           if (!this.player.dead) {
@@ -8357,7 +8618,13 @@ yuklanmoqda…</pre>
               Math.abs(steer) > 0.1 || Math.abs(this.player.angularVelocity || 0) > 0.05;
             const hasNitro = this.player.nitroDuration > 0;
 
-            audio.setListenerPosition(this.player.x, this.player.y, this.viewWidth / 2);
+            audio.setListenerPosition(
+              this.player.x,
+              this.player.y,
+              this.viewWidth / 2,
+              window.engine3D ? window.engine3D.cameraYaw : null
+            );
+            audio.updateRemoteEngines([...this.bots, ...this.peers.values()]);
             audio.updateEngineSound(speedRatio, isMoving, hasNitro, isTurning);
             audio.updateCombatTension(this.player.hp / this.player.maxHp, dt);
 
@@ -8626,7 +8893,15 @@ yuklanmoqda…</pre>
           // Boshqa o'yinchilar: 2 ta server paketi orasida silliq (110 ms orqada) ko'rsatiladi --
           // sakrash va "orqaga tortilish" bo'lmaydi
           const nowPerf = performance.now();
-          for (const peer of this.peers.values()) interpolateRemote(peer, nowPerf, 110);
+          for (const peer of this.peers.values()) {
+            interpolateRemote(peer, nowPerf, 110);
+            // Uzoqdagi tankda harakat fizikasi ishlamaydi -- vizual taymerlarni shu yerda so'ndiramiz
+            if (peer.hitFlashTimer > 0) peer.hitFlashTimer = Math.max(0, peer.hitFlashTimer - dt);
+            if (peer.muzzleFlashTimer > 0)
+              peer.muzzleFlashTimer = Math.max(0, peer.muzzleFlashTimer - dt);
+            if (peer.barrelRecoilOffset > 0)
+              peer.barrelRecoilOffset = Math.max(0, peer.barrelRecoilOffset - dt * 33);
+          }
 
           // Update Bots
           for (let b = this.bots.length - 1; b >= 0; b--) {
@@ -8672,8 +8947,12 @@ yuklanmoqda…</pre>
             bot.checkBushes(this.bushes);
           }
 
-          // 4. ELASTIK TO'QNASHUV VA SILTANISH (TANK-TO-TANK ELASTIC COLLISION)
-          const activeTanks = [this.player, ...this.bots].filter((t) => t && !t.dead);
+          // 4. TANK-TANK TO'QNASHUVI. Boshqa o'yinchilar ham qatnashadi (avval do'st tankining
+          // ichidan o'tib ketish mumkin edi), lekin ularning joyini faqat o'zi boshqaradi --
+          // shuning uchun surilish faqat bizning tankimizga tushadi.
+          const activeTanks = [this.player, ...this.bots, ...this.peers.values()].filter(
+            (t) => t && !t.dead
+          );
           for (let i = 0; i < activeTanks.length; i++) {
             for (let j = i + 1; j < activeTanks.length; j++) {
               const t1 = activeTanks[i];
@@ -8688,10 +8967,9 @@ yuklanmoqda…</pre>
                 const ny = dy / dist;
                 const overlap = minDist - dist;
 
-                const m1 = t1.mass || 1.0;
-                const m2 = t2.mass || 1.0;
-                const invM1 = 1 / m1;
-                const invM2 = 1 / m2;
+                if (t1.isRemote && t2.isRemote) continue;
+                const invM1 = t1.isRemote ? 0 : 1 / (t1.mass || 1.0);
+                const invM2 = t2.isRemote ? 0 : 1 / (t2.mass || 1.0);
                 const totalInvM = invM1 + invM2;
 
                 // Mass-proportional positional separation (heavy tank pushes light tank)
@@ -8707,7 +8985,7 @@ yuklanmoqda…</pre>
 
                 // Elastic collision bounce if closing in
                 if (velAlongNormal > 0) {
-                  const restitution = 0.45; // Heavy steel armor bounce restitution
+                  const restitution = 0.1; // og'ir po'lat: deyarli sakramaydi, itaradi
                   const impulseMag = ((1 + restitution) * velAlongNormal) / totalInvM;
 
                   t1.vx -= impulseMag * invM1 * nx;
@@ -8836,7 +9114,7 @@ yuklanmoqda…</pre>
             const row = document.createElement('div');
             row.className = `lb-row ${t.isPlayer ? 'player-lb' : 'enemy-lb'}`;
             row.innerHTML = `
-            <span>#${i + 1} ${t.name}</span>
+            <span>#${i + 1} ${escapeHtml(t.name)}</span>
             <span style="font-family: Orbitron; color: var(--accent);">LVL ${t.level} (${t.kills} K)</span>
           `;
             container.appendChild(row);
@@ -8901,14 +9179,17 @@ yuklanmoqda…</pre>
             return;
           }
 
-          // 2. HUD Floating Damage / XP Texts
-          const renderX = Math.round(this.camera.x + (this.shakeOffset ? this.shakeOffset.x : 0));
-          const renderY = Math.round(this.camera.y + (this.shakeOffset ? this.shakeOffset.y : 0));
-          this.ctx.save();
-          this.ctx.scale(this.cameraZoom, this.cameraZoom);
-          this.ctx.translate(-renderX, -renderY);
-          for (const ft of this.floatingTexts) ft.draw(this.ctx);
-          this.ctx.restore();
+          // 2. Zarar / XP raqamlari -- 3D dagi tank ustida (avval 2D xarita joyida chiqardi)
+          for (const ft of this.floatingTexts) {
+            const sp = window.engine3D.projectToScreen(
+              ft.x0,
+              ft.y0,
+              3.4,
+              this.viewWidth,
+              this.viewHeight
+            );
+            if (sp) ft.drawAt(this.ctx, sp.x, sp.y);
+          }
 
           // 3. Death Vignette
           if (this.deathFadeAlpha > 0.005) {
@@ -9301,6 +9582,8 @@ yuklanmoqda…</pre>
 
         loop(currentTime) {
           try {
+            // 120 Hz ekranli telefonlarda ham 60 FPS: batareya va qizish 2 barobar kam
+            if (this.lastTime && currentTime - this.lastTime < 1000 / 62) return;
             if (!this.lastTime) this.lastTime = currentTime;
             const elapsed = currentTime - this.lastTime;
             this.lastTime = currentTime;

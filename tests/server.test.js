@@ -138,3 +138,33 @@ test('xabar bombardimoni cheklanadi, server yiqilmaydi', async () => {
   expect(pongs).toBeGreaterThan(0);
   s.close();
 });
+
+test("server kodi va maxfiy fayllar internetga ochiq emas, o'yin fayllari ochiq", async () => {
+  const http = require('http');
+  const get = (p) =>
+    new Promise((resolve) => {
+      http.get(url.replace('ws://', 'http://') + p, (res) => {
+        let body = '';
+        res.on('data', (c) => (body += c));
+        res.on('end', () => resolve({ status: res.statusCode, body }));
+      });
+    });
+  const srv = await get('/server.js');
+  expect(srv.body).not.toContain('require(');
+  expect((await get('/lib/telegramBot.js')).body).not.toContain('TELEGRAM');
+  expect((await get('/package.json')).body).not.toContain('"dependencies"');
+  const three = await get('/lib/three.module.js');
+  expect(three.status).toBe(200);
+  expect(three.body).toContain('export');
+  expect((await get('/src/shared/mapLayout.js')).body).toContain('MapLayout');
+});
+
+test('bir xil o\'yinchi ikkinchi oynada ochilsa, birinchisiga "replaced" keladi', async () => {
+  const first = await connect('dupe1');
+  await first.waitFor((m) => m.type === 'welcome');
+  const second = await connect('dupe1');
+  await second.waitFor((m) => m.type === 'welcome');
+  const msg = await first.waitFor((m) => m.type === 'replaced');
+  expect(msg.type).toBe('replaced');
+  second.close();
+});

@@ -377,6 +377,7 @@ export class BattlefieldMap3D {
 
     // 4. 4 TA HARBIY GARAJ (hammasining eshigi markazga qaragan)
     const garages = [];
+    const lanternMat = new THREE.MeshBasicMaterial({ color: 0xffe2a8 });
     const wallHeight = 10;
 
     ML.GARAGES.forEach((cfg) => {
@@ -400,10 +401,10 @@ export class BattlefieldMap3D {
       frontLintel.receiveShadow = true;
       gGroup.add(frontLintel);
 
-      // Ichki chiroq
-      const lanternLight = new THREE.PointLight(0xffdf99, 1.3, 28);
-      lanternLight.position.set(0, 7.5, -4);
-      gGroup.add(lanternLight);
+      // Ichki osma chiroq (yorug'ligini Engine3D dagi BITTA umumiy chiroq beradi)
+      const lantern = new THREE.Mesh(new THREE.SphereGeometry(0.35, 10, 8), lanternMat);
+      lantern.position.set(0, 7.5, -4);
+      gGroup.add(lantern);
 
       // Tom (o'yinchi ichkarida bo'lsa shaffoflashadi)
       const roofGeo = new THREE.ConeGeometry(15, 6, 4);
@@ -528,6 +529,51 @@ export class BattlefieldMap3D {
         ML.TREES.map(([tx, tz]) => place(tx, c.y, tz))
       );
     });
+
+    // 9. UFQ: chegaradan tashqarida o'rmon va tepaliklar -- dunyo "tugab qolgan"dek ko'rinmaydi.
+    // Soya tashlamaydi va oddiy material -- deyarli bepul.
+    let seed = 7;
+    const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    const farFoliage = new THREE.MeshLambertMaterial({ color: 0x2b4f25 });
+    const farTrunk = new THREE.MeshLambertMaterial({ color: 0x4a3524 });
+    const farTrees = [];
+    for (let i = 0; i < 90; i++) {
+      const a = rnd() * Math.PI * 2;
+      const r = worldSize / 2 + 8 + rnd() * 55;
+      const sc = 0.9 + rnd() * 0.9;
+      farTrees.push({ x: Math.cos(a) * r, z: Math.sin(a) * r, sc });
+    }
+    const farMats = (y) =>
+      farTrees.map((t) =>
+        new THREE.Matrix4().compose(
+          v.set(t.x, y * t.sc, t.z),
+          q.identity(),
+          new THREE.Vector3(t.sc, t.sc, t.sc)
+        )
+      );
+    const addFar = (geo, mat, mats) => {
+      const im = new THREE.InstancedMesh(geo, mat, mats.length);
+      mats.forEach((m, k) => im.setMatrixAt(k, m));
+      mapGroup.add(im);
+    };
+    addFar(new THREE.CylinderGeometry(0.4, 0.6, 3.4, 6), farTrunk, farMats(1.7));
+    addFar(new THREE.ConeGeometry(2.8, 5.5, 7), farFoliage, farMats(5.2));
+    addFar(new THREE.ConeGeometry(2.0, 4.2, 7), farFoliage, farMats(7.6));
+    const hillMat = new THREE.MeshLambertMaterial({ color: 0x55703c });
+    const hills = [];
+    for (let i = 0; i < 14; i++) {
+      const a = (i / 14) * Math.PI * 2 + rnd() * 0.3;
+      const r = worldSize / 2 + 70 + rnd() * 40;
+      const sx = 30 + rnd() * 30;
+      hills.push(
+        new THREE.Matrix4().compose(
+          v.set(Math.cos(a) * r, -2, Math.sin(a) * r),
+          q.identity(),
+          new THREE.Vector3(sx, 8 + rnd() * 10, sx * 0.8)
+        )
+      );
+    }
+    addFar(new THREE.SphereGeometry(1, 12, 6), hillMat, hills);
 
     scene.add(mapGroup);
 

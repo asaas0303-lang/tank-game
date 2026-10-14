@@ -23,11 +23,25 @@ process.on('unhandledRejection', (reason) => {
   Sentry.captureException(reason);
 });
 
-// Serve static assets from project root
-app.use(express.static(path.join(__dirname)));
+// Faqat o'yinga kerakli fayllar ochiq (avval butun loyiha -- server kodi, testlar -- ochiq edi).
+// HTML/JS har safar tekshiriladi -- yangi versiya chiqqanda Telegram eski kodni ko'rsatmaydi.
+const noCache = { headers: { 'Cache-Control': 'no-cache' } };
+app.use(
+  '/src',
+  express.static(path.join(__dirname, 'src'), {
+    setHeaders: (res) => res.setHeader('Cache-Control', 'no-cache'),
+  })
+);
+const PUBLIC_FILES = [
+  '/manifest.json',
+  '/lib/three.module.js',
+  '/lib/three.core.js',
+  '/lib/BufferGeometryUtils.js',
+];
+app.get(PUBLIC_FILES, (req, res) => res.sendFile(path.join(__dirname, req.path), noCache));
 
 app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'index.html'));
+  res.sendFile(path.join(__dirname, 'index.html'), noCache);
 });
 
 // Central Asian bot names
@@ -468,7 +482,11 @@ wss.on('connection', (ws, req) => {
   if (players.has(playerId)) {
     const old = players.get(playerId);
     try {
-      if (old.ws && old.ws !== ws) old.ws.close();
+      if (old.ws && old.ws !== ws) {
+        // Eski oynaga aytamiz: qayta ulanmasin (ikki oyna bir-birini uzib turmasin)
+        if (old.ws.readyState === WebSocket.OPEN) old.ws.send(JSON.stringify({ type: 'replaced' }));
+        old.ws.close();
+      }
     } catch (e) {}
     leaveRoom(old);
     players.delete(playerId);

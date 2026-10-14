@@ -9,6 +9,58 @@
  * - Billboard Name & HP Badge floating over the turret (Reference Image 2)
  */
 import * as THREE from '../../lib/three.module.js';
+import { mergeGeometries } from '../../lib/BufferGeometryUtils.js';
+
+// Bir xil materialdagi bo'laklarni bitta mesh'ga birlashtiradi: tank ~40 ta emas, ~10 ta
+// chizish buyrug'i bo'ladi (soyasi bilan ikki barobar) -- telefon GPU'si uchun katta yengillik.
+function mergeByMaterial(group, skip) {
+  group.updateMatrixWorld(true);
+  const inv = new THREE.Matrix4().copy(group.matrixWorld).invert();
+  const buckets = new Map();
+  const isSkipped = (o) => {
+    for (let p = o; p && p !== group; p = p.parent) if (p === skip) return true;
+    return false;
+  };
+  group.traverse((o) => {
+    if (!o.isMesh || isSkipped(o)) return;
+    const geo = o.geometry
+      .clone()
+      .applyMatrix4(new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld));
+    if (!buckets.has(o.material)) buckets.set(o.material, []);
+    buckets.get(o.material).push({ o, geo });
+  });
+  for (const [mat, list] of buckets) {
+    if (list.length < 2) continue;
+    const merged = mergeGeometries(list.map((x) => x.geo));
+    if (!merged) continue;
+    const mesh = new THREE.Mesh(merged, mat);
+    mesh.castShadow = list.some((x) => x.o.castShadow);
+    mesh.receiveShadow = list.some((x) => x.o.receiveShadow);
+    list.forEach((x) => {
+      x.o.parent.remove(x.o);
+      x.o.geometry.dispose();
+    });
+    group.add(mesh);
+  }
+}
+
+let starTextureCache = null;
+let flashTextureCache = null;
+function muzzleFlashTexture() {
+  if (flashTextureCache) return flashTextureCache;
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = 64;
+  const ctx = cv.getContext('2d');
+  const g = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+  g.addColorStop(0, 'rgba(255,250,220,1)');
+  g.addColorStop(0.3, 'rgba(255,190,80,0.9)');
+  g.addColorStop(1, 'rgba(255,90,0,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 64, 64);
+  flashTextureCache = new THREE.CanvasTexture(cv);
+  flashTextureCache.colorSpace = THREE.SRGBColorSpace;
+  return flashTextureCache;
+}
 
 export class TankModel3D {
   static createStarTexture() {
@@ -169,7 +221,7 @@ export class TankModel3D {
       metalness: 0.2,
     });
 
-    const starTexture = this.createStarTexture();
+    const starTexture = starTextureCache || (starTextureCache = this.createStarTexture());
     const starMat = new THREE.MeshBasicMaterial({
       map: starTexture,
       transparent: true,
@@ -407,8 +459,25 @@ export class TankModel3D {
     muzzlePoint.position.set(0, 0, 3.05);
     barrelPivot.add(muzzlePoint);
 
+    // Stvol uchidagi olov (o'q otilgan zahoti 0.06 s ko'rinadi)
+    const muzzleFlash = new THREE.Sprite(
+      new THREE.SpriteMaterial({
+        map: muzzleFlashTexture(),
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        transparent: true,
+      })
+    );
+    muzzleFlash.position.set(0, 0, 3.35);
+    muzzleFlash.visible = false;
+    barrelPivot.add(muzzleFlash);
+
     turretGroup.add(barrelPivot);
     root.add(turretGroup);
+
+    mergeByMaterial(hullGroup);
+    mergeByMaterial(turretGroup, barrelPivot);
+    mergeByMaterial(barrelPivot);
 
     // 5. FLOATING BILLBOARD BADGE (Reference Image 2)
     const badgeColor =
@@ -418,11 +487,14 @@ export class TankModel3D {
     const badgeMat = new THREE.SpriteMaterial({
       map: badgeTex,
       transparent: true,
-      depthTest: false,
+      // Ekranda doim bir xil kichik o'lcham (yaqin kelganda ekranni to'smaydi) va
+      // devor orqasida ko'rinmaydi (devor ortidagi dushmanni "sezdirmaydi")
+      sizeAttenuation: false,
+      depthTest: true,
     });
     const badgeSprite = new THREE.Sprite(badgeMat);
-    badgeSprite.scale.set(1.7, 0.425, 1);
-    badgeSprite.position.set(0, 2.65, 0);
+    badgeSprite.scale.set(0.2, 0.05, 1);
+    badgeSprite.position.set(0, 3.3, 0);
     root.add(badgeSprite);
 
     return {
@@ -431,6 +503,9 @@ export class TankModel3D {
       turret: turretGroup,
       barrel: barrelPivot,
       muzzlePoint,
+      muzzleFlash,
+      barrelRestZ: barrelPivot.position.z,
+      paintMats: [hullMat, darkHullMat],
       badgeSprite,
       badgeColor,
       _lastHp: 100,
@@ -445,8 +520,27 @@ export class TankModel3D {
         if (badgeSprite.material.map) {
           badgeSprite.material.map.dispose();
         }
-        badgeSprite.material.map = TankModel3D.createBadgeTexture(name, roundedHp / 100, badgeColor);
+        badgeSprite.material.map = TankModel3D.createBadgeTexture(
+          name,
+          roundedHp / 100,
+          badgeColor
+        );
         badgeSprite.material.needsUpdate = true;
+      },
+      // Tank o'yindan chiqqanda GPU xotirasini bo'shatish
+      dispose() {
+        root.traverse((o) => {
+          if (o.geometry) o.geometry.dispose();
+          if (
+            o.material &&
+            o.material.map &&
+            o.material.map !== starTextureCache &&
+            o.material.map !== flashTextureCache
+          ) {
+            o.material.map.dispose();
+          }
+          if (o.material) o.material.dispose();
+        });
       },
     };
   }

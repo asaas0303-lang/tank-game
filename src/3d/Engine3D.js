@@ -314,7 +314,6 @@ export class Engine3D {
           }
         }
       });
-    }
 
     // Hide untracked tanks
     for (const [id, t] of this.tanks) {

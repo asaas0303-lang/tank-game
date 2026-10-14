@@ -102,4 +102,16 @@ describe('Tank Game 3D & Security Verification', () => {
     const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
     expect(html).not.toContain('this.remotePlayers.values()');
   });
+
+  test('index.html draw() does not fall back to 2D maze walls, grid floor or 2D bushes', () => {
+    const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+    expect(html).not.toContain('[3D Engine Render Error - 2D ga qaytildi]');
+    expect(html).toContain('⚔️ 3D JANG MAYDONI YUKLANMOQDA...');
+  });
+
+  test('TankModel3D caches badge texture to avoid GPU memory leaks and context loss', () => {
+    const code = fs.readFileSync(path.join(__dirname, '..', 'src', '3d', 'TankModel.js'), 'utf8');
+    expect(code).toContain('_lastHp');
+    expect(code).toContain('roundedHp');
+  });
 });

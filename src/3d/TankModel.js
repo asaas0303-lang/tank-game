@@ -377,9 +377,20 @@ export class TankModel3D {
       muzzlePoint,
       badgeSprite,
       badgeColor,
-      updateBadge: (name, hpPercent) => {
-        badgeSprite.material.map.dispose();
-        badgeSprite.material.map = TankModel3D.createBadgeTexture(name, hpPercent, badgeColor);
+      _lastHp: 100,
+      _lastName: options.name || 'Tank',
+      updateBadge(name, hpPercent) {
+        const roundedHp = Math.max(0, Math.min(100, Math.round(hpPercent * 100)));
+        if (this._lastHp === roundedHp && this._lastName === name) {
+          return;
+        }
+        this._lastHp = roundedHp;
+        this._lastName = name;
+        if (badgeSprite.material.map) {
+          badgeSprite.material.map.dispose();
+        }
+        badgeSprite.material.map = TankModel3D.createBadgeTexture(name, roundedHp / 100, badgeColor);
+        badgeSprite.material.needsUpdate = true;
       },
     };
   }

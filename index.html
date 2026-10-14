@@ -6474,24 +6474,10 @@ yuklanmoqda…</pre>
             B2: { x: 1201, y: 1201, angle: -(Math.PI * 3) / 4 },
           };
 
-          const is3DActive =
-            (window.BattlefieldMap3D && typeof window.BattlefieldMap3D.getColliders === 'function') ||
-            !!window.engine3D;
-
-          let spawnX, spawnY, spawnAngle;
-          if (is3DActive) {
-            const spawnCfg = spawnsBySector[this.mySectorId] || spawnsBySector['A1'];
-            spawnX = spawnCfg.x;
-            spawnY = spawnCfg.y;
-            spawnAngle = spawnCfg.angle;
-          } else {
-            const homeSec = this.sectors.find((s) => s.id === this.mySectorId) || this.sectors[0];
-            const jx = (Math.random() - 0.5) * 70,
-              jy = (Math.random() - 0.5) * 70;
-            spawnX = homeSec ? homeSec.x + homeSec.w / 2 + jx : 325;
-            spawnY = homeSec ? homeSec.y + homeSec.h / 2 + jy : 325;
-            spawnAngle = 0;
-          }
+          const spawnCfg = spawnsBySector[this.mySectorId] || spawnsBySector['A1'];
+          const spawnX = spawnCfg.x;
+          const spawnY = spawnCfg.y;
+          const spawnAngle = spawnCfg.angle;
 
           this.player.x = spawnX;
           this.player.y = spawnY;
@@ -6623,64 +6609,21 @@ yuklanmoqda…</pre>
           WORLD.width = totalW;
           WORLD.height = totalH;
 
-          // 1. Check if 3D Battlefield map is active: synchronize EXACT 3D colliders
-          const is3DActive =
-            (window.BattlefieldMap3D && typeof window.BattlefieldMap3D.getColliders === 'function') ||
-            !!window.engine3D;
-
-          if (is3DActive && window.BattlefieldMap3D) {
-            // Load exact 3D colliders: 4 Garages, 4 Ruin brick walls, 12 Pine tree trunks, boundary walls
+          // 1. Synchronize EXACT 3D Battlefield colliders (4 Garages, 4 Ruins, 12 Pine Tree Trunks, Boundaries)
+          if (window.BattlefieldMap3D && typeof window.BattlefieldMap3D.getColliders === 'function') {
             const mapColliders = window.BattlefieldMap3D.getColliders(totalW, totalH, 0.085);
             mapColliders.forEach((c) => {
               this.walls.push(new Wall(c.x, c.y, c.w, c.h, c.destructible, c.hp, c.rot));
             });
           } else {
-            // Legacy 2D Arena Outer Boundary Walls (24px thick)
+            // Boundary walls
             this.walls.push(new Wall(0, 0, totalW, 24));
             this.walls.push(new Wall(0, totalH - 24, totalW, 24));
             this.walls.push(new Wall(0, 0, 24, totalH));
             this.walls.push(new Wall(totalW - 24, 0, 24, totalH));
-
-            // Legacy 2D Inter-Sector Dividing Walls with Open Gateways
-            const gateWidth = 170;
-            const halfSegment = (SECTOR_SIZE - gateWidth) / 2;
-
-            for (let c = 0; c < this.cols - 1; c++) {
-              const wallX = (c + 1) * SECTOR_SIZE;
-              for (let r = 0; r < this.rows; r++) {
-                const startY = r * SECTOR_SIZE;
-                this.walls.push(new Wall(wallX - 12, startY, 24, halfSegment));
-                this.walls.push(
-                  new Wall(wallX - 12, startY + halfSegment + gateWidth, 24, halfSegment)
-                );
-                this.gateways.push({
-                  x: wallX,
-                  y: startY + halfSegment + gateWidth / 2,
-                  isVertical: true,
-                  size: gateWidth,
-                });
-              }
-            }
-
-            for (let r = 0; r < this.rows - 1; r++) {
-              const wallY = (r + 1) * SECTOR_SIZE;
-              for (let c = 0; c < this.cols; c++) {
-                const startX = c * SECTOR_SIZE;
-                this.walls.push(new Wall(startX, wallY - 12, halfSegment, 24));
-                this.walls.push(
-                  new Wall(startX + halfSegment + gateWidth, wallY - 12, halfSegment, 24)
-                );
-                this.gateways.push({
-                  x: startX + halfSegment + gateWidth / 2,
-                  y: wallY,
-                  isVertical: false,
-                  size: gateWidth,
-                });
-              }
-            }
           }
 
-          // 3. Inside Each Sector: Pylons, Boost Pads, Crates (Maze walls only for legacy 2D fallback)
+          // 2. Corner beacon pylons with LEDs, Boost Pads, Crates
           this.sectors.forEach((sec, idx) => {
             const cx = sec.x + SECTOR_SIZE / 2;
             const cy = sec.y + SECTOR_SIZE / 2;
@@ -6694,39 +6637,6 @@ yuklanmoqda…</pre>
               y: sec.y + SECTOR_SIZE - 24,
               color: sec.themeColor,
             });
-
-            // Only generate legacy 2D maze walls if NOT in 3D mode
-            if (!is3DActive) {
-              // Top-Left Quadrant Maze
-              this.walls.push(new Wall(cx - 210, cy - 210, 85, 20));
-              this.walls.push(new Wall(cx - 210, cy - 210, 20, 85));
-              this.walls.push(new Wall(cx - 210, cy - 110, 20, 50, true, 65));
-              this.bushes.push({ x: cx - 245, y: cy - 130, radius: 42 });
-
-              // Top-Right Quadrant Maze
-              this.walls.push(new Wall(cx + 125, cy - 210, 85, 20));
-              this.walls.push(new Wall(cx + 190, cy - 210, 20, 85));
-              this.walls.push(new Wall(cx + 190, cy - 110, 20, 50, true, 65));
-              this.bushes.push({ x: cx + 245, y: cy - 130, radius: 42 });
-
-              // Bottom-Left Quadrant Maze
-              this.walls.push(new Wall(cx - 210, cy + 190, 85, 20));
-              this.walls.push(new Wall(cx - 210, cy + 125, 20, 85));
-              this.walls.push(new Wall(cx - 210, cy + 60, 20, 50, true, 65));
-              this.bushes.push({ x: cx - 245, y: cy + 130, radius: 42 });
-
-              // Bottom-Right Quadrant Maze
-              this.walls.push(new Wall(cx + 125, cy + 190, 85, 20));
-              this.walls.push(new Wall(cx + 190, cy + 125, 20, 85));
-              this.walls.push(new Wall(cx + 190, cy + 60, 20, 50, true, 65));
-              this.bushes.push({ x: cx + 245, y: cy + 130, radius: 42 });
-
-              // Center Tactical Hub
-              this.walls.push(new Wall(cx - 50, cy - 50, 20, 45));
-              this.walls.push(new Wall(cx + 30, cy + 5, 20, 45));
-              this.walls.push(new Wall(cx - 25, cy - 50, 55, 20, true, 65));
-              this.walls.push(new Wall(cx - 30, cy + 30, 60, 20, true, 65));
-            }
 
             // Boost Pad in gateway channel propelling tank into adjacent sector
             const padAngles = [0, Math.PI / 2, Math.PI, -Math.PI / 2];
@@ -9654,141 +9564,39 @@ yuklanmoqda…</pre>
           const isNight = state.isNight;
           this.isNight = isNight;
 
-          // 3D Three.js WebGL Rendering Hook
+          // Clear 2D transparent overlay canvas (strictly used for HUD / Radar / Kill Popups)
+          this.ctx.clearRect(0, 0, this.viewWidth, this.viewHeight);
+
+          // 1. Render 3D Three.js WebGL Scene
           if (window.engine3D) {
             try {
-              this.ctx.clearRect(0, 0, this.viewWidth, this.viewHeight);
               window.engine3D.renderGameState(this, this.lastDt);
-
-              // Draw HUD floating damage texts and radar over 3D
-              const renderX = Math.round(this.camera.x + (this.shakeOffset ? this.shakeOffset.x : 0));
-              const renderY = Math.round(this.camera.y + (this.shakeOffset ? this.shakeOffset.y : 0));
-              this.ctx.save();
-              this.ctx.scale(this.cameraZoom, this.cameraZoom);
-              this.ctx.translate(-renderX, -renderY);
-              for (const ft of this.floatingTexts) ft.draw(this.ctx);
-              this.ctx.restore();
-              this.drawRadar();
-              return;
             } catch (err3d) {
-              console.warn('[3D Engine Render Error - 2D ga qaytildi]:', err3d);
+              console.error('[3D Engine Render Error]:', err3d);
             }
+          } else {
+            // Sleek loading screen while 3D engine is initializing (never fall back to 2D)
+            this.ctx.save();
+            this.ctx.fillStyle = '#0c1322';
+            this.ctx.fillRect(0, 0, this.viewWidth, this.viewHeight);
+            this.ctx.fillStyle = '#00f0ff';
+            this.ctx.font = 'bold 22px "Rajdhani", sans-serif';
+            this.ctx.textAlign = 'center';
+            this.ctx.fillText('⚔️ 3D JANG MAYDONI YUKLANMOQDA...', this.viewWidth / 2, this.viewHeight / 2);
+            this.ctx.restore();
+            return;
           }
 
-          // 2D Fallback: KUNDUZGI VA TUNGI POL FONINI BO'YASH
-          this.ctx.fillStyle = isNight ? '#060913' : '#182232';
-          this.ctx.fillRect(0, 0, this.viewWidth, this.viewHeight);
-
-          // 1, 2 & 3. SODDALASHTIRILGAN VA OPTIMALLASHTIRILGAN STATIK 1.0 KAMERA
-          // Har freymda piksellar silkinishini yo'qotish uchun koordinatalar butun songa yaxlitlanadi (Math.round)
+          // 2. HUD Floating Damage / XP Texts
           const renderX = Math.round(this.camera.x + (this.shakeOffset ? this.shakeOffset.x : 0));
           const renderY = Math.round(this.camera.y + (this.shakeOffset ? this.shakeOffset.y : 0));
-
           this.ctx.save();
           this.ctx.scale(this.cameraZoom, this.cameraZoom);
           this.ctx.translate(-renderX, -renderY);
-
-          // 1. Grid Floor (isNight holatiga qat'iy moslangan)
-          this.drawGrid(renderX, renderY, isNight);
-
-          // 2. Sectors Visual Boundaries & Floor Watermarks
-          this.drawSectorsFloor(isNight);
-
-          // 2.1. Ground Decals (Kuyindi dog'lari - pol qatlamida, to'siqlar va tanklardan pastda)
-          if (this.groundDecals) {
-            for (const gd of this.groundDecals) gd.draw(this.ctx);
-          }
-
-          // 2.2. Persistent Debris Chunks (Yerda yotuvchi g'isht toshlari)
-          if (this.debrisChunks) {
-            for (const dc of this.debrisChunks) dc.draw(this.ctx);
-          }
-
-          // 3. Gateway Passage Chevrons
-          this.drawGateways();
-
-          // 4. Tread Marks
-          for (const tm of this.treadMarks) tm.draw(this.ctx);
-
-          // 5. Bot & Player Floor Flashlight Beams (FAQAT TUNDA CHIZILSIN!)
-          if (isNight) {
-            this.drawFlashlightBeams();
-          }
-
-          // 6. Boost Pads, Crates & 3D Spinning Golden Coins
-          for (const bp of this.boostPads) bp.draw(this.ctx);
-          for (const cr of this.crates) cr.draw(this.ctx);
-          for (const coin of this.coins) coin.draw(this.ctx);
-
-          // 7. Landmines
-          for (const lm of this.landmines) lm.draw(this.ctx);
-
-          // 7.5. Smoldering Tank Wreckages (Tutab yotgan temir tank skeletlari)
-          if (this.wreckages) {
-            for (const wr of this.wreckages) wr.draw(this.ctx);
-          }
-
-          // 8. Walls & Barrels
-          for (const w of this.walls) w.draw(this.ctx);
-          for (const br of this.barrels) br.draw(this.ctx);
-
-          // 9. Laser Ricochet Trajectory
-          if (!this.player.dead && !this.player.isAfk) {
-            this.drawLaserTrajectory();
-          }
-
-          // 10. Tanks — tick visual-only timers for peers & bots (their full update() is NOT called here)
-          const frameDt = this.lastDt || 0.016;
-          for (const peer of this.peers.values()) {
-            if (peer.hitFlashTimer > 0)
-              peer.hitFlashTimer = Math.max(0, peer.hitFlashTimer - frameDt);
-            if (peer.muzzleFlashTimer > 0)
-              peer.muzzleFlashTimer = Math.max(0, peer.muzzleFlashTimer - frameDt);
-            if (peer.barrelRecoilTimer > 0)
-              peer.barrelRecoilTimer = Math.max(0, peer.barrelRecoilTimer - frameDt);
-            if (peer.spawnShieldTimer > 0)
-              peer.spawnShieldTimer = Math.max(0, peer.spawnShieldTimer - frameDt);
-            if (peer.barrelOverheat > 0)
-              peer.barrelOverheat = Math.max(0, peer.barrelOverheat - frameDt * 1.0);
-            if (peer.recoil > 0) peer.recoil = Math.max(0, peer.recoil - frameDt * 45);
-            peer.draw(this.ctx);
-          }
-          for (const bot of this.bots) {
-            if (bot.hitFlashTimer > 0) bot.hitFlashTimer = Math.max(0, bot.hitFlashTimer - frameDt);
-            if (bot.muzzleFlashTimer > 0)
-              bot.muzzleFlashTimer = Math.max(0, bot.muzzleFlashTimer - frameDt);
-            if (bot.barrelRecoilTimer > 0)
-              bot.barrelRecoilTimer = Math.max(0, bot.barrelRecoilTimer - frameDt);
-            if (bot.spawnShieldTimer > 0)
-              bot.spawnShieldTimer = Math.max(0, bot.spawnShieldTimer - frameDt);
-            if (bot.barrelOverheat > 0)
-              bot.barrelOverheat = Math.max(0, bot.barrelOverheat - frameDt * 1.0);
-            if (bot.recoil > 0) bot.recoil = Math.max(0, bot.recoil - frameDt * 45);
-            bot.draw(this.ctx);
-          }
-          if (!this.player.dead) this.player.draw(this.ctx);
-
-          // 11. Bullets
-          for (const b of this.bullets) b.draw(this.ctx);
-
-          // 12. Camouflage Bushes (Drawn above tanks)
-          this.drawBushes();
-
-          // 13. Particles, Floating Texts & Magnetic EXP Orbs
-          for (const p of this.particles) p.draw(this.ctx);
           for (const ft of this.floatingTexts) ft.draw(this.ctx);
-          if (this.expOrbs) {
-            for (const orb of this.expOrbs) orb.draw(this.ctx);
-          }
-
           this.ctx.restore();
 
-          // 14. Night Darkness Mask Compositing (STRICTLY NIGHT ONLY!)
-          if (isNight) {
-            this.compositeNightVision(renderX, renderY);
-          }
-
-          // 3. O'LIM STATIKASI: Soft Fade-Out Vignette on Death
+          // 3. Death Vignette
           if (this.deathFadeAlpha > 0.005) {
             this.ctx.save();
             this.ctx.fillStyle = `rgba(3, 7, 18, ${this.deathFadeAlpha})`;
@@ -9796,7 +9604,7 @@ yuklanmoqda…</pre>
             this.ctx.restore();
           }
 
-          // 5. Flashbang & Eye Adaptation (Exposure FX: 0.08s peak + 0.25s decay)
+          // 4. Flashbang Exposure FX
           if (this.exposureTimer > 0) {
             const decayTime = 0.25;
             let expAlpha = 0.85;
@@ -9809,22 +9617,14 @@ yuklanmoqda…</pre>
             this.ctx.restore();
           }
 
-          // 3. XALOKAT VA VAHIMA HOLATI: Low HP Vignette & Adrenaline Desaturation (HP < 25%)
+          // 5. Low HP Vignette & Adrenaline (HP < 25%)
           if (this.player && !this.player.dead) {
             const hpRatio = this.player.hp / this.player.maxHp;
             if (hpRatio <= 0.25) {
               const intensity = Math.min(1.0, (0.25 - hpRatio) / 0.25);
-              const pulse = 0.55 + 0.45 * Math.sin(Date.now() * 0.00785); // 0.8s period pulsation
+              const pulse = 0.55 + 0.45 * Math.sin(Date.now() * 0.00785);
               const alpha = intensity * pulse;
 
-              // Adrenaline Desaturation (tunnel vision)
-              this.ctx.save();
-              this.ctx.globalCompositeOperation = 'saturation';
-              this.ctx.fillStyle = `rgba(0, 0, 0, ${0.45 * intensity})`;
-              this.ctx.fillRect(0, 0, this.viewWidth, this.viewHeight);
-              this.ctx.restore();
-
-              // Pulsing Red Radial Vignette
               this.ctx.save();
               const cx = this.viewWidth / 2;
               const cy = this.viewHeight / 2;
@@ -9841,15 +9641,15 @@ yuklanmoqda…</pre>
             }
           }
 
-          // 4. Dopamine Kill Popups ("DESTROYED! +100 XP" in screen space)
+          // 6. Kill Popups ("DESTROYED! +100 XP")
           if (this.killPopups && this.killPopups.length > 0) {
             for (const kp of this.killPopups) kp.draw(this.ctx, this.viewWidth, this.viewHeight);
           }
 
-          // 15. Radar Mini-map with Sectors Grid
+          // 7. Radar Mini-map
           this.drawRadar();
 
-          // 16. Cursor Reticle with Circular Reload Progress Arc & Hitmarker
+          // 8. Cursor Reticle (desktop mode)
           if (this.mouse && this.mouse.x > 0 && this.mouse.y > 0) {
             this.drawCursorReticle(this.mouse.x, this.mouse.y);
           }

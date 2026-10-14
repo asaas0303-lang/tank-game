@@ -1,6 +1,6 @@
 # 🛠 3D Tank o'yini — Tuzatish va Yaxshilash Rejasi
 
-> Holat: **TASDIQ KUTILMOQDA** — siz "ha" demaguningizcha hech qanday kod yozilmaydi.
+> Holat: **BAJARILDI (kompyuterda)** — serverga (Railway) yuklash sizning ruxsatingizni kutmoqda.
 > Sana: 2026-10-14
 
 ---
@@ -144,3 +144,19 @@ Har bosqich oxirida: testlar + brauzerda tekshiruv + sizga oddiy hisobot. Keying
 - Hozir kompyuteringizda **saqlanmagan (commit qilinmagan) o'zgarishlar bor** (`index.html`, `server.js`, `Engine3D.js`, `TankModel.js`). Ishni boshlashdan oldin ularni "saqlash nuqtasi" sifatida commit qilishni taklif qilaman — biror narsa buzilsa qaytish oson bo'ladi.
 - 3-bosqich (server hakam) — eng katta o'zgarish. U tugaguncha eski va yangi versiya aralashmasligi uchun server va o'yin **birga** yangilanadi.
 - Hamma ish uzoq: taxminan 7 ta katta qadam. Har qadamdan keyin sizga natija ko'rsataman.
+
+---
+
+## 8. Bajarilgan ishlar (2026-10-14)
+
+| Bosqich | Holat | Izoh |
+|---|---|---|
+| 1. Ko'rinmas devorlar | ✅ | `src/shared/mapLayout.js` — 3D rasm, to'siqlar va server bitta manbadan. 2 ta garajning eshigi devorga qarab qurilgan edi — tuzatildi |
+| 2. Aniq fizika | ✅ | O'q yo'li to'liq tekshiriladi, devor bo'ylab sirpanish, suvda sekinlashish, do'st tanki ichidan o'tib bo'lmaydi |
+| 3. Darhol javob | ✅ | Server hakam; zarba hammaga bir vaqtda; otgan odamda effekt darhol; silliq harakat |
+| 4. Ko'p odam / himoya | ✅ | 4 kishilik janglar, avtomatik yangi jang; firibgarlik va zararli ismdan himoya; 300 o'yinchi sinovi o'tdi |
+| 5. Grafika | ✅ | Quyosh/soya, osmon, ufq, 3 xil sifat (avtomatik), effektlar, kamera devorga kirmaydi |
+| 6. Ovoz | ✅ | 3D yo'nalish, aks-sado, ovoz cheklagich, motor telefon karnayida eshitiladi, jang muhiti |
+| 7. Tekshiruv | ✅ | 35 ta avtomatik test, yuklama sinovi (`node scripts/loadtest.js`), brauzerda ikki o'yinchi sinovi |
+
+**Keyinga qoldirildi:** botlarni to'liq serverga ko'chirish (hozir bitta o'yinchi telefonida, u chiqsa boshqasiga o'tadi).

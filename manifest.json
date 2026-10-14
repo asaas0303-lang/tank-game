@@ -1,7 +1,7 @@
 {
-  "name": "AAA 2D Tank Battle Arena",
+  "name": "3D Tank Jangi",
   "short_name": "TankArena",
-  "description": "Multiplayer 2D Tank Battle Arena with Sectors, Dual Virtual Joysticks, Procedural Audio and Day/Night Cycle",
+  "description": "WW2 uslubidagi 3D tank jangi: do'stlar bilan onlayn, Telegram ichida",
   "start_url": "./index.html",
   "display": "fullscreen",
   "orientation": "landscape",

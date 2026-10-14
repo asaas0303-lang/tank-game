@@ -309,46 +309,78 @@ export class TankModel3D {
       turretGroup.add(turretStar);
     });
 
-    // 4. CANNON BARREL (Stvol - attached to turret with pitch pivot)
+    // 4. CANNON BARREL & TURRET MANTLET (Stvol & To'p Kallagi)
     const barrelPivot = new THREE.Group();
     barrelPivot.name = 'barrel_pivot';
     barrelPivot.position.set(0, 0.45, 0.95);
 
-    // Mantlet Collar (thick rounded ring base)
-    const mantletGeo = new THREE.CylinderGeometry(0.42, 0.48, 0.38, 18);
-    mantletGeo.rotateX(Math.PI / 2);
-    const mantlet = new THREE.Mesh(mantletGeo, darkHullMat);
+    // Heavy Cast Armor Mantlet Shield (front of turret dome)
+    const mantletShieldGeo = new THREE.BoxGeometry(0.96, 0.68, 0.45);
+    const mantletShield = new THREE.Mesh(mantletShieldGeo, darkHullMat);
+    mantletShield.position.set(0, 0, 0.22);
+    mantletShield.castShadow = true;
+    mantletShield.receiveShadow = true;
+    barrelPivot.add(mantletShield);
+
+    // Mantlet Collar (thick rounded ring base around barrel root)
+    const mantletCollarGeo = new THREE.CylinderGeometry(0.38, 0.46, 0.42, 18);
+    mantletCollarGeo.rotateX(Math.PI / 2);
+    const mantlet = new THREE.Mesh(mantletCollarGeo, darkHullMat);
+    mantlet.position.set(0, 0, 0.45);
     mantlet.castShadow = true;
     mantlet.receiveShadow = true;
     barrelPivot.add(mantlet);
 
-    // Chubby main tube
-    const tubeGeo = new THREE.CylinderGeometry(0.26, 0.31, 1.45, 18);
+    // Reinforced Gun Sleeve / Root Collar
+    const collarGeo = new THREE.CylinderGeometry(0.28, 0.35, 0.7, 18);
+    collarGeo.rotateX(Math.PI / 2);
+    const collar = new THREE.Mesh(collarGeo, hullMat);
+    collar.position.set(0, 0, 0.9);
+    collar.castShadow = true;
+    barrelPivot.add(collar);
+
+    // Long Tapered High-Velocity Rifled Tank Cannon Tube (Stvol - 3.6 units long)
+    const tubeGeo = new THREE.CylinderGeometry(0.18, 0.26, 3.6, 18);
     tubeGeo.rotateX(Math.PI / 2);
     const tube = new THREE.Mesh(tubeGeo, hullMat);
-    tube.position.set(0, 0, 0.75);
+    tube.position.set(0, 0, 2.75); // Extends from 0.95 to 4.55 in barrelPivot local space
     tube.castShadow = true;
     barrelPivot.add(tube);
 
-    // Front Muzzle Ring Collar (thick lip at tip of barrel)
-    const muzzleRingGeo = new THREE.CylinderGeometry(0.38, 0.38, 0.28, 18);
+    // Tactical Dual-Baffle Muzzle Brake (Ogiz tormozi - WoT Blitz style)
+    const muzzleBrakeGeo = new THREE.BoxGeometry(0.48, 0.36, 0.65);
+    const muzzleBrake = new THREE.Mesh(muzzleBrakeGeo, darkHullMat);
+    muzzleBrake.position.set(0, 0, 4.65);
+    muzzleBrake.castShadow = true;
+    barrelPivot.add(muzzleBrake);
+
+    // Muzzle Side Gas Vents (Left & Right Dark Slots)
+    [-0.25, 0.25].forEach((vx) => {
+      const ventGeo = new THREE.BoxGeometry(0.04, 0.18, 0.42);
+      const vent = new THREE.Mesh(ventGeo, new THREE.MeshBasicMaterial({ color: 0x050505 }));
+      vent.position.set(vx, 0, 4.65);
+      barrelPivot.add(vent);
+    });
+
+    // Front Muzzle Ring Lip
+    const muzzleRingGeo = new THREE.CylinderGeometry(0.26, 0.26, 0.14, 18);
     muzzleRingGeo.rotateX(Math.PI / 2);
     const muzzleRing = new THREE.Mesh(muzzleRingGeo, darkHullMat);
-    muzzleRing.position.set(0, 0, 1.55);
+    muzzleRing.position.set(0, 0, 5.02);
     muzzleRing.castShadow = true;
     barrelPivot.add(muzzleRing);
 
-    // Dark inner muzzle hole
-    const holeGeo = new THREE.CylinderGeometry(0.18, 0.18, 0.08, 14);
+    // Dark Inner Muzzle Bore (Deep gun barrel opening)
+    const holeGeo = new THREE.CylinderGeometry(0.13, 0.13, 0.1, 14);
     holeGeo.rotateX(Math.PI / 2);
-    const hole = new THREE.Mesh(holeGeo, new THREE.MeshBasicMaterial({ color: 0x050505 }));
-    hole.position.set(0, 0, 1.69);
+    const hole = new THREE.Mesh(holeGeo, new THREE.MeshBasicMaterial({ color: 0x020202 }));
+    hole.position.set(0, 0, 5.08);
     barrelPivot.add(hole);
 
     // Muzzle tip position marker for projectile spawning
     const muzzlePoint = new THREE.Object3D();
     muzzlePoint.name = 'muzzle_point';
-    muzzlePoint.position.set(0, 0, 1.82);
+    muzzlePoint.position.set(0, 0, 5.15);
     barrelPivot.add(muzzlePoint);
 
     turretGroup.add(barrelPivot);

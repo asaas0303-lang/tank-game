@@ -685,30 +685,35 @@ export class BattlefieldMap3D {
       const cos = Math.cos(cfg.rot);
       const sin = Math.sin(cfg.rot);
 
+      // Exact mathematical transformation from garage local coordinates to 3D world space:
+      // (Three.js rotation.y = cfg.rot rotates x: lx*cos + lz*sin, z: -lx*sin + lz*cos)
       const toWorld = (lx, lz) => ({
-        x: cfg.x + lx * cos - lz * sin,
-        z: cfg.z + lx * sin + lz * cos,
+        x: cfg.x + lx * cos + lz * sin,
+        z: cfg.z - lx * sin + lz * cos,
       });
+
+      // In 2D screen coordinates (+Y down), the rotation angle for OBB collision is -cfg.rot
+      const rot2D = -cfg.rot;
 
       // Left Wall (Thickness: 1.6, Length: 28)
       const pL = toWorld(-9.2, -5);
-      colliders.push(to2DBox(pL.x, pL.z, 1.6, 28, cfg.rot, false));
+      colliders.push(to2DBox(pL.x, pL.z, 1.6, 28, rot2D, false));
 
       // Right Wall
       const pR = toWorld(9.2, -5);
-      colliders.push(to2DBox(pR.x, pR.z, 1.6, 28, cfg.rot, false));
+      colliders.push(to2DBox(pR.x, pR.z, 1.6, 28, rot2D, false));
 
       // Back Wall (Width: 20, Thickness: 1.6)
       const pB = toWorld(0, -18.2);
-      colliders.push(to2DBox(pB.x, pB.z, 20, 1.6, cfg.rot, false));
+      colliders.push(to2DBox(pB.x, pB.z, 20, 1.6, rot2D, false));
 
       // Front Left Pillar
       const pFL = toWorld(-8.25, 8.2);
-      colliders.push(to2DBox(pFL.x, pFL.z, 3.5, 1.6, cfg.rot, false));
+      colliders.push(to2DBox(pFL.x, pFL.z, 3.5, 1.6, rot2D, false));
 
       // Front Right Pillar
       const pFR = toWorld(8.25, 8.2);
-      colliders.push(to2DBox(pFR.x, pFR.z, 3.5, 1.6, cfg.rot, false));
+      colliders.push(to2DBox(pFR.x, pFR.z, 3.5, 1.6, rot2D, false));
     });
 
     // 3. 4 WW2 Ruined Brick Foundations (Destructible)

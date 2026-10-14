@@ -129,4 +129,18 @@ describe('Tank Game 3D & Security Verification', () => {
     const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
     expect(html).toContain('window.engine3D.rotateCamera(dragX, dragY)');
   });
+
+  test('TankModel3D includes long high-velocity cannon barrel with heavy mantlet and muzzle brake', () => {
+    const code = fs.readFileSync(path.join(__dirname, '..', 'src', '3d', 'TankModel.js'), 'utf8');
+    expect(code).toContain('mantletShieldGeo');
+    expect(code).toContain('muzzleBrakeGeo');
+    expect(code).toContain('muzzlePoint.position.set(0, 0, 5.15)');
+  });
+
+  test('BattlefieldMap.js computes mathematically accurate garage wall colliders with rot2D = -cfg.rot', () => {
+    const mapCode = fs.readFileSync(path.join(__dirname, '..', 'src', '3d', 'BattlefieldMap.js'), 'utf8');
+    expect(mapCode).toContain('const rot2D = -cfg.rot;');
+    expect(mapCode).toContain('x: cfg.x + lx * cos + lz * sin');
+    expect(mapCode).toContain('z: cfg.z - lx * sin + lz * cos');
+  });
 });

@@ -332,55 +332,55 @@ export class TankModel3D {
     barrelPivot.add(mantlet);
 
     // Reinforced Gun Sleeve / Root Collar
-    const collarGeo = new THREE.CylinderGeometry(0.28, 0.35, 0.7, 18);
+    const collarGeo = new THREE.CylinderGeometry(0.28, 0.35, 0.5, 18);
     collarGeo.rotateX(Math.PI / 2);
     const collar = new THREE.Mesh(collarGeo, hullMat);
-    collar.position.set(0, 0, 0.9);
+    collar.position.set(0, 0, 0.7);
     collar.castShadow = true;
     barrelPivot.add(collar);
 
-    // Long Tapered High-Velocity Rifled Tank Cannon Tube (Stvol - 3.6 units long)
-    const tubeGeo = new THREE.CylinderGeometry(0.18, 0.26, 3.6, 18);
+    // Well-Proportioned High-Velocity Rifled Tank Cannon Tube (1.8 units long)
+    const tubeGeo = new THREE.CylinderGeometry(0.18, 0.26, 1.8, 18);
     tubeGeo.rotateX(Math.PI / 2);
     const tube = new THREE.Mesh(tubeGeo, hullMat);
-    tube.position.set(0, 0, 2.75); // Extends from 0.95 to 4.55 in barrelPivot local space
+    tube.position.set(0, 0, 1.6); // Extends from 0.7 to 2.5 in barrelPivot local space
     tube.castShadow = true;
     barrelPivot.add(tube);
 
     // Tactical Dual-Baffle Muzzle Brake (Ogiz tormozi - WoT Blitz style)
-    const muzzleBrakeGeo = new THREE.BoxGeometry(0.48, 0.36, 0.65);
+    const muzzleBrakeGeo = new THREE.BoxGeometry(0.44, 0.34, 0.48);
     const muzzleBrake = new THREE.Mesh(muzzleBrakeGeo, darkHullMat);
-    muzzleBrake.position.set(0, 0, 4.65);
+    muzzleBrake.position.set(0, 0, 2.65);
     muzzleBrake.castShadow = true;
     barrelPivot.add(muzzleBrake);
 
     // Muzzle Side Gas Vents (Left & Right Dark Slots)
-    [-0.25, 0.25].forEach((vx) => {
-      const ventGeo = new THREE.BoxGeometry(0.04, 0.18, 0.42);
+    [-0.23, 0.23].forEach((vx) => {
+      const ventGeo = new THREE.BoxGeometry(0.04, 0.16, 0.3);
       const vent = new THREE.Mesh(ventGeo, new THREE.MeshBasicMaterial({ color: 0x050505 }));
-      vent.position.set(vx, 0, 4.65);
+      vent.position.set(vx, 0, 2.65);
       barrelPivot.add(vent);
     });
 
     // Front Muzzle Ring Lip
-    const muzzleRingGeo = new THREE.CylinderGeometry(0.26, 0.26, 0.14, 18);
+    const muzzleRingGeo = new THREE.CylinderGeometry(0.26, 0.26, 0.12, 18);
     muzzleRingGeo.rotateX(Math.PI / 2);
     const muzzleRing = new THREE.Mesh(muzzleRingGeo, darkHullMat);
-    muzzleRing.position.set(0, 0, 5.02);
+    muzzleRing.position.set(0, 0, 2.92);
     muzzleRing.castShadow = true;
     barrelPivot.add(muzzleRing);
 
     // Dark Inner Muzzle Bore (Deep gun barrel opening)
-    const holeGeo = new THREE.CylinderGeometry(0.13, 0.13, 0.1, 14);
+    const holeGeo = new THREE.CylinderGeometry(0.13, 0.13, 0.08, 14);
     holeGeo.rotateX(Math.PI / 2);
     const hole = new THREE.Mesh(holeGeo, new THREE.MeshBasicMaterial({ color: 0x020202 }));
-    hole.position.set(0, 0, 5.08);
+    hole.position.set(0, 0, 2.98);
     barrelPivot.add(hole);
 
     // Muzzle tip position marker for projectile spawning
     const muzzlePoint = new THREE.Object3D();
     muzzlePoint.name = 'muzzle_point';
-    muzzlePoint.position.set(0, 0, 5.15);
+    muzzlePoint.position.set(0, 0, 3.05);
     barrelPivot.add(muzzlePoint);
 
     turretGroup.add(barrelPivot);

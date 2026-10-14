@@ -232,7 +232,7 @@ export class Engine3D {
       const pHp = Math.max(0, game.player.hp || 0);
       player3D.updateBadge(game.player.name || 'Commander', pHp / pMaxHp);
       if (player3D.badgeSprite && player3D.badgeSprite.material) {
-        player3D.badgeSprite.material.rotation = window._forcedLandscape ? -Math.PI / 2 : 0;
+        player3D.badgeSprite.material.rotation = 0;
       }
     }
 
@@ -345,7 +345,7 @@ export class Engine3D {
             const bHp = Math.max(0, bot.hp || 0);
             bot3D.updateBadge(bot.name || `Bot ${idx + 1}`, bHp / bMaxHp);
             if (bot3D.badgeSprite && bot3D.badgeSprite.material) {
-              bot3D.badgeSprite.material.rotation = window._forcedLandscape ? -Math.PI / 2 : 0;
+              bot3D.badgeSprite.material.rotation = 0;
             }
           }
         }
@@ -389,7 +389,7 @@ export class Engine3D {
             const rHp = Math.max(0, rp.hp || 0);
             rp3D.updateBadge(rp.name || 'Player', rHp / rMaxHp);
             if (rp3D.badgeSprite && rp3D.badgeSprite.material) {
-              rp3D.badgeSprite.material.rotation = window._forcedLandscape ? -Math.PI / 2 : 0;
+              rp3D.badgeSprite.material.rotation = 0;
             }
           }
         }

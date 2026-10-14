@@ -55,13 +55,13 @@ describe('Tank Game 3D & Security Verification', () => {
     expect(fs.existsSync(roadmapPath)).toBe(true);
     const content = fs.readFileSync(roadmapPath, 'utf8');
     // Check key problem categories
-    expect(content).toContain('I. FIZIKA VA TO\'QNASHUVLAR');
+    expect(content).toContain("I. FIZIKA VA TO'QNASHUVLAR");
     expect(content).toContain('II. BOSHQARUV, JOYSTIK VA KAMERA');
     expect(content).toContain('III. TARMOQ, MULTIPLAYER VA REAL-VAQT');
     expect(content).toContain('IV. GRAFIKA, THREE.JS VA SMARTFON RESURSLARI');
     expect(content).toContain('V. TELEGRAM MINI APP (TWA) VA MOBIL BRAUZER');
     expect(content).toContain('1. **Tunneling effekti');
-    expect(content).toContain('100. **Ko\'p tillilikda matn sig\'masligi:');
+    expect(content).toContain("100. **Ko'p tillilikda matn sig'masligi:");
   });
 
   test('index.html safely handles peer and bot lists without accessing undefined remotePlayers', () => {
@@ -82,13 +82,19 @@ describe('Tank Game 3D & Security Verification', () => {
   });
 
   test('Engine3D and BattlefieldMap provide orbital camera controls and inside-garage roof fading', () => {
-    const engineCode = fs.readFileSync(path.join(__dirname, '..', 'src', '3d', 'Engine3D.js'), 'utf8');
+    const engineCode = fs.readFileSync(
+      path.join(__dirname, '..', 'src', '3d', 'Engine3D.js'),
+      'utf8'
+    );
     expect(engineCode).toContain('rotateCamera(deltaX, deltaY = 0)');
     expect(engineCode).toContain('this.cameraYaw');
     expect(engineCode).toContain('this.cameraPitch');
     expect(engineCode).toContain('inGarage');
 
-    const mapCode = fs.readFileSync(path.join(__dirname, '..', 'src', '3d', 'BattlefieldMap.js'), 'utf8');
+    const mapCode = fs.readFileSync(
+      path.join(__dirname, '..', 'src', '3d', 'BattlefieldMap.js'),
+      'utf8'
+    );
     expect(mapCode).toContain('roofMat.transparent = true');
     expect(mapCode).toContain('garages.push(');
 
@@ -102,5 +108,4 @@ describe('Tank Game 3D & Security Verification', () => {
     expect(code).toContain('muzzleBrakeGeo');
     expect(code).toContain('muzzlePoint.position.set(0, 0, 3.05)');
   });
-
 });

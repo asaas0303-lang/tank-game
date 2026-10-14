@@ -4,10 +4,12 @@ const path = require('path');
 const WebSocket = require('ws');
 const { Sentry } = require('./lib/sentry');
 const MapLayout = require('./src/shared/mapLayout.js');
+const { RULES, sanitizeName, RateLimiter, validateMove, ShotLedger } = require('./lib/netRules.js');
 
 const app = express();
 const server = http.createServer(app);
-const wss = new WebSocket.Server({ server });
+// maxPayload: juda katta xabar bilan serverni bo'g'ib qo'yishning oldini oladi
+const wss = new WebSocket.Server({ server, maxPayload: 32 * 1024 });
 
 const PORT = process.env.PORT || 3000;
 
@@ -52,8 +54,16 @@ const CENTRAL_ASIAN_NAMES = [
   'Samat',
 ];
 
-// Global Player ID counter (starts from 100, 3 digits)
+const MIN_VERSION = 6;
+const SECTOR_IDS = ['A1', 'A2', 'B1', 'B2'];
+// Bitta jangda 4 garaj = 4 tagacha odam. To'lsa yangi xona avtomatik ochiladi --
+// shu tufayli 1000 kishi kirsa ham har telefon faqat o'z jangidagi 4 tankni oladi.
+const ROOM_CAPACITY = 4;
+// 4 ta garaj: odam + bot = 4 (har biriga bitta garaj)
+const BOT_COUNT_BY_HUMANS = { 1: 3, 2: 2, 3: 1, 4: 0 };
+
 let nextPlayerId = 100;
+let nextRoomSeq = 1;
 
 // Short, stable "friend code" per device (cid), so players can share a typeable number
 // even though the real internal playerId is a long persistent cid string.
@@ -61,41 +71,57 @@ let nextFriendCode = 1000;
 const cidToCode = new Map(); // playerId(cid) -> qisqa kod (string)
 const codeToCid = new Map(); // qisqa kod -> playerId(cid)
 
-// Connected players: playerId -> { id, name, ws, roomId, isAfk, friends: Set, kills: 0, level: 1 }
+// playerId -> { id, name, ws, roomId, state, ledger, rl, ... }
 const players = new Map();
-
-// Game Rooms: roomId -> { id, name, mode, players: Set<playerId>, bots: Array }
+// roomId -> { id, name, players: Set<playerId>, hostId, bots, sectors, ... }
 const rooms = new Map();
 
 const SECTOR_SIZE = MapLayout.SECTOR_SIZE;
-const SECTOR_THEMES = [
-  '#00f0ff',
-  '#ff2a5f',
-  '#ffaa00',
-  '#00ff88',
-  '#a855f7',
-  '#ec4899',
-  '#3b82f6',
-  '#14b8a6',
-];
 
-function getOrCreateRoom(roomId = 'default-dm', mode = 'Deathmatch') {
-  if (!rooms.has(roomId)) {
-    rooms.set(roomId, {
-      id: roomId,
-      name: roomId === 'default-dm' ? 'Asosiy Arena' : `Xona #${roomId}`,
-      mode: mode,
-      players: new Set(),
-      hostId: null,
-      bots: [],
-      sectors: [],
-      cols: 2,
-      rows: 2,
-      worldWidth: MapLayout.WORLD_SIZE,
-      worldHeight: MapLayout.WORLD_SIZE,
-    });
+function createRoom() {
+  const id = `arena-${nextRoomSeq++}`;
+  const room = {
+    id,
+    name: `Jang #${id.split('-')[1]}`,
+    mode: 'Deathmatch',
+    players: new Set(),
+    hostId: null,
+    bots: [],
+    sectors: [],
+    cols: 2,
+    rows: 2,
+    worldWidth: MapLayout.WORLD_SIZE,
+    worldHeight: MapLayout.WORLD_SIZE,
+    lastBotSyncAt: Date.now(),
+  };
+  rooms.set(id, room);
+  return room;
+}
+
+// Eng to'la (lekin to'lmagan) xona -- odamlar bir joyga yig'ilsin, bo'sh janglar ko'paymasin
+function findOpenRoom() {
+  let best = null;
+  for (const r of rooms.values()) {
+    if (r.players.size >= ROOM_CAPACITY) continue;
+    if (!best || r.players.size > best.players.size) best = r;
   }
-  return rooms.get(roomId);
+  return best || createRoom();
+}
+
+function broadcastToRoom(roomId, message, senderId = null) {
+  const room = rooms.get(roomId);
+  if (!room) return;
+  const data = JSON.stringify(message);
+  room.players.forEach((pId) => {
+    if (pId === senderId) return;
+    const p = players.get(pId);
+    if (p && p.ws.readyState === WebSocket.OPEN) p.ws.send(data);
+  });
+}
+
+function sendTo(playerId, message) {
+  const p = players.get(playerId);
+  if (p && p.ws.readyState === WebSocket.OPEN) p.ws.send(JSON.stringify(message));
 }
 
 function updateRoomHost(room) {
@@ -108,135 +134,83 @@ function updateRoomHost(room) {
     current && room.players.has(room.hostId) && Date.now() - (current.lastSeen || 0) < 10000;
   if (currentFresh) return; // hozirgi host yaxshi ishlayapti -- tegmaymiz
 
-  // eng so'nggi faol o'yinchini host qilamiz
+  // eng so'nggi faol o'yinchini host qilamiz (botlarni shu o'yinchi boshqaradi)
   let best = null;
   for (const pid of room.players) {
     const p = players.get(pid);
-    if (!p) continue;
-    if (!best || (p.lastSeen || 0) > (best.lastSeen || 0)) best = p;
+    if (p && (!best || (p.lastSeen || 0) > (best.lastSeen || 0))) best = p;
   }
   const newHost = best ? best.id : Array.from(room.players)[0];
   if (newHost !== room.hostId) {
     room.hostId = newHost;
     broadcastToRoom(room.id, { type: 'host_update', hostId: room.hostId });
-    console.log('[host] xona', room.id, 'uchun yangi host:', room.hostId);
   }
 }
 
-// Dynamically generate modular sectors (zones) based on room player count
-// Koordinatasi yo'q botlarga sektor tanlab, spawn joyini SERVER belgilaydi.
-// Shu tufayli bot hamma klientda AYNAN bir joyda tug'iladi (avval har klient uni
-// massiv indeksi bo'yicha o'zi hisoblardi -- indekslar siljiganda botlar bir joyga
-// to'planib qolardi). Band bo'lmagan sektorlar afzal ko'riladi.
+// Bot joyini SERVER belgilaydi -> hamma klientda bir xil. Odamlarning garajiga bot tushmaydi.
 function assignBotSpawns(room) {
   if (!room.sectors || room.sectors.length === 0) return false;
   let assigned = false;
-
-  const garageSpawns = {};
-  for (const sid of ['A1', 'A2', 'B1', 'B2']) garageSpawns[sid] = MapLayout.spawnFor(sid);
-
-  // Inson o'yinchilarning shaxsiy garajlari -- botlar bu yerga MUTLAQO tushmasligi shart
   const humanSectorIds = new Set();
   for (const pid of room.players) {
     const sec = room.sectors.find((s) => s.ownerPlayerId === pid);
     if (sec) humanSectorIds.add(sec.id);
   }
-  // Boshlang'ich yoki asosiy o'yinchi har doim A1 ga ega bo'ladi
-  humanSectorIds.add('A1');
-
   for (const bot of room.bots) {
     if (typeof bot.x === 'number' && typeof bot.y === 'number') continue;
     assigned = true;
-
-    // Boshqa botlar band qilgan sektorlar
-    const usedSectorIds = new Set(room.bots.map((b) => b.sectorId).filter(Boolean));
-
-    // Inson o'yinchisiz va bo'sh bo'lgan garajlar (A2, B1, B2)
-    const availableGarages = ['A2', 'B1', 'B2'].filter(
-      (sid) => !humanSectorIds.has(sid) && !usedSectorIds.has(sid)
-    );
-
-    if (availableGarages.length > 0) {
-      const chosenGarage = availableGarages[0];
-      bot.sectorId = chosenGarage;
-      bot.x = garageSpawns[chosenGarage].x;
-      bot.y = garageSpawns[chosenGarage].y;
-    } else {
-      // Barcha garajlar band bo'lsa -- jang maydonining ochiq taktik arenasida tug'ilsin
-      const neutralSec = room.sectors.find((s) => !humanSectorIds.has(s.id)) || room.sectors[0];
-      bot.sectorId = neutralSec.id;
-      bot.x = neutralSec.x + neutralSec.w / 2 + (Math.random() - 0.5) * 80;
-      bot.y = neutralSec.y + neutralSec.h / 2 + (Math.random() - 0.5) * 80;
-    }
+    const used = new Set(room.bots.map((b) => b.sectorId).filter(Boolean));
+    const free = SECTOR_IDS.filter((sid) => !humanSectorIds.has(sid) && !used.has(sid));
+    const sid = free[0] || SECTOR_IDS.find((s) => !humanSectorIds.has(s)) || 'B2';
+    const sp = MapLayout.spawnFor(sid);
+    bot.sectorId = sid;
+    bot.x = sp.x;
+    bot.y = sp.y;
   }
   return assigned;
 }
 
 function updateRoomSectors(room) {
-  // Xarita DOIM 2x2 (4 garaj) -- 3D jang maydoni bilan bir xil. O'yinchi soniga qarab
-  // kengaymaydi (avval kengayardi va to'siqlar 3D rasmdan siljib ketardi).
-  const cols = 2;
-  const rows = 2;
-
-  const sectors = [];
-  const rowLetters = ['A', 'B', 'C', 'D', 'E', 'F'];
-  const playerList = Array.from(room.players)
-    .map((pId) => players.get(pId))
+  const humans = Array.from(room.players)
+    .map((pid) => players.get(pid))
     .filter(Boolean);
-
-  let sIdx = 0;
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) {
-      const id = `${rowLetters[r] || 'X'}${c + 1}`;
-      let ownerName = 'Taktik Zona';
-      let ownerPlayerId = null;
-      let themeColor = SECTOR_THEMES[sIdx % SECTOR_THEMES.length];
-
-      if (sIdx < playerList.length) {
-        ownerName = `${playerList[sIdx].name} Hududi`;
-        ownerPlayerId = playerList[sIdx].id;
-        themeColor = '#00f0ff';
-      } else {
-        const botIdx = sIdx - playerList.length;
-        if (room.bots[botIdx]) {
-          ownerName = `${room.bots[botIdx].name} Hududi`;
-          ownerPlayerId = room.bots[botIdx].id;
-          themeColor = '#ff2a5f';
-        } else {
-          ownerName = `Neytral Sektor ${id}`;
-        }
-      }
-
-      const roomNumber = r * cols + c + 1;
-      sectors.push({
-        id: id,
-        name: `${roomNumber}-xona`,
-        subName: `[${ownerName}]`,
-        ownerName: ownerName,
-        ownerPlayerId: ownerPlayerId,
-        col: c,
-        row: r,
-        x: c * SECTOR_SIZE,
-        y: r * SECTOR_SIZE,
-        w: SECTOR_SIZE,
-        h: SECTOR_SIZE,
-        themeColor: themeColor,
-      });
-      sIdx++;
+  // Har bir odamga bitta garaj (o'tirgan garajini o'zgartirmaymiz)
+  const taken = new Map(); // sid -> owner
+  for (const p of humans) if (p.sectorId && !taken.has(p.sectorId)) taken.set(p.sectorId, p);
+  for (const p of humans) {
+    if (p.sectorId && taken.get(p.sectorId) === p) continue;
+    p.sectorId = SECTOR_IDS.find((s) => !taken.has(s)) || SECTOR_IDS[0];
+    taken.set(p.sectorId, p);
+  }
+  // Odam egallagan garajdagi bot boshqa garajga ko'chadi
+  for (const b of room.bots) {
+    if (b.sectorId && taken.has(b.sectorId)) {
+      b.sectorId = null;
+      b.x = null;
+      b.y = null;
     }
   }
 
-  room.cols = cols;
-  room.rows = rows;
-  room.sectors = sectors;
-  room.worldWidth = cols * SECTOR_SIZE;
-  room.worldHeight = rows * SECTOR_SIZE;
+  room.sectors = SECTOR_IDS.map((id, i) => {
+    const owner = taken.get(id);
+    const bot = room.bots.find((b) => b.sectorId === id);
+    const ownerName = owner ? `${owner.name} Hududi` : bot ? `${bot.name} Hududi` : 'Taktik Zona';
+    return {
+      id,
+      name: `${i + 1}-xona`,
+      subName: `[${ownerName}]`,
+      ownerName,
+      ownerPlayerId: owner ? owner.id : null,
+      col: i % 2,
+      row: Math.floor(i / 2),
+      x: (i % 2) * SECTOR_SIZE,
+      y: Math.floor(i / 2) * SECTOR_SIZE,
+      w: SECTOR_SIZE,
+      h: SECTOR_SIZE,
+      themeColor: owner ? '#00f0ff' : '#ff2a5f',
+    };
+  });
 
-  // Koordinatasi yo'q botlarga joy beramiz. Buni SHU YERDA qilamiz, chunki
-  // balanceRoomBots() har doim updateRoomSectors() dan OLDIN chaqiriladi (sektorlar
-  // bot soniga bog'liq), ya'ni bot yaratilayotganda room.sectors hali bo'sh bo'ladi.
-  // Joy berilgan bo'lsa -- bots_update'ni QAYTA yuboramiz, chunki balanceRoomBots()
-  // dagi birinchi broadcast hali koordinatasiz (null) ketgan edi.
   if (assignBotSpawns(room)) {
     broadcastToRoom(room.id, {
       type: 'bots_update',
@@ -246,122 +220,134 @@ function updateRoomSectors(room) {
     });
   }
 
-  // Har bir o'yinchiga O'ZINING sektor id'sini alohida yuboramiz. Buni broadcast bilan
-  // qilib bo'lmaydi -- bitta paket hammaga bir xil ketadi, mySectorId esa har kimda
-  // boshqacha. Aynan shu sabab mySectorId avval FAQAT welcome'da yuborilardi va xona
-  // tarkibi o'zgarganda klientdagi qiymat eskirib qolardi -> ikki o'yinchi bitta
-  // sektor markazida tug'ilardi.
-  for (const pid of room.players) {
-    const mySec = room.sectors.find((s) => s.ownerPlayerId === pid);
-    sendTo(pid, {
+  // mySectorId har kimda boshqacha -- shuning uchun alohida yuboriladi
+  for (const p of humans) {
+    sendTo(p.id, {
       type: 'sectors_update',
-      cols: room.cols,
-      rows: room.rows,
+      cols: 2,
+      rows: 2,
       worldWidth: room.worldWidth,
       worldHeight: room.worldHeight,
       sectorSize: SECTOR_SIZE,
       sectors: room.sectors,
-      mySectorId: mySec ? mySec.id : null,
+      mySectorId: p.sectorId,
     });
   }
 }
 
-// Balance bots in room by human player count (easy to retune, see the map below)
-// 4 ta garaj: odam + bot = 4 (har biriga bitta garaj)
-const BOT_COUNT_BY_HUMANS = { 1: 3, 2: 2, 3: 1, 4: 0 };
 function balanceRoomBots(room) {
-  const humanCount = room.players.size;
-  const targetBotCount = BOT_COUNT_BY_HUMANS[humanCount] || 0;
-
-  // Adjust bots array
+  const targetBotCount = BOT_COUNT_BY_HUMANS[room.players.size] || 0;
   while (room.bots.length < targetBotCount) {
-    const botId = `bot-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-    const randomName = CENTRAL_ASIAN_NAMES[Math.floor(Math.random() * CENTRAL_ASIAN_NAMES.length)];
-    const level = Math.floor(Math.random() * 2) + 1;
-
-    // Koordinatani bu yerda emas, quyida assignBotSpawns() beradi: bot yaratilayotganda
-    // sektorlar hali tayyor bo'lmasligi mumkin (birinchi ulanishda sektorlar bot soniga
-    // qarab keyinroq quriladi). Joyni HAR DOIM server beradi -> hamma klientda bir xil.
     room.bots.push({
-      id: botId,
-      name: randomName,
-      level: level,
+      id: `bot-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      name: CENTRAL_ASIAN_NAMES[Math.floor(Math.random() * CENTRAL_ASIAN_NAMES.length)],
+      level: Math.floor(Math.random() * 2) + 1,
       isBot: true,
       sectorId: null,
       x: null,
       y: null,
     });
   }
-
-  while (room.bots.length > targetBotCount) {
-    room.bots.pop();
-  }
-
-  // Sektorlar allaqachon mavjud bo'lsa (masalan bot o'lib qayta tug'ilganda) -- spawn
-  // joyini SHU YERDA beramiz. Aks holda bot koordinatasiz (null) ketadi va klient uni
-  // yana massiv indeksi bo'yicha joylashtirib, botlarni bir joyga to'playdi.
-  // Birinchi ulanishda sektorlar hali bo'sh -- u holda bu false qaytaradi va joyni
-  // keyinroq updateRoomSectors() dagi chaqiruv beradi (o'sha kod o'z holicha qoladi).
+  while (room.bots.length > targetBotCount) room.bots.pop();
   assignBotSpawns(room);
-
-  // Broadcast bot update to all players in the room
   broadcastToRoom(room.id, {
     type: 'bots_update',
     bots: room.bots,
-    humanCount: humanCount,
-    targetBotCount: targetBotCount,
+    humanCount: room.players.size,
+    targetBotCount,
   });
 }
 
-function broadcastToRoom(roomId, message, senderId = null) {
-  const room = rooms.get(roomId);
+function roomPlayersPayload(room) {
+  return Array.from(room.players)
+    .map((pid) => players.get(pid))
+    .filter(Boolean)
+    .map((p) => ({
+      id: p.id,
+      name: p.name,
+      code: p.code,
+      kills: p.kills,
+      level: p.level,
+      isAfk: p.isAfk,
+    }));
+}
+
+function leaveRoom(player) {
+  const room = rooms.get(player.roomId);
+  player.roomId = null;
+  player.sectorId = null;
+  player.state = null;
   if (!room) return;
-  const data = JSON.stringify(message);
-
-  room.players.forEach((pId) => {
-    if (pId !== senderId) {
-      const player = players.get(pId);
-      if (player && player.ws.readyState === WebSocket.OPEN) {
-        player.ws.send(data);
-      }
-    }
-  });
+  room.players.delete(player.id);
+  if (room.players.size === 0) {
+    rooms.delete(room.id); // bo'sh xona xotirada qolmaydi
+    return;
+  }
+  updateRoomHost(room);
+  broadcastToRoom(room.id, { type: 'player_left', playerId: player.id });
+  balanceRoomBots(room);
+  updateRoomSectors(room);
 }
 
-function sendTo(playerId, message) {
-  const player = players.get(playerId);
-  if (player && player.ws.readyState === WebSocket.OPEN) {
-    player.ws.send(JSON.stringify(message));
-  }
+function joinRoom(player, room, type = 'room_joined') {
+  if (player.roomId) leaveRoom(player);
+  room.players.add(player.id);
+  player.roomId = room.id;
+  updateRoomHost(room);
+  balanceRoomBots(room);
+  updateRoomSectors(room);
+  sendTo(player.id, {
+    type,
+    playerId: player.id,
+    code: player.code,
+    name: player.name,
+    roomId: room.id,
+    roomName: room.name,
+    mode: room.mode,
+    hostId: room.hostId,
+    serverVersion: 'v7',
+    players: roomPlayersPayload(room),
+    bots: room.bots,
+    sectors: room.sectors,
+    cols: 2,
+    rows: 2,
+    worldWidth: room.worldWidth,
+    worldHeight: room.worldHeight,
+    sectorSize: SECTOR_SIZE,
+    mySectorId: player.sectorId,
+    tashkentOffset: 5, // UTC+5
+  });
+  sendTo(player.id, { type: 'host_update', hostId: room.hostId });
+  broadcastToRoom(
+    room.id,
+    { type: 'player_joined', playerId: player.id, name: player.name },
+    player.id
+  );
 }
 
 function getFriendsListPayload(playerId) {
   const player = players.get(playerId);
   if (!player) return [];
-  const list = [];
-  player.friends.forEach((fId) => {
+  return Array.from(player.friends).map((fId) => {
     const friend = players.get(fId);
-    if (friend) {
-      list.push({
-        id: friend.id,
-        name: friend.name,
-        code: cidToCode.get(friend.id) || '',
-        online: true,
-        roomId: friend.roomId,
-        isAfk: friend.isAfk,
-      });
-    } else {
-      list.push({
-        id: fId,
-        name: `O'yinchi #${cidToCode.get(fId) || fId}`,
-        code: cidToCode.get(fId) || '',
-        online: false,
-        roomId: null,
-        isAfk: false,
-      });
-    }
+    return friend
+      ? {
+          id: friend.id,
+          name: friend.name,
+          code: cidToCode.get(friend.id) || '',
+          online: true,
+          roomId: friend.roomId,
+          isAfk: friend.isAfk,
+        }
+      : {
+          id: fId,
+          name: `O'yinchi #${cidToCode.get(fId) || fId}`,
+          code: cidToCode.get(fId) || '',
+          online: false,
+          roomId: null,
+          isAfk: false,
+        };
   });
-  return list;
 }
 
 // --- Tiriklik tekshiruvi: yarim-ochiq (half-open) ulanishlarni o'ldirish ---
@@ -371,7 +357,6 @@ const HEARTBEAT_MS = 15000;
 const heartbeatTimer = setInterval(() => {
   wss.clients.forEach((client) => {
     if (client.isAlive === false) {
-      console.log("[heartbeat] javob bermagan ulanish o'ldirildi");
       try {
         client.terminate();
       } catch (e) {}
@@ -382,64 +367,89 @@ const heartbeatTimer = setInterval(() => {
       client.ping();
     } catch (e) {}
   });
-}, HEARTBEAT_MS);
+}, HEARTBEAT_MS).unref();
 wss.on('close', () => clearInterval(heartbeatTimer));
 
-// Klient har 2 soniyada 'ping', har ~35ms 'sync_state' yuboradi. 20 soniya mutlaqo jim
-// bo'lsa -- bu o'yinchi yo'q, tozalaymiz.
+// 20 soniya mutlaqo jim bo'lsa -- bu o'yinchi yo'q, tozalaymiz. Host bot_sync yubormasa almashadi.
 const ACTIVITY_TIMEOUT_MS = 20000;
 setInterval(() => {
   const now = Date.now();
-  for (const [pid, p] of players) {
-    // Tirik ulanish belgisi: app xabari YOKI protokol-darajasidagi pong (pauzada ham keladi).
-    // DIQQAT: lastSeen'ni bu yerda "now" qilib yangilamaymiz -- u host saylovida
-    // ishlatiladi, jim klient o'zini faol ko'rsatib qo'ymasligi kerak.
+  for (const p of players.values()) {
+    // lastSeen'ni bu yerda yangilamaymiz -- u host saylovida ishlatiladi
     const lastActivity = Math.max(p.lastSeen || 0, (p.ws && p.ws.lastPongAt) || 0);
     if (now - lastActivity > ACTIVITY_TIMEOUT_MS) {
-      console.log("[reaper] jim qolgan o'yinchi olib tashlandi:", pid);
       try {
         p.ws.terminate();
       } catch (e) {}
     }
   }
-
-  // Host bot_sync yubormay qo'ygan bo'lsa -- hostni almashtiramiz
   for (const room of rooms.values()) {
-    if (room.players.size === 0 || room.bots.length === 0) continue;
-    if (now - (room.lastBotSyncAt || 0) > 6000 && room.players.size > 1) {
-      console.log("[host] bot_sync yo'q -> host almashtirilmoqda, xona:", room.id);
+    if (room.players.size < 2 || room.bots.length === 0) continue;
+    if (now - (room.lastBotSyncAt || 0) > 6000) {
       room.hostId = null; // majburan qayta tanlash
       updateRoomHost(room);
-      room.lastBotSyncAt = Date.now(); // darrov qayta almashmasin
+      room.lastBotSyncAt = now;
     }
   }
-}, 5000);
+}, 5000).unref();
+
+// --- Dunyo holati: har 50 ms da xonadagi hamma tanklar BITTA paketda ---
+// Avval har o'yinchi har 35 ms da xabar yuborardi va server uni har kimga alohida
+// tarqatardi (N^2 xabar). Endi server bitta paket yig'adi.
+const r1 = (n) => Math.round(n * 10) / 10;
+const r3 = (n) => Math.round(n * 1000) / 1000;
+setInterval(() => {
+  for (const room of rooms.values()) {
+    if (room.players.size < 2) continue;
+    const list = [];
+    for (const pid of room.players) {
+      const p = players.get(pid);
+      if (!p || !p.state) continue;
+      const s = p.state;
+      list.push({
+        id: p.id,
+        n: p.name,
+        c: p.code,
+        x: r1(s.x),
+        y: r1(s.y),
+        b: r3(s.b),
+        tu: r3(s.tu),
+        hp: Math.round(s.hp),
+        mhp: s.mhp,
+        sh: s.sh,
+        lv: s.lv,
+        w: s.w,
+        d: s.d ? 1 : 0,
+        afk: p.isAfk ? 1 : 0,
+      });
+    }
+    if (list.length > 0) broadcastToRoom(room.id, { type: 'world', t: Date.now(), players: list });
+  }
+}, RULES.TICK_MS).unref();
+
+const num = (v, def = 0) => (typeof v === 'number' && Number.isFinite(v) ? v : def);
 
 wss.on('connection', (ws, req) => {
   ws.isAlive = true;
-  // Brauzer ping freym'iga JS ishtirokisiz javob beradi -- ya'ni o'yin PAUZADA bo'lsa ham
-  // (ism kiritish oynasi: update() ishlamaydi, 'ping'/'sync_state' yuborilmaydi) pong keladi.
-  // Shuning uchun reaper faqat app-xabarlarga emas, pong'ga ham qaraydi, aks holda ismini
-  // yozib turgan o'yinchi 20 soniyada uzilib qolardi.
+  // Brauzer ping freym'iga JS ishtirokisiz javob beradi (o'yin pauzada bo'lsa ham)
   ws.lastPongAt = Date.now();
   ws.on('pong', () => {
     ws.isAlive = true;
     ws.lastPongAt = Date.now();
   });
 
-  // Client doimiy ID (cid) yuborsa — o'shani ishlat; bo'lmasa yangi raqamli ID ber
   let requestedCid = null;
   let clientVersion = 0;
   try {
     const qs = (req && req.url && req.url.split('?')[1]) || '';
     const searchParams = new URLSearchParams(qs);
-    requestedCid = searchParams.get('cid');
+    const cid = searchParams.get('cid') || '';
+    requestedCid = /^[A-Za-z0-9_-]{4,40}$/.test(cid) ? cid : null;
     clientVersion = parseInt(searchParams.get('v') || '0', 10);
   } catch (e) {
     requestedCid = null;
   }
 
-  const MIN_VERSION = 5;
   if (clientVersion < MIN_VERSION) {
     try {
       ws.send(
@@ -450,28 +460,20 @@ wss.on('connection', (ws, req) => {
         })
       );
     } catch (e) {}
-    // DIQQAT: ulanishni UZMAYMIZ — eski klient ham o'ynasin, faqat ogohlantiramiz.
   }
 
   const playerId = requestedCid || 'c' + nextPlayerId++;
 
-  // Agar shu ID bilan eski (uzilib qolgan) ulanish hali ro'yxatda bo'lsa — uni almashtir
+  // Shu ID bilan eski (uzilib qolgan) ulanish bo'lsa -- almashtiramiz
   if (players.has(playerId)) {
     const old = players.get(playerId);
     try {
       if (old.ws && old.ws !== ws) old.ws.close();
     } catch (e) {}
-    if (old.roomId) {
-      const oldRoom = rooms.get(old.roomId);
-      if (oldRoom) {
-        oldRoom.players.delete(playerId);
-        updateRoomHost(oldRoom);
-      }
-    }
+    leaveRoom(old);
     players.delete(playerId);
   }
 
-  // Barqaror, qisqa do'st-kodi: bir cid -> doim bir xil kod
   let friendCode = cidToCode.get(playerId);
   if (!friendCode) {
     friendCode = String(nextFriendCode++);
@@ -479,517 +481,331 @@ wss.on('connection', (ws, req) => {
     codeToCid.set(friendCode, playerId);
   }
 
-  const defaultName = `Commander-${friendCode}`;
-
   const player = {
     id: playerId,
-    name: defaultName,
+    name: `Commander-${friendCode}`,
     code: friendCode,
-    ws: ws,
+    ws,
     roomId: null,
+    sectorId: null,
     isAfk: false,
     friends: new Set(),
     kills: 0,
     level: 1,
-    // Ulanish vaqtidan boshlanadi va FAQAT haqiqiy xabar kelganda yangilanadi.
-    // Buni reaper "now" qilib qo'ymasligi kerak -- aks holda hech narsa yubormaydigan
-    // jim klient "eng faol" bo'lib ko'rinib, host saylovida yutib olardi.
+    // Faqat haqiqiy xabar kelganda yangilanadi (host saylovi uchun)
     lastSeen: Date.now(),
+    state: null, // oxirgi tekshirilgan holat: { x, y, b, tu, hp, ..., t, spawnedAt }
+    ledger: new ShotLedger(),
+    rl: new RateLimiter(),
+    lastHitBy: null,
+    lastCorrectionAt: 0,
   };
   players.set(playerId, player);
 
-  // Default join to main deathmatch arena
-  const defaultRoom = getOrCreateRoom('default-dm', 'Deathmatch');
-  player.roomId = defaultRoom.id;
-  defaultRoom.players.add(playerId);
-  updateRoomHost(defaultRoom);
+  joinRoom(player, findOpenRoom(), 'welcome');
 
-  // Rebalance bots and update room sectors
-  balanceRoomBots(defaultRoom);
-  updateRoomSectors(defaultRoom);
-
-  const mySector =
-    defaultRoom.sectors.find((s) => s.ownerPlayerId === playerId) || defaultRoom.sectors[0];
-
-  // Send Welcome & ID configuration with full sectors layout
-  ws.send(
-    JSON.stringify({
-      type: 'welcome',
-      playerId: playerId,
-      code: friendCode,
-      name: defaultName,
-      roomId: defaultRoom.id,
-      mode: defaultRoom.mode,
-      hostId: defaultRoom.hostId,
-      serverVersion: 'v6',
-      players: Array.from(defaultRoom.players)
-        .map((pid) => {
-          const p = players.get(pid);
-          return p
-            ? {
-                id: p.id,
-                name: p.name,
-                code: p.code,
-                kills: p.kills,
-                level: p.level,
-                isAfk: p.isAfk,
-              }
-            : null;
-        })
-        .filter(Boolean),
-      bots: defaultRoom.bots,
-      sectors: defaultRoom.sectors,
-      cols: defaultRoom.cols,
-      rows: defaultRoom.rows,
-      worldWidth: defaultRoom.worldWidth,
-      worldHeight: defaultRoom.worldHeight,
-      sectorSize: SECTOR_SIZE,
-      mySectorId: mySector ? mySector.id : 'A1',
-      tashkentOffset: 5, // UTC+5
-    })
-  );
-
-  // Send current host immediately
-  sendTo(playerId, { type: 'host_update', hostId: defaultRoom.hostId });
-
-  // Handle incoming WebSocket messages
-  ws.on('message', (msgStr) => {
-    player.lastSeen = Date.now();
-    try {
-      const msg = JSON.parse(msgStr);
-
-      switch (msg.type) {
-        case 'ping':
-          sendTo(player.id, { type: 'pong', time: msg.time });
-          break;
-
-        case 'set_name': {
-          const cleanName = String(msg.name || '')
-            .slice(0, 14)
-            .trim();
-          if (cleanName) {
-            player.name = cleanName;
-            // Broadcast to ALL players in room (including sender) so everyone sees real name
-            broadcastToRoom(player.roomId, {
-              type: 'player_renamed',
-              playerId: player.id,
-              name: player.name,
-            });
-            const curRoom = rooms.get(player.roomId);
-            if (curRoom) updateRoomSectors(curRoom);
-          }
-          break;
-        }
-
-        case 'set_afk':
-          player.isAfk = !!msg.isAfk;
-          broadcastToRoom(
-            player.roomId,
-            {
-              type: 'player_afk_status',
-              playerId: player.id,
-              isAfk: player.isAfk,
-            },
-            player.id
-          );
-          break;
-
-        // ESLATMA: klient hozir bu xabarni yubormaydi (xonaga o'tish 'invite_response'
-        // orqali bo'ladi). Xona tanlash UI qo'shilganda ishlatiladi.
-        case 'join_room': {
-          const targetRoomId = msg.roomId || 'default-dm';
-          const mode = msg.mode || 'Deathmatch';
-          if (player.roomId) {
-            const oldRoom = rooms.get(player.roomId);
-            if (oldRoom) {
-              oldRoom.players.delete(player.id);
-              updateRoomHost(oldRoom);
-              broadcastToRoom(oldRoom.id, {
-                type: 'player_left',
-                playerId: player.id,
-              });
-              balanceRoomBots(oldRoom);
-              updateRoomSectors(oldRoom);
-            }
-          }
-
-          const newRoom = getOrCreateRoom(targetRoomId, mode);
-          newRoom.players.add(player.id);
-          updateRoomHost(newRoom);
-          player.roomId = newRoom.id;
-
-          balanceRoomBots(newRoom);
-          updateRoomSectors(newRoom);
-
-          ws.send(
-            JSON.stringify({
-              type: 'room_joined',
-              roomId: newRoom.id,
-              mode: newRoom.mode,
-              hostId: newRoom.hostId,
-              bots: newRoom.bots,
-              sectors: newRoom.sectors,
-              cols: newRoom.cols,
-              rows: newRoom.rows,
-              worldWidth: newRoom.worldWidth,
-              worldHeight: newRoom.worldHeight,
-              players: Array.from(newRoom.players)
-                .map((pid) => {
-                  const p = players.get(pid);
-                  return p
-                    ? {
-                        id: p.id,
-                        name: p.name,
-                        code: p.code,
-                        kills: p.kills,
-                        level: p.level,
-                        isAfk: p.isAfk,
-                      }
-                    : null;
-                })
-                .filter(Boolean),
-            })
-          );
-
-          sendTo(player.id, { type: 'host_update', hostId: newRoom.hostId });
-
-          broadcastToRoom(
-            newRoom.id,
-            {
-              type: 'player_joined',
-              playerId: player.id,
-              name: player.name,
-            },
-            player.id
-          );
-          break;
-        }
-
-        // Friends & Lobby Invites
-        case 'add_friend': {
-          const targetCid = codeToCid.get(String(msg.targetId).trim());
-          if (!targetCid || targetCid === player.id) {
-            sendTo(player.id, { type: 'friend_error', message: "Bunday kodli o'yinchi topilmadi" });
-            break;
-          }
-          player.friends.add(targetCid);
-          const targetPlayer = players.get(targetCid);
-          if (targetPlayer) {
-            targetPlayer.friends.add(player.id); // Mutual friendship
-            sendTo(targetCid, {
-              type: 'friend_added',
-              friend: {
-                id: player.id,
-                name: player.name,
-                code: friendCode,
-                online: true,
-                roomId: player.roomId,
-                isAfk: player.isAfk,
-              },
-            });
-          }
-          ws.send(
-            JSON.stringify({
-              type: 'friends_list',
-              friends: getFriendsListPayload(player.id),
-            })
-          );
-          break;
-        }
-
-        case 'invite_friend': {
-          const targetId = msg.targetId;
-          const targetPlayer = players.get(targetId);
-          if (targetPlayer) {
-            sendTo(targetId, {
-              type: 'invite_received',
-              fromId: player.id,
-              fromName: player.name,
-              roomId: player.roomId,
-              mode: rooms.get(player.roomId)?.mode || 'Deathmatch',
-            });
-          }
-          break;
-        }
-
-        case 'invite_response': {
-          const fromId = msg.fromId;
-          const accept = !!msg.accept;
-          const targetRoomId = msg.roomId;
-
-          if (accept && targetRoomId) {
-            // Join friend's room
-            const currentRoom = rooms.get(player.roomId);
-            if (currentRoom) {
-              currentRoom.players.delete(player.id);
-              updateRoomHost(currentRoom);
-              balanceRoomBots(currentRoom);
-            }
-
-            const targetRoom = getOrCreateRoom(targetRoomId);
-            targetRoom.players.add(player.id);
-            updateRoomHost(targetRoom);
-            player.roomId = targetRoom.id;
-
-            ws.send(
-              JSON.stringify({
-                type: 'room_joined',
-                roomId: targetRoom.id,
-                mode: targetRoom.mode,
-                hostId: targetRoom.hostId,
-                bots: targetRoom.bots,
-              })
-            );
-
-            balanceRoomBots(targetRoom);
-          }
-
-          sendTo(fromId, {
-            type: 'invite_answered',
-            fromId: player.id,
-            fromName: player.name,
-            accept: accept,
-          });
-          break;
-        }
-
-        // Multiplayer State Synchronization
-        case 'sync_state':
-          if (player.roomId) {
-            broadcastToRoom(
-              player.roomId,
-              {
-                type: 'peer_state',
-                playerId: player.id,
-                code: friendCode,
-                name: player.name,
-                x: msg.x,
-                y: msg.y,
-                bodyAngle: msg.bodyAngle,
-                turretAngle: msg.turretAngle,
-                hp: msg.hp,
-                maxHp: msg.maxHp,
-                shield: msg.shield,
-                level: msg.level,
-                isAfk: player.isAfk,
-                hasShield: msg.hasShield,
-                weapon: msg.weapon,
-                dead: msg.dead,
-              },
-              player.id
-            );
-          }
-          break;
-
-        case 'fire_bullet':
-          if (player.roomId) {
-            broadcastToRoom(
-              player.roomId,
-              {
-                type: 'peer_fired',
-                playerId: player.id,
-                x: msg.x,
-                y: msg.y,
-                vx: msg.vx,
-                vy: msg.vy,
-                damage: msg.damage,
-                color: msg.color,
-                weaponType: msg.weaponType,
-              },
-              player.id
-            );
-          }
-          break;
-
-        case 'wall_damaged':
-          if (player.roomId) {
-            broadcastToRoom(
-              player.roomId,
-              {
-                type: 'wall_damaged',
-                wallIndex: msg.wallIndex,
-                damage: msg.damage,
-              },
-              player.id
-            );
-          }
-          break;
-
-        case 'barrel_exploded':
-          if (player.roomId) {
-            broadcastToRoom(
-              player.roomId,
-              {
-                type: 'barrel_exploded',
-                barrelIndex: msg.barrelIndex,
-                x: msg.x,
-                y: msg.y,
-              },
-              player.id
-            );
-          }
-          break;
-
-        case 'crate_collected':
-          if (player.roomId) {
-            broadcastToRoom(
-              player.roomId,
-              {
-                type: 'crate_collected',
-                crateId: msg.crateId,
-                playerId: player.id,
-              },
-              player.id
-            );
-          }
-          break;
-
-        case 'bot_killed':
-          if (player.roomId) {
-            const room = rooms.get(player.roomId);
-            if (room) {
-              const botIndex = room.bots.findIndex((b) => b.id === msg.botId);
-              if (botIndex !== -1) {
-                room.bots.splice(botIndex, 1);
-
-                broadcastToRoom(
-                  player.roomId,
-                  {
-                    type: 'bot_killed',
-                    botId: msg.botId,
-                    playerId: player.id,
-                  },
-                  null
-                );
-
-                setTimeout(() => {
-                  if (!room || (room.players && room.players.size === 0)) return;
-
-                  if (rooms.has(room.id)) {
-                    const humanCount = room.players.size;
-                    const targetBotCount = BOT_COUNT_BY_HUMANS[humanCount] || 0;
-
-                    if (room.bots.length < targetBotCount) {
-                      balanceRoomBots(room);
-                    }
-                  }
-                }, 3500);
-              }
-            }
-          }
-          break;
-
-        case 'bot_sync':
-          if (player.roomId) {
-            const room = rooms.get(player.roomId);
-            if (room && room.hostId === player.id) {
-              room.lastBotSyncAt = Date.now();
-              broadcastToRoom(
-                player.roomId,
-                {
-                  type: 'bot_sync',
-                  bots: msg.bots,
-                },
-                player.id
-              );
-            }
-          }
-          break;
-
-        // Bot bullets exist only on the host -- relay them so every client sees/takes them.
-        case 'bot_fired':
-          if (player.roomId) {
-            const botFiredRoom = rooms.get(player.roomId);
-            if (botFiredRoom && botFiredRoom.hostId === player.id) {
-              broadcastToRoom(
-                player.roomId,
-                {
-                  type: 'peer_fired',
-                  playerId: 'BOT',
-                  x: msg.x,
-                  y: msg.y,
-                  vx: msg.vx,
-                  vy: msg.vy,
-                  damage: msg.damage,
-                  color: msg.color,
-                  weaponType: msg.weaponType,
-                },
-                player.id
-              );
-            }
-          }
-          break;
-
-        // "Shooter is the referee": relay a hit to the victim, who applies it authoritatively.
-        case 'hit_peer':
-          if (msg.targetId) {
-            sendTo(msg.targetId, {
-              type: 'hit_by_peer',
-              fromId: player.id,
-              fromName: player.name,
-              damage: Number(msg.damage) || 0,
-            });
-          }
-          break;
-
-        // Victim died -> tell the shooter so they get the kill credited.
-        case 'kill_credit':
-          if (msg.targetId) {
-            sendTo(msg.targetId, { type: 'kill_credit_awarded', targetName: player.name });
-          }
-          break;
-
-        // WebRTC Proximity Voice Signaling
-        case 'webrtc_signal':
-          if (msg.targetId) {
-            sendTo(msg.targetId, {
-              type: 'webrtc_signal',
-              fromId: player.id,
-              signal: msg.signal,
-            });
-          }
-          break;
+  ws.on('message', (raw) => {
+    // Xabar oqimini cheklash: soniyasiga 60 tadan oshganlari tashlab yuboriladi
+    if (!player.rl.allow()) {
+      if (player.rl.dropped > 600) {
+        try {
+          ws.terminate();
+        } catch (e) {}
       }
+      return;
+    }
+    player.lastSeen = Date.now();
+    let msg;
+    try {
+      msg = JSON.parse(raw);
+    } catch (e) {
+      return;
+    }
+    if (!msg || typeof msg.type !== 'string') return;
+    try {
+      handleMessage(player, msg);
     } catch (err) {
-      console.error('CRITICAL WS ERROR handling message from', player.id, ':', err);
-      console.error('Raw message was:', msgStr.substring(0, 200));
+      // Bitta buzuq xabar butun serverni yiqitmaydi
+      console.error('WS xabar xatosi', player.id, msg.type, err);
       Sentry.captureException(err);
     }
   });
 
   ws.on('close', () => {
-    if (player.roomId) {
-      const room = rooms.get(player.roomId);
-      if (room) {
-        room.players.delete(player.id);
-        updateRoomHost(room);
-        broadcastToRoom(room.id, {
-          type: 'player_left',
-          playerId: player.id,
-        });
-        balanceRoomBots(room);
-        updateRoomSectors(room);
-        if (room.players.size === 0 && room.id !== 'default-dm') {
-          rooms.delete(room.id);
-        }
-      }
-    }
+    // Shu ID bilan yangi ulanish allaqachon o'rnini egallagan bo'lishi mumkin
+    if (players.get(playerId) !== player) return;
+    leaveRoom(player);
     players.delete(playerId);
   });
 });
 
-server.listen(PORT, () => {
-  console.log(`=========================================`);
-  console.log(`🚀 AAA 2D Tank Battle Server Online!`);
-  console.log(`🌐 Local Port: ${PORT}`);
-  console.log(`📡 WebSocket Multiplayer & WebRTC Ready!`);
-  console.log(`=========================================`);
+function handleMessage(player, msg) {
+  const room = rooms.get(player.roomId);
+  switch (msg.type) {
+    case 'ping':
+      sendTo(player.id, { type: 'pong', time: num(msg.time) });
+      break;
 
-  // Optional Telegram Bot Mini App Service
-  const { initTelegramBot } = require('./lib/telegramBot');
-  const tgToken = process.env.TELEGRAM_BOT_TOKEN;
-  const gameUrl = process.env.GAME_URL || 'https://tank-game-production-c104.up.railway.app';
-  if (tgToken) {
-    initTelegramBot(tgToken, gameUrl);
+    case 'set_name': {
+      const cleanName = sanitizeName(msg.name);
+      if (!cleanName || !room) break;
+      player.name = cleanName;
+      broadcastToRoom(room.id, { type: 'player_renamed', playerId: player.id, name: player.name });
+      updateRoomSectors(room);
+      break;
+    }
+
+    case 'set_afk':
+      player.isAfk = !!msg.isAfk;
+      if (room) {
+        broadcastToRoom(
+          room.id,
+          { type: 'player_afk_status', playerId: player.id, isAfk: player.isAfk },
+          player.id
+        );
+      }
+      break;
+
+    case 'add_friend': {
+      const targetCid = codeToCid.get(String(msg.targetId).trim());
+      if (!targetCid || targetCid === player.id) {
+        sendTo(player.id, { type: 'friend_error', message: "Bunday kodli o'yinchi topilmadi" });
+        break;
+      }
+      player.friends.add(targetCid);
+      const targetPlayer = players.get(targetCid);
+      if (targetPlayer) {
+        targetPlayer.friends.add(player.id); // o'zaro do'stlik
+        sendTo(targetCid, {
+          type: 'friend_added',
+          friend: {
+            id: player.id,
+            name: player.name,
+            code: player.code,
+            online: true,
+            roomId: player.roomId,
+            isAfk: player.isAfk,
+          },
+        });
+      }
+      sendTo(player.id, { type: 'friends_list', friends: getFriendsListPayload(player.id) });
+      break;
+    }
+
+    case 'invite_friend': {
+      const target = players.get(msg.targetId);
+      if (target && player.friends.has(target.id)) {
+        sendTo(target.id, {
+          type: 'invite_received',
+          fromId: player.id,
+          fromName: player.name,
+          roomId: player.roomId,
+          mode: room ? room.mode : 'Deathmatch',
+        });
+      }
+      break;
+    }
+
+    case 'invite_response': {
+      const accept = !!msg.accept;
+      const inviter = players.get(msg.fromId);
+      if (accept && inviter && inviter.roomId) {
+        const targetRoom = rooms.get(inviter.roomId);
+        if (targetRoom && targetRoom.id !== player.roomId) {
+          if (targetRoom.players.size >= ROOM_CAPACITY) {
+            sendTo(player.id, { type: 'friend_error', message: "Do'stingiz jangi to'la (4/4)" });
+          } else {
+            joinRoom(player, targetRoom);
+          }
+        }
+      }
+      if (inviter) {
+        sendTo(inviter.id, {
+          type: 'invite_answered',
+          fromId: player.id,
+          fromName: player.name,
+          accept,
+        });
+      }
+      break;
+    }
+
+    // Harakat: server tekshiradi (tezlikni buzish, devor orqasidan "teleport" bo'lmasin)
+    case 'sync_state': {
+      if (!room) break;
+      const now = Date.now();
+      const prev = player.state;
+      const mv = validateMove(
+        prev ? { x: prev.x, y: prev.y, t: prev.t, dead: prev.d } : null,
+        { x: msg.x, y: msg.y, dead: !!msg.dead },
+        now
+      );
+      if (!mv.ok && now - player.lastCorrectionAt > 500) {
+        player.lastCorrectionAt = now;
+        sendTo(player.id, { type: 'pos_correct', x: mv.x, y: mv.y });
+      }
+      const mhp = Math.max(1, Math.min(400, num(msg.maxHp, 100)));
+      player.state = {
+        x: mv.x,
+        y: mv.y,
+        b: num(msg.bodyAngle),
+        tu: num(msg.turretAngle),
+        hp: Math.max(0, Math.min(mhp, num(msg.hp, mhp))),
+        mhp,
+        sh: Math.max(0, Math.min(100, num(msg.shield))),
+        lv: Math.max(1, Math.min(50, Math.round(num(msg.level, 1)))),
+        w: typeof msg.weapon === 'string' ? msg.weapon.slice(0, 12) : 'standard',
+        d: !!msg.dead,
+        t: now,
+        spawnedAt: !prev || mv.respawned ? now : prev.spawnedAt,
+      };
+      player.level = player.state.lv;
+      break;
+    }
+
+    case 'fire_bullet': {
+      if (!room) break;
+      if (!player.ledger.fire(msg, player.state)) break; // tez-tez otish / soxta o'q
+      broadcastToRoom(
+        room.id,
+        {
+          type: 'peer_fired',
+          playerId: player.id,
+          id: msg.id,
+          x: msg.x,
+          y: msg.y,
+          vx: msg.vx,
+          vy: msg.vy,
+          damage: msg.damage,
+          color: typeof msg.color === 'string' ? msg.color.slice(0, 24) : '#ffaa00',
+          weaponType: msg.weaponType,
+        },
+        player.id
+      );
+      break;
+    }
+
+    // Otgan o'yinchi "tegdi" deydi -> server tekshiradi -> natija HAMMAGA bir vaqtda ketadi
+    case 'hit_peer': {
+      if (!room) break;
+      const target = players.get(msg.targetId);
+      if (!target || target.roomId !== room.id || target === player) break;
+      const dmg = player.ledger.claimHit(msg, target.state);
+      if (dmg <= 0) break;
+      target.lastHitBy = { id: player.id, t: Date.now() };
+      broadcastToRoom(room.id, {
+        type: 'hit',
+        targetId: target.id,
+        attackerId: player.id,
+        attackerName: player.name,
+        damage: dmg,
+        bulletId: msg.bulletId,
+        x: num(msg.x),
+        y: num(msg.y),
+      });
+      break;
+    }
+
+    // Jabrlanuvchi o'ldi -> o'ldirgan odamga ochko (faqat u haqiqatan yaqinda urgan bo'lsa)
+    case 'kill_credit': {
+      const killer = players.get(msg.targetId);
+      const hit = player.lastHitBy;
+      if (!killer || !hit || hit.id !== killer.id) break;
+      if (Date.now() - hit.t > RULES.KILL_CREDIT_WINDOW_MS) break;
+      player.lastHitBy = null;
+      killer.kills++;
+      sendTo(killer.id, { type: 'kill_credit_awarded', targetName: player.name });
+      break;
+    }
+
+    case 'wall_damaged':
+      if (room && Number.isInteger(msg.wallIndex) && msg.wallIndex >= 0 && msg.wallIndex < 200) {
+        broadcastToRoom(
+          room.id,
+          {
+            type: 'wall_damaged',
+            wallIndex: msg.wallIndex,
+            damage: Math.max(0, Math.min(RULES.MAX_DAMAGE.rocket, num(msg.damage))),
+          },
+          player.id
+        );
+      }
+      break;
+
+    case 'crate_collected':
+      if (room && typeof msg.crateId === 'string') {
+        broadcastToRoom(
+          room.id,
+          { type: 'crate_collected', crateId: msg.crateId.slice(0, 40), playerId: player.id },
+          player.id
+        );
+      }
+      break;
+
+    case 'bot_killed': {
+      if (!room) break;
+      const botIndex = room.bots.findIndex((b) => b.id === msg.botId);
+      if (botIndex === -1) break;
+      room.bots.splice(botIndex, 1);
+      broadcastToRoom(room.id, { type: 'bot_killed', botId: msg.botId, playerId: player.id });
+      setTimeout(() => {
+        if (!rooms.has(room.id) || room.players.size === 0) return;
+        if (room.bots.length < (BOT_COUNT_BY_HUMANS[room.players.size] || 0)) {
+          balanceRoomBots(room);
+          updateRoomSectors(room);
+        }
+      }, 3500);
+      break;
+    }
+
+    // Botlarni xona hosti (bitta o'yinchi) boshqaradi; uning holati hammaga tarqatiladi
+    case 'bot_sync':
+      if (room && room.hostId === player.id && Array.isArray(msg.bots)) {
+        room.lastBotSyncAt = Date.now();
+        broadcastToRoom(room.id, { type: 'bot_sync', bots: msg.bots.slice(0, 8) }, player.id);
+      }
+      break;
+
+    case 'bot_fired':
+      if (room && room.hostId === player.id) {
+        broadcastToRoom(
+          room.id,
+          {
+            type: 'peer_fired',
+            playerId: 'BOT',
+            id: typeof msg.id === 'string' ? msg.id.slice(0, 40) : undefined,
+            x: num(msg.x),
+            y: num(msg.y),
+            vx: num(msg.vx),
+            vy: num(msg.vy),
+            damage: Math.max(0, Math.min(RULES.MAX_DAMAGE.rocket, num(msg.damage))),
+            color: typeof msg.color === 'string' ? msg.color.slice(0, 24) : '#ff3366',
+            weaponType: msg.weaponType,
+          },
+          player.id
+        );
+      }
+      break;
+
+    // WebRTC ovozli aloqa signali -- faqat bir xonadagilar orasida
+    case 'webrtc_signal': {
+      const target = players.get(msg.targetId);
+      if (target && target.roomId === player.roomId) {
+        sendTo(target.id, { type: 'webrtc_signal', fromId: player.id, signal: msg.signal });
+      }
+      break;
+    }
   }
-});
+}
+
+if (require.main === module) {
+  server.listen(PORT, () => {
+    console.log(`🚀 Tank Battle server: port ${PORT}`);
+    const { initTelegramBot } = require('./lib/telegramBot');
+    const tgToken = process.env.TELEGRAM_BOT_TOKEN;
+    const gameUrl = process.env.GAME_URL || 'https://tank-game-production-c104.up.railway.app';
+    if (tgToken) initTelegramBot(tgToken, gameUrl);
+  });
+}
+
+module.exports = { server, wss, rooms, players, ROOM_CAPACITY };

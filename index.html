@@ -3441,6 +3441,68 @@ yuklanmoqda…</pre>
         return Math.hypot(px - cx, py - cy) <= r;
       }
 
+      // --------------------------------------------------------------------------
+      // Uzoqdagi tanklarni silliq ko'rsatish (snapshot interpolation)
+      // --------------------------------------------------------------------------
+      function normAngle(a) {
+        while (a > Math.PI) a -= Math.PI * 2;
+        while (a < -Math.PI) a += Math.PI * 2;
+        return a;
+      }
+
+      function pushSnapshot(tank, t, x, y, body, turret) {
+        if (!tank.snaps) tank.snaps = [];
+        tank.snaps.push({ t, x, y, b: body || 0, tu: turret || 0 });
+        if (tank.snaps.length > 16) tank.snaps.shift();
+      }
+
+      // Tankni "delay" ms oldingi holatiga qo'yadi: ikki paket orasida chiziqli o'tish,
+      // paket kechiksa 150 ms gacha oldinga davom ettiradi (keyin to'xtaydi).
+      function interpolateRemote(tank, now, delay) {
+        const s = tank.snaps;
+        if (!s || s.length === 0) return;
+        const rt = now - delay;
+        let a = -1;
+        for (let i = s.length - 1; i >= 0; i--) {
+          if (s[i].t <= rt) {
+            a = i;
+            break;
+          }
+        }
+        let x, y, b, tu;
+        if (a === -1) {
+          ({ x, y, b, tu } = s[0]);
+        } else if (a === s.length - 1) {
+          const last = s[a];
+          const prev = s[a - 1];
+          const ahead = Math.min(150, rt - last.t);
+          if (prev && last.t > prev.t && ahead > 0) {
+            const k = ahead / (last.t - prev.t);
+            x = last.x + (last.x - prev.x) * k;
+            y = last.y + (last.y - prev.y) * k;
+          } else {
+            x = last.x;
+            y = last.y;
+          }
+          b = last.b;
+          tu = last.tu;
+        } else {
+          const p0 = s[a];
+          const p1 = s[a + 1];
+          const k = (rt - p0.t) / Math.max(1, p1.t - p0.t);
+          x = p0.x + (p1.x - p0.x) * k;
+          y = p0.y + (p1.y - p0.y) * k;
+          b = p0.b + normAngle(p1.b - p0.b) * k;
+          tu = p0.tu + normAngle(p1.tu - p0.tu) * k;
+        }
+        // Katta sakrash (qayta tug'ilish) -- silliqlamasdan darhol
+        tank.x = x;
+        tank.y = y;
+        tank.bodyAngle = b;
+        tank.turretAngle = tu;
+        tank.targetTurretAngle = tu;
+      }
+
       function hasLineOfSight(x1, y1, x2, y2, walls, wreckages = null) {
         if (walls && walls.length > 0) {
           for (let i = 0; i < walls.length; i++) {
@@ -5590,6 +5652,7 @@ yuklanmoqda…</pre>
 
           this.lastTime = performance.now();
           this.lastSyncTime = 0;
+          this.shotSeq = 0; // o'q raqami (server zarbani shu raqam bilan tekshiradi)
           this.gameOver = false;
 
           this.initDefaultSectors();
@@ -5926,7 +5989,7 @@ yuklanmoqda…</pre>
               'p_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
           }
           const sep = wsUrl.includes('?') ? '&' : '?';
-          const GAME_VERSION = 5;
+          const GAME_VERSION = 6;
           this.ws = new WebSocket(
             wsUrl + sep + 'cid=' + encodeURIComponent(clientId) + '&v=' + GAME_VERSION
           );
@@ -5952,6 +6015,119 @@ yuklanmoqda…</pre>
         sendWs(data) {
           if (this.ws && this.ws.readyState === WebSocket.OPEN) {
             this.ws.send(JSON.stringify(data));
+          }
+        }
+
+        // O'q otish: har o'qqa raqam beriladi -- server faqat haqiqatan otilgan o'qning
+        // zarbasini qabul qiladi
+        playerShoot() {
+          const prevLen = this.bullets.length;
+          if (!this.player.shoot(this.bullets, this.particles, this.floatingTexts)) return false;
+          for (let i = prevLen; i < this.bullets.length; i++) {
+            const b = this.bullets[i];
+            b.netId = `${this.playerId}:${++this.shotSeq}`;
+            this.sendWs({
+              type: 'fire_bullet',
+              id: b.netId,
+              x: b.x,
+              y: b.y,
+              vx: b.vx,
+              vy: b.vy,
+              damage: b.damage,
+              color: b.color,
+              weaponType: b.weaponType,
+            });
+          }
+          return true;
+        }
+
+        playerDropMine() {
+          const prevLen = this.landmines.length;
+          if (!this.player.dropLandmine(this.landmines, this.floatingTexts)) return false;
+          const mine = this.landmines[prevLen];
+          if (mine) {
+            mine.netId = `${this.playerId}:m${++this.shotSeq}`;
+            this.sendWs({
+              type: 'fire_bullet',
+              id: mine.netId,
+              x: mine.x,
+              y: mine.y,
+              vx: 0,
+              vy: 0,
+              damage: 100,
+              weaponType: 'mine',
+            });
+          }
+          return true;
+        }
+
+        // Server paketidagi bitta o'yinchi holati (qisqa maydon nomlari: server.js 'world')
+        applyPeerState(p, now) {
+          let peer = this.peers.get(p.id);
+          if (!peer) {
+            peer = new Tank(p.x, p.y, p.n, false, p.id);
+            peer.isRemote = true; // uning jon/o'limini faqat o'zi (va server) hal qiladi
+            this.peers.set(p.id, peer);
+            try {
+              this.refreshVoicePeerConnections(p.id);
+            } catch (e) {
+              console.warn('Voice Connection Error:', e);
+            }
+          }
+          const wasDead = peer.dead;
+          peer.dead = !!p.d;
+          if (wasDead && !peer.dead) {
+            // qayta tug'ildi: eski joydan yangi joyga "sirpanib" bormasin
+            peer.snaps = [];
+            peer.deathFadeAlpha = 0;
+            peer.hitFlashTimer = 0;
+          }
+          pushSnapshot(peer, now, p.x, p.y, p.b, p.tu);
+          // Biz urgan zarba serverdan qaytguncha bashorat qilingan jonni ushlab turamiz
+          if (peer.predictedHpUntil > now && p.hp > peer.predictedHp) {
+            peer.hp = peer.predictedHp;
+          } else {
+            peer.hp = p.hp;
+          }
+          peer.maxHp = p.mhp;
+          peer.shield = p.sh;
+          peer.level = p.lv;
+          peer.isAfk = !!p.afk;
+          peer.currentWeapon = p.w || 'standard';
+          peer.code = p.c || '';
+          if (p.n) peer.name = p.n;
+          peer.lastUpdate = Date.now();
+        }
+
+        // Zarba effekti boshqa o'yinchi tankida: uchqun, qizarish, zarar raqami.
+        // predicted=true -- o'zimiz urdik: jon chizig'i ham darhol kamayadi.
+        showRemoteHitFx(tank, damage, predicted) {
+          tank.hitFlashTimer = 0.18;
+          for (let k = 0; k < 10; k++) {
+            this.particles.push(
+              new Particle(
+                tank.x + (Math.random() - 0.5) * 14,
+                tank.y + (Math.random() - 0.5) * 14,
+                (Math.random() - 0.5) * 160,
+                (Math.random() - 0.5) * 160,
+                ['#ffd700', '#ff8800', '#ffffff'][k % 3],
+                3.2,
+                0.3,
+                'spark'
+              )
+            );
+          }
+          if (damage > 0) {
+            this.floatingTexts.push(
+              new FloatingText(tank.x, tank.y - 30, `-${Math.round(damage)}`, '#ff4466', 16)
+            );
+          }
+          if (predicted && damage > 0) {
+            const now = performance.now();
+            const base = tank.predictedHpUntil > now ? tank.predictedHp : tank.hp;
+            tank.predictedHp = Math.max(0, base - damage);
+            tank.predictedHpUntil = now + 700;
+            tank.hp = tank.predictedHp;
           }
         }
 
@@ -6311,10 +6487,14 @@ yuklanmoqda…</pre>
                     this.bots.push(b);
                   }
                   if (b && !b.dead) {
-                    b.targetX = bData.x;
-                    b.targetY = bData.y;
-                    b.targetBodyAngle = bData.bodyAngle;
-                    b.targetTurretAngle = bData.turretAngle;
+                    pushSnapshot(
+                      b,
+                      performance.now(),
+                      bData.x,
+                      bData.y,
+                      bData.bodyAngle,
+                      bData.turretAngle
+                    );
                     b.hp = bData.hp;
                   }
                 });
@@ -6370,50 +6550,24 @@ yuklanmoqda…</pre>
               break;
             }
 
-            case 'peer_state': {
-              let peer = this.peers.get(msg.playerId);
-              if (!peer) {
-                peer = new Tank(msg.x, msg.y, msg.name, false, msg.playerId);
-                peer.isRemote = true; // this client never resolves damage/death for it -- its owner does
-                this.peers.set(msg.playerId, peer);
-                try {
-                  this.refreshVoicePeerConnections(msg.playerId);
-                } catch (e) {
-                  console.warn('Voice Connection Error:', e);
-                }
-              }
-              if (peer.x === undefined) {
-                peer.x = msg.x;
-                peer.y = msg.y;
-                peer.bodyAngle = msg.bodyAngle;
-                peer.turretAngle = msg.turretAngle;
-              }
-              peer.targetX = msg.x;
-              peer.targetY = msg.y;
-              peer.targetBodyAngle = msg.bodyAngle;
-              peer.targetTurretAngle = msg.turretAngle;
-              peer.hp = msg.hp;
-              peer.maxHp = msg.maxHp;
-              peer.shield = msg.shield;
-              peer.level = msg.level;
-              peer.isAfk = msg.isAfk;
-              peer.currentWeapon = msg.weapon || 'standard';
-              peer.code = msg.code || '';
-              if (msg.name) peer.name = msg.name; // Always sync name from server
-              peer.lastUpdate = Date.now();
-
-              // AUTHORITATIVE alive/dead: egasi aytgan holat ishlatiladi (mahalliy zarar peer.dead'ni belgilamaydi)
-              const wasDead = peer.dead;
-              peer.dead = !!msg.dead;
-              if (wasDead && !peer.dead) {
-                // qayta tiriltirilgan puppet: o'lim vizual holatini tozala
-                peer.deathFadeAlpha = 0;
-                peer.hitFlashTimer = 0;
-                peer.vx = 0;
-                peer.vy = 0;
+            // Server har 50 ms da xonadagi hamma tanklarni bitta paketda yuboradi
+            case 'world': {
+              const now = performance.now();
+              for (const p of msg.players || []) {
+                if (p.id !== this.playerId) this.applyPeerState(p, now);
               }
               break;
             }
+
+            // Server harakatimizni rad etdi (masalan devor ichidan o'tish) -- joyimizni tuzatamiz
+            case 'pos_correct':
+              if (this.player && !this.player.dead) {
+                this.player.x = msg.x;
+                this.player.y = msg.y;
+                this.player.vx = 0;
+                this.player.vy = 0;
+              }
+              break;
 
             case 'webrtc_signal':
               this.handleVoiceSignal(msg.fromId, msg.signal);
@@ -6421,19 +6575,26 @@ yuklanmoqda…</pre>
 
             case 'peer_fired': {
               const shooterPeer = this.peers.get(msg.playerId) || null;
-              this.bullets.push(
-                new Bullet(
-                  msg.x,
-                  msg.y,
-                  msg.vx,
-                  msg.vy,
-                  msg.damage,
-                  shooterPeer,
-                  msg.color || '#ffaa00',
-                  4.2,
-                  msg.weaponType || 'standard'
-                )
+              if (msg.weaponType === 'mine') {
+                // Raqib minasi bizda ham ko'rinadi va ishlaydi
+                const mine = new Landmine(msg.x, msg.y, shooterPeer);
+                mine.netId = msg.id;
+                this.landmines.push(mine);
+                break;
+              }
+              const nb = new Bullet(
+                msg.x,
+                msg.y,
+                msg.vx,
+                msg.vy,
+                msg.damage,
+                shooterPeer,
+                msg.color || '#ffaa00',
+                4.2,
+                msg.weaponType || 'standard'
               );
+              nb.netId = msg.id;
+              this.bullets.push(nb);
               audio.playShoot(msg.weaponType || 'standard', false, msg.x, msg.y);
               const peerX = msg.x,
                 peerY = msg.y;
@@ -6454,18 +6615,29 @@ yuklanmoqda…</pre>
               this.renderFriendsList();
               break;
 
-            // A remote shooter hit us -- we are the authority on our own hp/death.
-            case 'hit_by_peer': {
-              if (this.player.dead) break;
-              const attacker = this.peers.get(msg.fromId) || null;
-              this.player.takeDamage(msg.damage, attacker, this.floatingTexts, this.particles);
-              this.triggerScreenShake(0.12, 2.4);
-              if (this.player.dead) {
-                this.sendWs({ type: 'kill_credit', targetId: msg.fromId });
-                this.addKillFeedItem(
-                  msg.fromName || (attacker && attacker.name) || "Noma'lum",
-                  this.player.name
-                );
+            // Server tasdiqlagan zarba -- xonadagi HAMMAGA bir vaqtda keladi
+            case 'hit': {
+              if (msg.targetId === this.playerId) {
+                if (this.player.dead) break;
+                const attacker = this.peers.get(msg.attackerId) || null;
+                this.player.takeDamage(msg.damage, attacker, this.floatingTexts, this.particles);
+                this.triggerScreenShake(0.12, 2.4);
+                if (this.player.dead) {
+                  this.sendWs({ type: 'kill_credit', targetId: msg.attackerId });
+                  this.addKillFeedItem(
+                    msg.attackerName || (attacker && attacker.name) || "Noma'lum",
+                    this.player.name
+                  );
+                }
+              } else if (msg.attackerId !== this.playerId) {
+                // Uchinchi o'yinchi: boshqa ikki kishining otishmasini ham darhol ko'radi
+                const victim = this.peers.get(msg.targetId);
+                if (victim) this.showRemoteHitFx(victim, msg.damage, false);
+              }
+              // Shu o'q bizning ekranimizda hali uchib yurgan bo'lsa -- o'chiramiz
+              if (msg.bulletId) {
+                const k = this.bullets.findIndex((b) => b.netId === msg.bulletId);
+                if (k !== -1) this.bullets.splice(k, 1);
               }
               break;
             }
@@ -7321,23 +7493,7 @@ yuklanmoqda…</pre>
               fireBtn.classList.add('active');
               if (this.player && !this.player.dead) {
                 this.player.isAfk = false;
-                const prevLen = this.bullets.length;
-                const fired = this.player.shoot(this.bullets, this.particles, this.floatingTexts);
-                if (fired) {
-                  for (let i = prevLen; i < this.bullets.length; i++) {
-                    const b = this.bullets[i];
-                    this.sendWs({
-                      type: 'fire_bullet',
-                      x: b.x,
-                      y: b.y,
-                      vx: b.vx,
-                      vy: b.vy,
-                      damage: b.damage,
-                      color: b.color,
-                      weaponType: b.weaponType,
-                    });
-                  }
-                }
+                this.playerShoot();
               }
             };
             const stopFire = (e) => {
@@ -7385,7 +7541,7 @@ yuklanmoqda…</pre>
               audio.init();
               mineBtn.classList.add('active');
               if (this.player && !this.player.dead) {
-                this.player.dropLandmine(this.landmines, this.floatingTexts);
+                this.playerDropMine();
                 const tm = document.getElementById('touchMineCount');
                 if (tm) tm.textContent = this.player.minesCount;
               }
@@ -7539,7 +7695,7 @@ yuklanmoqda…</pre>
 
             if (e.code === 'Space') {
               e.preventDefault();
-              this.player.dropLandmine(this.landmines, this.floatingTexts);
+              this.playerDropMine();
             }
 
             if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') {
@@ -7652,7 +7808,7 @@ yuklanmoqda…</pre>
                     );
                   }
                   if (b.weaponType === 'rocket') {
-                    this.triggerExplosionAoE(b.x, b.y, 150, 80, b.owner);
+                    this.triggerExplosionAoE(b.x, b.y, 150, 80, b.owner, b.netId);
                   }
                   break;
                 }
@@ -7718,7 +7874,7 @@ yuklanmoqda…</pre>
 
               bulletDestroyed = true;
               if (b.weaponType === 'rocket') {
-                this.triggerExplosionAoE(b.x, b.y, 150, 80, b.owner);
+                this.triggerExplosionAoE(b.x, b.y, 150, 80, b.owner, b.netId);
               } else {
                 for (let k = 0; k < 5; k++) {
                   this.particles.push(
@@ -7797,11 +7953,20 @@ yuklanmoqda…</pre>
                 // stays authoritative there and never desyncs.
                 if (tank.isRemote) {
                   if (b.owner === this.player && tank.playerId) {
-                    this.sendWs({ type: 'hit_peer', targetId: tank.playerId, damage: b.damage });
+                    // Server tekshiradi va hammaga tarqatadi; biz esa natijani DARHOL ko'rsatamiz
+                    this.sendWs({
+                      type: 'hit_peer',
+                      targetId: tank.playerId,
+                      damage: b.damage,
+                      bulletId: b.netId,
+                      x: tank.x,
+                      y: tank.y,
+                    });
+                    this.showRemoteHitFx(tank, b.damage, true);
                   }
                 } else if (tank === this.player && b.owner && b.owner.isRemote) {
-                  // uzoqdagi o'yinchi o'qi mahalliy zarar bermaydi -- zarar faqat
-                  // 'hit_by_peer' orqali keladi (ikki karra zarar bo'lmasin)
+                  // Raqib o'qi bizga tegdi: uchqun darhol, zarar esa server tasdig'i ('hit') bilan
+                  this.showRemoteHitFx(tank, 0, false);
                 } else {
                   tank.takeDamage(b.damage, b.owner, this.floatingTexts, this.particles);
                 }
@@ -7851,7 +8016,7 @@ yuklanmoqda…</pre>
                 }
 
                 if (b.weaponType === 'rocket') {
-                  this.triggerExplosionAoE(b.x, b.y, 150, 80, b.owner);
+                  this.triggerExplosionAoE(b.x, b.y, 150, 80, b.owner, b.netId);
                 }
                 bulletDestroyed = true;
                 break;
@@ -7878,7 +8043,7 @@ yuklanmoqda…</pre>
               if (tank.dead || tank === mine.owner) continue;
               if (Math.hypot(tank.x - mine.x, tank.y - mine.y) < tank.radius + mine.radius) {
                 mine.detonated = true;
-                this.triggerExplosionAoE(mine.x, mine.y, 150, 100, mine.owner);
+                this.triggerExplosionAoE(mine.x, mine.y, 150, 100, mine.owner, mine.netId);
                 this.landmines.splice(m, 1);
                 break;
               }
@@ -7886,7 +8051,7 @@ yuklanmoqda…</pre>
           }
         }
 
-        triggerExplosionAoE(x, y, radius, damage, attacker) {
+        triggerExplosionAoE(x, y, radius, damage, attacker, netId) {
           window.freezeTimer = 0.04; // 1. HIT-STOP (40ms micro-freeze on heavy explosions)
           audio.playExplosion(radius > 160, x, y);
           if (
@@ -7968,11 +8133,19 @@ yuklanmoqda…</pre>
             const factor = 1 - dist / radius;
             if (tank.isRemote) {
               // same "shooter is the referee" rule as direct bullet hits
-              if (attacker === this.player && tank.playerId) {
-                this.sendWs({ type: 'hit_peer', targetId: tank.playerId, damage: damage * factor });
+              if (attacker === this.player && tank.playerId && netId) {
+                this.sendWs({
+                  type: 'hit_peer',
+                  targetId: tank.playerId,
+                  damage: damage * factor,
+                  bulletId: netId,
+                  x: tank.x,
+                  y: tank.y,
+                });
+                this.showRemoteHitFx(tank, damage * factor, true);
               }
             } else if (tank === this.player && attacker && attacker.isRemote) {
-              // zarar 'hit_by_peer' orqali keladi
+              // zarar server tasdig'i ('hit') bilan keladi
             } else {
               tank.takeDamage(damage * factor, attacker, this.floatingTexts, this.particles);
             }
@@ -8189,23 +8362,7 @@ yuklanmoqda…</pre>
             audio.updateCombatTension(this.player.hp / this.player.maxHp, dt);
 
             if (this.mouse.isDown) {
-              const prevLen = this.bullets.length;
-              const fired = this.player.shoot(this.bullets, this.particles, this.floatingTexts);
-              if (fired) {
-                for (let i = prevLen; i < this.bullets.length; i++) {
-                  const b = this.bullets[i];
-                  this.sendWs({
-                    type: 'fire_bullet',
-                    x: b.x,
-                    y: b.y,
-                    vx: b.vx,
-                    vy: b.vy,
-                    damage: b.damage,
-                    color: b.color,
-                    weaponType: b.weaponType,
-                  });
-                }
-              }
+              this.playerShoot();
             }
 
             for (const crate of this.crates) {
@@ -8402,7 +8559,7 @@ yuklanmoqda…</pre>
           // Egasi o'zining holatini DOIM yuboradi (o'lganda ham) -> peer hech qachon
           // "javobsiz qolib" stale bo'lib o'chib ketmaydi, o'lim/tirilish darrov ko'rinadi.
           const now = Date.now();
-          if (!this.lastSyncTime || now - this.lastSyncTime >= 35) {
+          if (!this.lastSyncTime || now - this.lastSyncTime >= 50) {
             this.lastSyncTime = now;
             this.sendWs({
               type: 'sync_state',
@@ -8466,24 +8623,10 @@ yuklanmoqda…</pre>
             });
           }
 
-          // Update Peers (LERP outside of player dead state)
-          for (const peer of this.peers.values()) {
-            if (peer.targetX !== undefined) {
-              const lerpFactor = Math.min(1, 15 * dt);
-              peer.x += (peer.targetX - peer.x) * lerpFactor;
-              peer.y += (peer.targetY - peer.y) * lerpFactor;
-
-              let diffB = peer.targetBodyAngle - peer.bodyAngle;
-              while (diffB < -Math.PI) diffB += Math.PI * 2;
-              while (diffB > Math.PI) diffB -= Math.PI * 2;
-              peer.bodyAngle += diffB * lerpFactor;
-
-              let diffT = peer.targetTurretAngle - peer.turretAngle;
-              while (diffT < -Math.PI) diffT += Math.PI * 2;
-              while (diffT > Math.PI) diffT -= Math.PI * 2;
-              peer.turretAngle += diffT * lerpFactor;
-            }
-          }
+          // Boshqa o'yinchilar: 2 ta server paketi orasida silliq (110 ms orqada) ko'rsatiladi --
+          // sakrash va "orqaga tortilish" bo'lmaydi
+          const nowPerf = performance.now();
+          for (const peer of this.peers.values()) interpolateRemote(peer, nowPerf, 110);
 
           // Update Bots
           for (let b = this.bots.length - 1; b >= 0; b--) {
@@ -8495,21 +8638,7 @@ yuklanmoqda…</pre>
             const botSyncFresh = Date.now() - (this.lastBotSyncAt || 0) < 2500;
             if (!this.isHost && botSyncFresh) {
               // CLIENT: Interpolate bot physics
-              if (bot.targetX !== undefined) {
-                const lerpFactor = Math.min(1, 15 * dt);
-                bot.x += (bot.targetX - bot.x) * lerpFactor;
-                bot.y += (bot.targetY - bot.y) * lerpFactor;
-
-                let diffB = bot.targetBodyAngle - bot.bodyAngle;
-                while (diffB < -Math.PI) diffB += Math.PI * 2;
-                while (diffB > Math.PI) diffB -= Math.PI * 2;
-                bot.bodyAngle += diffB * lerpFactor;
-
-                let diffT = bot.targetTurretAngle - bot.turretAngle;
-                while (diffT < -Math.PI) diffT += Math.PI * 2;
-                while (diffT > Math.PI) diffT -= Math.PI * 2;
-                bot.turretAngle += diffT * lerpFactor;
-              }
+              interpolateRemote(bot, nowPerf, 220); // bot_sync har 150 ms da keladi
               continue;
             }
 
@@ -8526,8 +8655,10 @@ yuklanmoqda…</pre>
             if (this.isHost) {
               for (let nb = bulletsBefore; nb < this.bullets.length; nb++) {
                 const nBullet = this.bullets[nb];
+                nBullet.netId = `${this.playerId}:b${++this.shotSeq}`;
                 this.sendWs({
                   type: 'bot_fired',
+                  id: nBullet.netId,
                   x: nBullet.x,
                   y: nBullet.y,
                   vx: nBullet.vx,
